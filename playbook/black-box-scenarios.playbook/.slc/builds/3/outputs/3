@@ -1,0 +1,399 @@
+import { setup, assign, fromPromise } from 'xstate';
+
+// Link authority: every delegated-player outcome, including needsBossReply, has
+// repositoryDisposition "unchanged" — Git HEAD and the Git-visible working tree
+// stay fixed and the `.delivery-acceptance` ledger is Git-ignored. The
+// needsBossReply.question field is presentation-owned. No outcome is deferred
+// or requires a Git commit, and this workflow creates no Git commits.
+
+const prompts = {
+  'ENTRY-1': [
+    'Verify that the supplied requirements file contains a confirmed version with source and stable, unique IDs with nonempty text.',
+    'If it is absent or ambiguous, report the exact gap; do not invent or approve requirements.',
+    'Otherwise run `python3 <skill>/scripts/playbook.py init <project> --requirements <requirements-file>` on first use, or `import-requirements` when the approved source changed.',
+    'If an initialized ledger already has the same requirements snapshot, reuse it without deleting prior decisions.',
+    'A changed approved requirements snapshot invalidates prior scenario completeness.',
+    'Never put real credentials in the ledger.',
+    'Do not invoke `run_workflow.py`, `/black-box-scenarios`, or another Playbook from inside this session.',
+    '> <project>',
+    '> <requirements-file>',
+    '> <skill>',
+  ].join('\n'),
+  'DESIGN-1': [
+    'Map every confirmed requirement to at least one black-box scenario.',
+    'Derive relevant operation modes, user states, normal and exceptional behavior, boundaries and transitions from the confirmed requirements; include important combinations, not just the easiest happy path.',
+    'A method must start from a reproducible state, perform the actual user action, and assert an observable result that would fail for an incorrect implementation.',
+    'Keep the scenario observable from the user or external system boundary, and do not claim a particular implementation.',
+    'Record in `.delivery-acceptance/scenarios.json` with `kind: black_box`, `title`, `requirement_ids`, `expected`, and `method_ids`.',
+    'Record reusable AI-operated methods in `.delivery-acceptance/methods.json` with concrete `preconditions`, `actions`, `evidence_expected`, and `description`; these are plans for later execution, not evidence that execution occurred.',
+    'Link existing test-case references only if they are actually present.',
+    'Set `black_box_complete` only after assessing every confirmed ID.',
+    'Do not set `white_box_complete` without reviewing implemented design or code.',
+    'Preserve any existing white-box scenarios and resource decisions; a new requirements import already invalidates completeness.',
+    'Do not author or mark the independent `coverage_review.json` as passed.',
+    'Follow the ledger structure in `<skill>/references/data-model.md`; keep the ledger Git-ignored and put no real credentials in it.',
+    'Leave Git HEAD and the Git-visible worktree unchanged.',
+    'Never ask Boss for the location of an unimplemented app in this workflow.',
+    'Do not invoke `run_workflow.py`, `/black-box-scenarios`, or another Playbook from inside this session.',
+    '> <project>',
+    '> <skill>',
+  ].join('\n'),
+  'REVIEW-1': [
+    "Judge a requirement's acceptance scenarios sufficient only when passing their eventual real execution with the required evidence would support delivering that requirement to users within its agreed usage scope without an obvious defect.",
+    'For each important operation mode, user state, boundary and transition, imagine a plausible incorrect implementation.',
+    'If that implementation could still pass every linked scenario, fail the review and identify the escaping fault.',
+    'When unsure how to review a requirement, use this counterfactual question to decide what to inspect or add.',
+    'Requirement-ID coverage and scenario count alone never establish sufficiency.',
+    'Design review cannot itself prove the App works or that every possible bug is absent.',
+    'Independently inspect the confirmed requirements, and the scenario and method ledgers.',
+    'Apply the fundamental principle to every requirement: enumerate its important operation modes and user states, including relevant normal, exceptional, boundary, and transition behavior.',
+    'For each important mode and state, propose a plausible incorrect implementation and determine which linked scenario would actually fail and what observable result would expose it.',
+    "Challenge the operation-mode and state list itself; do not merely review the Analyst's selected cases.",
+    'If a plausible important fault can escape, if a method cannot produce its claimed failure signal, or if a requirement is too ambiguous to know the intended outcome, report the exact requirement IDs, missing modes/states, and counterexamples.',
+    'Do not treat one scenario per ID, an unchanged screen, or a vague assertion as sufficient evidence.',
+    'You alone write `.delivery-acceptance/coverage_review.json` following `<skill>/references/data-model.md`: one record per requirement with `operation_modes`, `user_states`, `fault_probes` (mode, state, plausible_fault, linked scenario_ids, observable failure_signal), a reasoned verdict, and `uncovered_paths`.',
+    'Obtain the three scoped snapshot hashes with `python3 <skill>/scripts/playbook.py review-hashes <project>` after reading the current scenarios and methods.',
+    'Mark the review `passed` only if every requirement is sufficient and no important path remains uncovered.',
+    "Do not modify Analyst's ledger; only Analyst repairs it.",
+    'Then run `python3 <skill>/scripts/playbook.py check <project> --stage black-box` and report its exact requirements, black-box-scenarios, and coverage-review gate results.',
+    'Return `passed` only when the substantive counterfactual review and all three direct checker gates pass; otherwise return `gaps` with exact `failureDetails`.',
+    'Resource, white-box, execution, and run-evidence gates are not prerequisites to this design review.',
+    'Do not ask Boss to approve an ordinary scenario list.',
+    'Do not invoke `run_workflow.py`, `/black-box-scenarios`, or another Playbook from inside this session.',
+    '> <project>',
+    '> <skill>',
+  ].join('\n'),
+  'REPAIR-1': [
+    'Repair only the named gaps in the ignored ledger files, preserving confirmed requirement IDs and existing valid scenarios.',
+    'Read the black-box gate report at `<project>/.delivery-acceptance/black-box-gate.json` when the stage checker failed.',
+    'Leave Git HEAD and the Git-visible worktree unchanged.',
+    'Do not invoke `run_workflow.py`, `/black-box-scenarios`, or another Playbook from inside this session.',
+    '> <project>',
+    '> <failureDetails>',
+  ].join('\n'),
+  'COMPLETION-1': [
+    'Report `scenariosReady` with a nonempty `response` naming the scenario ledger path, the number of black-box scenarios, the requirement coverage, and the black-box gate report.',
+    'Completion is read-only: do not edit any file, including tracked documentation or ledger files, or run more design or checker work.',
+    'Explicitly state that no App behavior was executed or accepted.',
+    'A `scenariosReady` result is a successful design deliverable, not full application acceptance.',
+    'Otherwise report `incomplete` with the exact failure details.',
+    'Never declare application delivery accepted here.',
+    '> <project>',
+    '> <failureDetails>',
+  ].join('\n'),
+} as const;
+export type MachineInput = Record<string, never>;
+export type MachineOutput = { response: string };
+export type PendingBossQuestion = {
+  questionId: WorkingStateId;
+  resumeStateId: WorkingStateId;
+  sourceItem: string;
+  asker: { kind: 'captain' } | { kind: 'role'; roleId: 'analyst' | 'reviewer' };
+  question: string;
+};
+type WorkingStateId = 'entry' | 'scenarioDesign' | 'scenarioReview' | 'scenarioRepair' | 'blackBoxGate' | 'completion';
+type JumpableStateId = WorkingStateId;
+type Context = {
+  project: string;
+  requirementsFile: string;
+  skill: string;
+  failureDetails: string;
+  requirementsReady: boolean;
+  scenariosReady: boolean;
+  scenarioRounds: number;
+  scenarioReviewPassed: boolean;
+  blackBoxGatePassed: boolean;
+  response: string;
+  pendingBossQuestion?: PendingBossQuestion;
+  bossReply?: string;
+  lastError?: { name: string; message: string; stack?: string };
+};
+type Events =
+  | { type: 'START'; project: string; requirementsFile: string; skill: string }
+  | { type: 'BOSS_INTERRUPT'; targetId: JumpableStateId }
+  | { type: 'BOSS_REPLY'; answer: string; questionId?: string };
+type ActorCommon = {
+  stateId: WorkingStateId;
+  sourceItem: string;
+  prompt: string;
+  result: Readonly<Record<string, string>>;
+  pendingBossQuestion?: PendingBossQuestion;
+  bossReply?: string;
+};
+export type CaptainInput = ActorCommon & {
+  project?: string;
+  failureDetails?: string;
+};
+export type PlayerInput = ActorCommon & {
+  role: 'analyst' | 'reviewer';
+  project?: string;
+  requirementsFile?: string;
+  skill?: string;
+  failureDetails?: string;
+};
+export type ScriptInput = {
+  stateId: 'blackBoxGate';
+  sourceItem: 'GATE-1';
+  command: string;
+  result: Readonly<Record<string, string>>;
+};
+export type ScriptOutput =
+  | { guard: 'passed'; exitStatus: number }
+  | { guard: 'failed'; exitStatus: number };
+export type CaptainOutput =
+  | { guard: 'needsBossReply'; question: string }
+  | { guard: 'scenariosReady'; response: string }
+  | { guard: 'incomplete'; response: string };
+export type PlayerOutput =
+  | { guard: 'done' }
+  | { guard: 'needsBossReply'; question: string }
+  | { guard: 'ready' }
+  | { guard: 'requirementsGap'; failureDetails: string }
+  | { guard: 'passed' }
+  | { guard: 'gaps'; failureDetails: string };
+export const concurrentRoleSets: readonly (readonly string[])[] = [];
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown> : undefined;
+}
+function output(event: unknown): Record<string, unknown> | undefined {
+  return record(record(event)?.output);
+}
+function field(event: unknown, name: string): string | undefined {
+  const value = output(event)?.[name];
+  return typeof value === 'string' ? value : undefined;
+}
+function nonempty(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+function result(event: unknown, guard: string): boolean {
+  return output(event)?.guard === guard;
+}
+function resultWith(event: unknown, guard: string, name: string): boolean {
+  return result(event, guard) && nonempty(field(event, name));
+}
+function scriptResult(event: unknown, guard: 'passed' | 'failed'): boolean {
+  const value = output(event);
+  return value?.guard === guard && typeof value.exitStatus === 'number' &&
+    Number.isInteger(value.exitStatus) && (guard === 'passed' ? value.exitStatus === 0 : value.exitStatus !== 0);
+}
+function shellWord(value: string): string {
+  return "'" + value.replaceAll("'", "'\\''") + "'";
+}
+const blackBoxGateCommandTemplate = "python3 '<skill>'/scripts/playbook.py check '<project>' --stage black-box > '<project>'/.delivery-acceptance/black-box-gate.json";
+function gateCommand(context: Context): string {
+  if (!nonempty(context.project) || !nonempty(context.skill)) {
+    return blackBoxGateCommandTemplate;
+  }
+  return `python3 ${shellWord(context.skill)}/scripts/playbook.py check ${shellWord(context.project)} --stage black-box > ${shellWord(context.project)}/.delivery-acceptance/black-box-gate.json`;
+}
+function normalizedError(event: unknown): { name: string; message: string; stack?: string } {
+  const error = record(event)?.error;
+  if (error instanceof Error) {
+    return { name: error.name, message: error.message, ...(typeof error.stack === 'string' ? { stack: error.stack } : {}) };
+  }
+  return { name: 'Error', message: typeof error === 'string' ? error : 'Actor failed.' };
+}
+function actorFields(context: Context): Pick<ActorCommon, 'pendingBossQuestion' | 'bossReply'> {
+  return {
+    ...(context.pendingBossQuestion ? { pendingBossQuestion: context.pendingBossQuestion } : {}),
+    ...(context.bossReply !== undefined ? { bossReply: context.bossReply } : {}),
+  };
+}
+function canEnter(id: JumpableStateId, context: Context): boolean {
+  const base = nonempty(context.project) && nonempty(context.skill);
+  switch (id) {
+    case 'entry': return base && nonempty(context.requirementsFile);
+    case 'scenarioDesign': return base && context.requirementsReady;
+    case 'scenarioReview': return base && context.scenariosReady && context.scenarioRounds < 3;
+    case 'scenarioRepair': return base && context.scenariosReady && nonempty(context.failureDetails) && context.scenarioRounds < 3;
+    case 'blackBoxGate': return base && context.scenarioReviewPassed;
+    case 'completion': return nonempty(context.project);
+  }
+}
+function bossInterrupts(ids: readonly JumpableStateId[]) {
+  return ids.map((id) => ({
+    guard: ({ context, event }: { context: Context; event: Events }) =>
+      event.type === 'BOSS_INTERRUPT' && event.targetId === id && canEnter(id, context),
+    target: `#${id}`,
+    reenter: true,
+    actions: id === 'entry' ? 'resetFlow' as const :
+      id === 'scenarioReview' ? ['clearBossReplyContext', 'nextScenarioRound'] as const :
+      'clearBossReplyContext' as const,
+  }));
+}
+function resumableStates(ids: readonly WorkingStateId[]) {
+  return ids.map((id) => ({
+    guard: ({ context, event }: { context: Context; event: Events }) =>
+      event.type === 'BOSS_REPLY' && nonempty(event.answer) &&
+      context.pendingBossQuestion?.resumeStateId === id &&
+      (event.questionId === undefined || event.questionId === id),
+    target: `#${id}`,
+    actions: 'setBossReply' as const,
+  }));
+}
+const questionDescription = "The acting agent's prose surfaces a clarifying question for Boss that the agent cannot answer alone. Output shall include `question: <verbatim question text from the acting agent's prose>`.";
+function replyResult<T extends Record<string, string>>(authored: T): T & { needsBossReply: string } {
+  return { ...authored, needsBossReply: questionDescription };
+}
+function replyArm(stateId: WorkingStateId, sourceItem: string, role?: 'analyst' | 'reviewer') {
+  return {
+    guard: ({ event }: { event: unknown }) => resultWith(event, 'needsBossReply', 'question'),
+    target: 'awaitBossReply',
+    actions: role
+      ? [accepted(stateId, 'awaitBossReply', 'needsBossReply'), { type: 'setPendingBossQuestion' as const, params: { stateId, sourceItem, role } }]
+      : [{ type: 'setPendingBossQuestion' as const, params: { stateId, sourceItem } }],
+  } as const;
+}
+const malformed = { target: 'failed', actions: ['clearBossReplyContext', 'rememberMalformedOutput'] } as const;
+const actorError = { target: 'failed', actions: ['clearBossReplyContext', 'rememberActorError'] } as const;
+const accepted = (source: WorkingStateId, target: string, acceptedOutcome: string) =>
+  ({ type: 'playbook.acceptedOutcome', params: { source, target, acceptedOutcome } } as const);
+export const blackBoxScenariosMachine = setup({
+  types: {} as { context: Context; events: Events; input: MachineInput; output: MachineOutput },
+  actors: {
+    captain: fromPromise<CaptainOutput, CaptainInput>(async () => { throw new Error('captain actor must be provided by the runner'); }),
+    player: fromPromise<PlayerOutput, PlayerInput>(async () => { throw new Error('player actor must be provided by the runner'); }),
+    script: fromPromise<ScriptOutput, ScriptInput>(async () => { throw new Error('script actor must be provided by the runner'); }),
+  },
+  actions: {
+    'playbook.acceptedOutcome': (_args, _params: { source: string; target: string; acceptedOutcome: string }) => {},
+    start: assign(({ event }) => event.type === 'START' ? {
+      project: event.project, requirementsFile: event.requirementsFile, skill: event.skill,
+      failureDetails: '', requirementsReady: false, scenariosReady: false, scenarioRounds: 0,
+      scenarioReviewPassed: false, blackBoxGatePassed: false, response: '',
+      pendingBossQuestion: undefined, bossReply: undefined, lastError: undefined,
+    } : {}),
+    resetFlow: assign(() => ({ failureDetails: '', requirementsReady: false, scenariosReady: false, scenarioRounds: 0, scenarioReviewPassed: false, blackBoxGatePassed: false, response: '', pendingBossQuestion: undefined, bossReply: undefined, lastError: undefined })),
+    setPendingBossQuestion: assign(({ event }, params: { stateId: WorkingStateId; sourceItem: string; role?: 'analyst' | 'reviewer' }) => ({
+      pendingBossQuestion: {
+        questionId: params.stateId,
+        resumeStateId: params.stateId,
+        sourceItem: params.sourceItem,
+        asker: params.role ? { kind: 'role' as const, roleId: params.role } : { kind: 'captain' as const },
+        question: field(event, 'question') ?? '',
+      },
+      bossReply: undefined,
+    })),
+    setBossReply: assign(({ event }) => event.type === 'BOSS_REPLY' ? { bossReply: event.answer } : {}),
+    clearBossReplyContext: assign(() => ({ pendingBossQuestion: undefined, bossReply: undefined })),
+    rememberFailureDetails: assign(({ event }) => ({ failureDetails: field(event, 'failureDetails') ?? '' })),
+    rememberResponse: assign(({ event }) => ({ response: field(event, 'response') ?? '' })),
+    rememberActorError: assign(({ event }) => ({ lastError: normalizedError(event) })),
+    rememberMalformedOutput: assign(() => ({ lastError: { name: 'MalformedActorOutput', message: 'Actor output did not match a declared result.' } })),
+    rememberMalformedReply: assign(() => ({ lastError: { name: 'MalformedBossReply', message: 'Boss reply is empty or does not name the pending question.' } })),
+    rememberScriptFailure: assign(({ event }) => ({
+      failureDetails: `Black-box stage checker failed (exit ${output(event)?.exitStatus ?? 'unknown'}); inspect .delivery-acceptance/black-box-gate.json.`,
+      blackBoxGatePassed: false,
+    })),
+    requirementsPassed: assign(() => ({ requirementsReady: true })),
+    scenariosBuilt: assign(() => ({ scenariosReady: true })),
+    nextScenarioRound: assign(({ context }) => ({ scenarioRounds: context.scenarioRounds + 1, scenarioReviewPassed: false, blackBoxGatePassed: false })),
+    scenarioPassed: assign(() => ({ scenarioReviewPassed: true })),
+    gatePassed: assign(() => ({ blackBoxGatePassed: true })),
+  },
+}).createMachine({
+  id: 'blackBoxScenarios',
+  description: 'Designs a reviewed set of black-box delivery acceptance scenarios for a project and reports the design deliverable.',
+  initial: 'ready',
+  context: () => ({
+    project: '', requirementsFile: '', skill: '', failureDetails: '',
+    requirementsReady: false, scenariosReady: false, scenarioRounds: 0,
+    scenarioReviewPassed: false, blackBoxGatePassed: false, response: '',
+  }),
+  output: ({ context }) => ({ response: context.response }),
+  on: {
+    BOSS_INTERRUPT: bossInterrupts([
+      'entry', 'scenarioDesign', 'scenarioReview', 'scenarioRepair', 'blackBoxGate', 'completion',
+    ]),
+  },
+  states: {
+    ready: {
+      id: 'ready', description: 'Waiting for a project, confirmed requirements file, and skill path.',
+      tags: 'playbook.parked', meta: { playbook: { stateId: 'ready', description: 'Waiting for a project, confirmed requirements file, and skill path.' } },
+      on: { START: { guard: ({ event }) => event.type === 'START' && nonempty(event.project) && nonempty(event.requirementsFile) && nonempty(event.skill), target: 'entry', actions: 'start' } },
+    },
+    entry: {
+      id: 'entry', description: 'Analyst validates and initializes the confirmed requirements file.',
+      tags: 'playbook.busy', meta: { playbook: { stateId: 'entry', description: 'Analyst validates and initializes the confirmed requirements file.', role: 'analyst' } },
+      invoke: { src: 'player', input: ({ context }): PlayerInput => ({ stateId: 'entry', role: 'analyst', sourceItem: 'ENTRY-1', prompt: prompts['ENTRY-1'], project: context.project, requirementsFile: context.requirementsFile, skill: context.skill, result: replyResult({ ready: 'The requirements file contains a confirmed version with source and stable, unique IDs with nonempty text, and the successful first-use initialization or changed-source import is complete.', requirementsGap: 'The requirements file is absent or ambiguous; do not invent or approve requirements. Output shall include `failureDetails: <exact requirements gap>`.' }), ...actorFields(context) }),
+        onDone: [
+          { guard: ({ event }) => result(event, 'ready'), target: 'scenarioDesign', actions: [accepted('entry', 'scenarioDesign', 'ready'), 'clearBossReplyContext', 'requirementsPassed'] },
+          { guard: ({ event }) => resultWith(event, 'requirementsGap', 'failureDetails'), target: 'completion', actions: [accepted('entry', 'completion', 'requirementsGap'), 'clearBossReplyContext', 'rememberFailureDetails'] },
+          replyArm('entry', 'ENTRY-1', 'analyst'), malformed,
+        ], onError: actorError },
+    },
+    scenarioDesign: {
+      id: 'scenarioDesign', description: 'Analyst maps every confirmed requirement to black-box scenarios and methods.',
+      tags: 'playbook.busy', meta: { playbook: { stateId: 'scenarioDesign', description: 'Analyst maps every confirmed requirement to black-box scenarios and methods.', role: 'analyst' } },
+      invoke: { src: 'player', input: ({ context }): PlayerInput => ({ stateId: 'scenarioDesign', role: 'analyst', sourceItem: 'DESIGN-1', prompt: prompts['DESIGN-1'], project: context.project, skill: context.skill, result: replyResult({ done: 'The acting agent completed the behavior.' }), ...actorFields(context) }),
+        onDone: [
+          { guard: ({ context, event }) => result(event, 'done') && context.scenarioRounds < 3, target: 'scenarioReview', actions: [accepted('scenarioDesign', 'scenarioReview', 'done'), 'clearBossReplyContext', 'scenariosBuilt', 'nextScenarioRound'] },
+          replyArm('scenarioDesign', 'DESIGN-1', 'analyst'), malformed,
+        ], onError: actorError },
+    },
+    scenarioReview: {
+      id: 'scenarioReview', description: 'Reviewer independently checks requirement coverage and scenario meaning.',
+      tags: 'playbook.busy', meta: { playbook: { stateId: 'scenarioReview', description: 'Reviewer independently checks requirement coverage and scenario meaning.', role: 'reviewer' } },
+      invoke: { src: 'player', input: ({ context }): PlayerInput => ({ stateId: 'scenarioReview', role: 'reviewer', sourceItem: 'REVIEW-1', prompt: prompts['REVIEW-1'], project: context.project, skill: context.skill, result: replyResult({ passed: 'Independent review finds every requirement sufficient and no important path uncovered, and the direct stage checker reports its requirements, black-box-scenarios, and coverage-review gates pass.', gaps: 'Independent review finds a plausible important fault that a linked scenario could not expose, a method that cannot produce its claimed failure signal, or a requirement too ambiguous to know the intended outcome. Output shall include `failureDetails: <exact requirement IDs, missing modes/states, counterexamples, and scenario references>`.' }), ...actorFields(context) }),
+        onDone: [
+          { guard: ({ event }) => result(event, 'passed'), target: 'blackBoxGate', actions: [accepted('scenarioReview', 'blackBoxGate', 'passed'), 'clearBossReplyContext', 'scenarioPassed'] },
+          { guard: ({ context, event }) => resultWith(event, 'gaps', 'failureDetails') && context.scenarioRounds < 3, target: 'scenarioRepair', actions: [accepted('scenarioReview', 'scenarioRepair', 'gaps'), 'clearBossReplyContext', 'rememberFailureDetails'] },
+          { guard: ({ event }) => resultWith(event, 'gaps', 'failureDetails'), target: 'completion', actions: [accepted('scenarioReview', 'completion', 'gaps'), 'clearBossReplyContext', 'rememberFailureDetails'] },
+          replyArm('scenarioReview', 'REVIEW-1', 'reviewer'), malformed,
+        ], onError: actorError },
+    },
+    scenarioRepair: {
+      id: 'scenarioRepair', description: 'Analyst repairs the named scenario gaps or the black-box stage failure.',
+      tags: 'playbook.busy', meta: { playbook: { stateId: 'scenarioRepair', description: 'Analyst repairs the named scenario gaps or the black-box stage failure.', role: 'analyst' } },
+      invoke: { src: 'player', input: ({ context }): PlayerInput => ({ stateId: 'scenarioRepair', role: 'analyst', sourceItem: 'REPAIR-1', prompt: prompts['REPAIR-1'], project: context.project, failureDetails: context.failureDetails, result: replyResult({ done: 'The acting agent completed the behavior.' }), ...actorFields(context) }),
+        onDone: [
+          { guard: ({ context, event }) => result(event, 'done') && context.scenarioRounds < 3, target: 'scenarioReview', actions: [accepted('scenarioRepair', 'scenarioReview', 'done'), 'clearBossReplyContext', 'nextScenarioRound'] },
+          replyArm('scenarioRepair', 'REPAIR-1', 'analyst'), malformed,
+        ], onError: actorError },
+    },
+    blackBoxGate: {
+      id: 'blackBoxGate', description: 'Run the deterministic black-box stage checker on the reviewed scenarios.',
+      tags: 'playbook.busy', meta: { playbook: { stateId: 'blackBoxGate', description: 'Run the deterministic black-box stage checker on the reviewed scenarios.' } },
+      invoke: { src: 'script', input: ({ context }): ScriptInput => ({ stateId: 'blackBoxGate', sourceItem: 'GATE-1', command: gateCommand(context), result: { passed: 'The stage checker exited with status zero and its black-box gate report is written; `scenariosReady` may follow only on this zero exit.', failed: 'The stage checker exited with a nonzero status; do not report `scenariosReady`, and return to Analyst for repair while review rounds remain.' } }),
+        onDone: [
+          { guard: ({ event }) => scriptResult(event, 'passed'), target: 'completion', actions: 'gatePassed' },
+          { guard: ({ context, event }) => scriptResult(event, 'failed') && context.scenarioRounds < 3, target: 'scenarioRepair', actions: 'rememberScriptFailure' },
+          { guard: ({ event }) => scriptResult(event, 'failed'), target: 'completion', actions: 'rememberScriptFailure' },
+          malformed,
+        ], onError: actorError },
+    },
+    completion: {
+      id: 'completion', description: 'Captain reports the scenarios-ready design deliverable or the exact incomplete outcome.',
+      tags: 'playbook.busy', meta: { playbook: { stateId: 'completion', description: 'Captain reports the scenarios-ready design deliverable or the exact incomplete outcome.' } },
+      invoke: { src: 'captain', input: ({ context }): CaptainInput => ({ stateId: 'completion', sourceItem: 'COMPLETION-1', prompt: prompts['COMPLETION-1'], project: context.project, failureDetails: context.failureDetails, result: replyResult({ scenariosReady: 'The Reviewer verdict and the black-box stage gate both pass. Output shall include `response: <nonempty report naming the scenario ledger path, the number of black-box scenarios, requirement coverage, and the black-box gate report>`.', incomplete: 'A black-box gate fails after the allowed repairs, material gaps remain after three rounds, or the requirements are unavailable. Output shall include `response: <nonempty report of the exact failure details>`.' }), ...actorFields(context) }),
+        onDone: [
+          { guard: ({ context, event }) => resultWith(event, 'scenariosReady', 'response') && context.scenarioReviewPassed && context.blackBoxGatePassed, target: 'scenariosReady', actions: ['clearBossReplyContext', 'rememberResponse'] },
+          { guard: ({ event }) => resultWith(event, 'incomplete', 'response'), target: 'incomplete', actions: ['clearBossReplyContext', 'rememberResponse'] },
+          replyArm('completion', 'COMPLETION-1'), malformed,
+        ], onError: actorError },
+    },
+    awaitBossReply: {
+      id: 'awaitBossReply', description: "Waiting for Boss to answer the acting agent's question.",
+      tags: 'playbook.parked', meta: { playbook: { stateId: 'awaitBossReply', description: "Waiting for Boss to answer the acting agent's question." } },
+      on: { BOSS_REPLY: [
+        ...resumableStates(['entry', 'scenarioDesign', 'scenarioReview', 'scenarioRepair', 'completion']),
+        { target: 'failed', actions: ['clearBossReplyContext', 'rememberMalformedReply'] },
+      ] },
+    },
+    failed: {
+      id: 'failed', description: 'An actor or control error requires Boss recovery.',
+      tags: 'playbook.parked', meta: { playbook: { stateId: 'failed', description: 'An actor or control error requires Boss recovery.' } },
+      on: { START: { guard: ({ event }) => event.type === 'START' && nonempty(event.project) && nonempty(event.requirementsFile) && nonempty(event.skill), target: 'entry', actions: 'start' } },
+    },
+    scenariosReady: {
+      id: 'scenariosReady', type: 'final', description: 'Black-box scenario design completed: the Reviewer verdict and the black-box stage gate both passed.',
+      meta: { playbook: { stateId: 'scenariosReady', description: 'Black-box scenario design completed: the Reviewer verdict and the black-box stage gate both passed.', terminal: 'success' } },
+    },
+    incomplete: {
+      id: 'incomplete', type: 'final', description: 'Black-box scenario design did not complete: the black-box stage gate failed after the allowed repairs, material gaps remained after three rounds, or the requirements were unavailable.',
+      meta: { playbook: { stateId: 'incomplete', description: 'Black-box scenario design did not complete: the black-box stage gate failed after the allowed repairs, material gaps remained after three rounds, or the requirements were unavailable.', terminal: 'failure' } },
+    },
+  },
+});

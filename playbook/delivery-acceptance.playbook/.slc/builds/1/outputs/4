@@ -1,0 +1,386 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 SubLang International <https://sublang.ai>
+//
+// Linked under the complete slc/link.md (FSM-to-runtime linking), ordinary
+// path: the FSM declares direct `captain` actor states, so
+// slc/materialize-link.mjs reports `unsupported` and writes nothing; this
+// module is therefore linked by hand against the same definition.
+//
+// FSM:        ./delivery-acceptance.fsm.ts; export: deliveryAcceptanceMachine.
+// Strategies: shared classifier and adjudicator (the engine's defaults),
+//             standalone quoted relays for both the delegated-player and the
+//             direct-Captain prompts, and the deterministic textual entry
+//             event `BOSS_TASK` (slc/link.md §Boss-event mapping).
+import { deliveryAcceptanceMachine as machine } from './delivery-acceptance.fsm.ts';
+import {
+  createXStatePlaybookRuntime,
+  snapshotJsonValue,
+  defaultComposePlayerPrompt,
+  composePlayerContinuation,
+  type PlaybookPlayerInput,
+  type PlaybookCaptainInput,
+  type XStatePlaybookRuntimeConstruction,
+  type XStatePlaybookRuntimeFactory,
+  type XStatePlaybookRuntimeSpecV3,
+} from '@sublang/playbook/xstate-runtime';
+export type {
+  PlayerResult,
+  PlayerCallOptions,
+  PlayerSessionStore,
+  CaptainResult,
+  CaptainCallOptions,
+  JsonValue,
+  NormalizedError,
+  PlaybookCallRequest,
+  PlaybookCallResult,
+  PlaybookCallStart,
+  PlaybookStateValue,
+  PlaybookState,
+  PlaybookPendingCall,
+  PlaybookRunResult,
+  PlaybookRuntime,
+  PlaybookRuntimeFactory,
+  PlaybookRuntimeSnapshot,
+  PlaybookSession,
+  PlaybookPorts,
+  PlaybookTraceEvent,
+  PlaybookTraceType,
+  PlaybookControlReceipt,
+  PlaybookControlView,
+} from '@sublang/playbook/runtime';
+
+// Every FSM construction input field is a genuine host-owned bootstrap value
+// (the target project, its confirmed requirements file, and the installed
+// skill path). `PlaybookSession` supplies none of them, so all three stay
+// required readonly runtime options passed through to machine input. The entry
+// event's own text is not one of them: `seedBossIntent` copies it from the
+// event at the transition, and no FSM guard reads it before that first turn.
+export interface PlaybookRuntimeOptions {
+  readonly project: string;
+  readonly requirementsFile: string;
+  readonly skill: string;
+}
+export type PlaybookHostCapabilities = XStatePlaybookRuntimeConstruction<
+  PlaybookRuntimeOptions, { readonly authority: object }
+>['hostCapabilities'];
+
+const OPTION_SCHEMA = {
+  project: { type: 'string', required: true },
+  requirementsFile: { type: 'string', required: true },
+  skill: { type: 'string', required: true },
+} as const;
+const INPUT_MAPPING = {
+  project: 'project',
+  requirementsFile: 'requirementsFile',
+  skill: 'skill',
+} as const;
+// No authored token/field exception exists: every relay token in this FSM
+// resolves through the canonical kebab-token → camel-field mapping
+// (`requirements-file`, `run-id`, `scenario-findings`, `review-findings`).
+const PLACEHOLDER_FIELDS: Readonly<Record<string, string>> = {};
+// Targets of `awaitBossReply.on.BOSS_REPLY`, exactly as the FSM declares them
+// (`RESUMABLE_STATE_IDS`); the `failed` arm of that transition is the
+// malformed-reply sink, not a resumable state, so it is not a member here.
+const RESUMABLE_STATE_IDS: ReadonlySet<string> = new Set([
+  'entry1',
+  'resource1',
+  'scenario1',
+  'scenario2',
+  'scenario3',
+  'scenario4',
+  'scenario5',
+  'execution1',
+  'execution2',
+  'execution3',
+  'execution4',
+  'execution5',
+  'completion1',
+]);
+// Root final states whose terminal outcome leaves the procedure unfinished.
+// `done` declares terminal `success`; `incomplete` declares terminal `failure`.
+const UNFINISHED_FINAL_STATE_IDS: ReadonlySet<string> = new Set([
+  'incomplete',
+]);
+// Fields annotated exactly `<verbatim final text>` across the FSM result maps.
+// `question` is not one of them: its annotation is
+// `<verbatim question text from the acting agent's prose>`, which declares
+// presentation authority without carrying the player's final text.
+const VERBATIM_PAYLOAD_FIELDS: ReadonlySet<string> = new Set([
+  'scenarioFindings',
+  'reviewFindings',
+]);
+
+export function validateOptions(value: unknown): PlaybookRuntimeOptions {
+  const captured = snapshotJsonValue(value === undefined ? {} : value, 'DELIVERY ACCEPTANCE runtime options');
+  if (captured === null || typeof captured !== 'object' || Array.isArray(captured)) {
+    throw new TypeError('DELIVERY ACCEPTANCE runtime options must be an object');
+  }
+  const fields = captured as Readonly<Record<string, unknown>>;
+  for (const key of Object.keys(captured)) {
+    if (!Object.hasOwn(OPTION_SCHEMA, key)) throw new TypeError('DELIVERY ACCEPTANCE runtime options.' + key + ' is not declared');
+  }
+  for (const [key, schema] of Object.entries(OPTION_SCHEMA) as [string, { type: string; required: boolean }][]) {
+    if (!Object.hasOwn(captured, key)) {
+      if (schema.required) throw new TypeError('DELIVERY ACCEPTANCE runtime options.' + key + ' is required');
+    } else if (typeof fields[key] !== schema.type) {
+      throw new TypeError('DELIVERY ACCEPTANCE runtime options.' + key + ' must be a ' + schema.type);
+    }
+  }
+  return captured as unknown as PlaybookRuntimeOptions;
+}
+
+// slc/link.md §Player prompt composition: exactly one callback-based pass over
+// the original template, so an inserted value can never reenter substitution
+// and JavaScript replacement tokens such as `$&`, `$$`, and `$'` stay literal.
+// A standalone `> <placeholder>` relay line whose value is empty is omitted
+// entirely rather than left as an empty quoted line; a multi-line value keeps
+// its `> ` marker on every continuation line; a missing or non-string value
+// leaves the token in place.
+function renderQuotedRelays(
+  prompt: string,
+  fields: Readonly<Record<string, unknown>>,
+  mapping: Readonly<Record<string, string>>,
+): string {
+  return prompt.replace(
+    /^> <(#|[A-Za-z_$][A-Za-z0-9_$-]*)>(\r?\n|$)|<(#|[A-Za-z_$][A-Za-z0-9_$-]*)>/gm,
+    (
+      match: string,
+      quoted: string | undefined,
+      ending: string | undefined,
+      inline: string | undefined,
+    ): string => {
+      const token = quoted ?? inline!;
+      const field =
+        mapping[token] ??
+        (token === '#'
+          ? 'irNumber'
+          : token.replace(/-([A-Za-z0-9])/g, (_match: string, next: string) => next.toUpperCase()));
+      const value = fields[field];
+      if (typeof value !== 'string') return match;
+      if (quoted === undefined) return value;
+      if (value === '') return '';
+      return (
+        value
+          .split(/(\r?\n)/)
+          .map((part, index) => (index % 2 === 0 && part !== '' ? '> ' + part : part))
+          .join('') + (ending ?? '')
+      );
+    },
+  );
+}
+
+// The prompt identity lookup is unused here because no relay token in this FSM
+// names a player identity; the argument stays in place for the seam's exact
+// signature. The shared composer supplies only the continuation prefix, and
+// the rendered body is appended once and never reenters substitution.
+function composePlayerPrompt(input: PlaybookPlayerInput, _identity?: unknown, resuming = false): string {
+  const fields = input as unknown as Readonly<Record<string, unknown>>;
+  const body = renderQuotedRelays(input.prompt, fields, PLACEHOLDER_FIELDS);
+  return defaultComposePlayerPrompt({ ...input, prompt: '' }, PLACEHOLDER_FIELDS, resuming) + body;
+}
+
+// slc/link.md §Captain prompt composition: the same relay integrity rules, the
+// same continuation preamble (a direct Captain task always resumes from its own
+// Boss question as a fresh visible call), and no player binding or resume
+// instruction.
+function composeCaptainPrompt(input: PlaybookCaptainInput): string {
+  const fields = input as unknown as Readonly<Record<string, unknown>>;
+  const body = renderQuotedRelays(input.prompt, fields, PLACEHOLDER_FIELDS);
+  return composePlayerContinuation(input, body);
+}
+
+const runtimeSpec = {
+  label: 'DELIVERY ACCEPTANCE',
+  compat: { artifactSchema: 3, runtimeAbi: 1 },
+  snapshotOptions: validateOptions,
+  machineInput: (options: PlaybookRuntimeOptions) => Object.fromEntries(
+    Object.entries(INPUT_MAPPING).filter(([, key]) => options[key as keyof PlaybookRuntimeOptions] !== undefined)
+      .map(([field, key]) => [field, options[key as keyof PlaybookRuntimeOptions]]),
+  ),
+  // DR-034: `seedBossIntent` copies the exact Boss text from the event's
+  // `bossIntent` field into context `bossIntent`; the failure-state retry
+  // rebuilds its payload from that same live context member.
+  entryEvent: {
+    type: 'BOSS_TASK',
+    textField: 'bossIntent',
+    contextField: 'bossIntent',
+  },
+  // `BOSS_INTERRUPT` needs no entry: its required closed `targetId` values and
+  // its runtime-attached text `bossIntent` are both recoverable from the FSM's
+  // own root `on.BOSS_INTERRUPT` arms.
+  bossEvents: [],
+  roleStates: {
+    entry1: {
+      role: 'analyst',
+      label: 'Analyst validates the supplied requirements file and initializes or imports the ledger requirements.',
+    },
+    resource1: {
+      role: 'analyst',
+      label: 'Analyst verifies and persists the resources and decisions the acceptance run needs.',
+    },
+    scenario1: {
+      role: 'analyst',
+      label: 'Analyst maps every confirmed requirement to black-box and white-box scenarios.',
+    },
+    scenario2: {
+      role: 'reviewer',
+      label: 'Reviewer independently challenges the scenario set against the confirmed requirements.',
+    },
+    scenario3: {
+      role: 'analyst',
+      label: 'Analyst repairs the scenario omissions and contradictions the independent review identified.',
+    },
+    scenario5: {
+      role: 'analyst',
+      label: 'Analyst repairs the structural issue the failed pre-execution gate reported.',
+    },
+    execution1: {
+      role: 'tester',
+      label: 'Tester creates a run and records execution results and evidence for every required scenario.',
+    },
+    execution2: {
+      role: 'reviewer',
+      label: 'Reviewer independently reviews the recorded run evidence and classifies the outcome.',
+    },
+    execution4: {
+      role: 'analyst',
+      label: 'Analyst corrects the ledger definitions for a repairable recording gap.',
+    },
+    execution5: {
+      role: 'analyst',
+      label: 'Analyst repairs the structural issue the failed run gate reported.',
+    },
+  },
+  // slc/link.md §Output: every disposition is `unchanged`. The source states
+  // that this workflow creates no Git commits or tracked-file changes and that
+  // every delegated outcome, including a `needsBossReply` pause, leaves Git
+  // HEAD and the Git-visible working tree untouched, so no outcome requires a
+  // repository effect and no `needsBossReply` arm may be `deferred`.
+  // `runId` is the run identifier the player reports, read by the hidden
+  // adjudicator as a semantic payload field. `question`,
+  // `scenarioFindings`, and `reviewFindings` are presentation: the runtime
+  // copies the player's own text rather than round-tripping prose through
+  // judge JSON. Every other outcome declares no payload field beyond its guard.
+  outcomeAuthority: {
+    governedPlayerStates: {
+      entry1: {
+        ready: { fields: {}, repositoryDisposition: 'unchanged' },
+        requirementsGap: { fields: {}, repositoryDisposition: 'unchanged' },
+        needsBossReply: {
+          fields: { question: 'presentation' },
+          repositoryDisposition: 'unchanged',
+        },
+      },
+      resource1: {
+        ready: { fields: {}, repositoryDisposition: 'unchanged' },
+        environmentBlocked: { fields: {}, repositoryDisposition: 'unchanged' },
+        needsBossReply: {
+          fields: { question: 'presentation' },
+          repositoryDisposition: 'unchanged',
+        },
+      },
+      scenario1: {
+        done: { fields: {}, repositoryDisposition: 'unchanged' },
+        needsBossReply: {
+          fields: { question: 'presentation' },
+          repositoryDisposition: 'unchanged',
+        },
+      },
+      scenario2: {
+        passed: { fields: {}, repositoryDisposition: 'unchanged' },
+        gaps: {
+          fields: { scenarioFindings: 'presentation' },
+          repositoryDisposition: 'unchanged',
+        },
+        needsBossReply: {
+          fields: { question: 'presentation' },
+          repositoryDisposition: 'unchanged',
+        },
+      },
+      scenario3: {
+        done: { fields: {}, repositoryDisposition: 'unchanged' },
+        needsBossReply: {
+          fields: { question: 'presentation' },
+          repositoryDisposition: 'unchanged',
+        },
+      },
+      scenario5: {
+        done: { fields: {}, repositoryDisposition: 'unchanged' },
+        needsBossReply: {
+          fields: { question: 'presentation' },
+          repositoryDisposition: 'unchanged',
+        },
+      },
+      execution1: {
+        recorded: {
+          fields: { runId: 'semantic' },
+          repositoryDisposition: 'unchanged',
+        },
+        needsBossReply: {
+          fields: { question: 'presentation' },
+          repositoryDisposition: 'unchanged',
+        },
+      },
+      execution2: {
+        sufficient: { fields: {}, repositoryDisposition: 'unchanged' },
+        repairable: {
+          fields: { reviewFindings: 'presentation' },
+          repositoryDisposition: 'unchanged',
+        },
+        productFailed: {
+          fields: { reviewFindings: 'presentation' },
+          repositoryDisposition: 'unchanged',
+        },
+        needsBossReply: {
+          fields: { question: 'presentation' },
+          repositoryDisposition: 'unchanged',
+        },
+      },
+      execution4: {
+        done: { fields: {}, repositoryDisposition: 'unchanged' },
+        needsBossReply: {
+          fields: { question: 'presentation' },
+          repositoryDisposition: 'unchanged',
+        },
+      },
+      execution5: {
+        done: { fields: {}, repositoryDisposition: 'unchanged' },
+        needsBossReply: {
+          fields: { question: 'presentation' },
+          repositoryDisposition: 'unchanged',
+        },
+      },
+    },
+  },
+  placeholderFields: PLACEHOLDER_FIELDS,
+  // The FSM's `MachineEvent` union: the entry text field, then the
+  // `BOSS_INTERRUPT` routing field, then the `BOSS_REPLY` question id and the
+  // runtime-attached answer text.
+  transitionEventFields: ['bossIntent', 'targetId', 'answer', 'questionId'],
+  verbatimPayloadFields: VERBATIM_PAYLOAD_FIELDS,
+  resumableStateIds: RESUMABLE_STATE_IDS,
+  unfinishedFinalStateIds: UNFINISHED_FINAL_STATE_IDS,
+  // Authored, not derived, and deliberately empty: this playbook's controller
+  // view exposes no FSM context member. `pendingBossQuestion` and `lastError`
+  // are surfaced first-class and may never be named; `project`,
+  // `requirementsFile`, and `skill` are option values, and `bossIntent`,
+  // `runId`, `scenarioFindings`, `reviewFindings`, `response`, and
+  // `failureDetails` carry player- or Boss-authored text a controller host's
+  // prompt must fence or exclude.
+  controlContextFields: [],
+  composePlayerPrompt,
+  composeCaptainPrompt,
+} satisfies XStatePlaybookRuntimeSpecV3<PlaybookRuntimeOptions>;
+
+export const _internal = {
+  composePlayerPrompt,
+  composeCaptainPrompt,
+  RESUMABLE_STATE_IDS,
+  UNFINISHED_FINAL_STATE_IDS,
+  VERBATIM_PAYLOAD_FIELDS,
+};
+
+const createPlaybookRuntime: XStatePlaybookRuntimeFactory<
+  XStatePlaybookRuntimeConstruction<PlaybookRuntimeOptions, PlaybookHostCapabilities>, 3
+> = createXStatePlaybookRuntime<PlaybookRuntimeOptions, PlaybookHostCapabilities>(machine, runtimeSpec);
+export default createPlaybookRuntime;

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>交付验收 · JSON 台账</title>
+  <link rel="stylesheet" href="/viewer.css">
+  <script src="/traceability.js" defer></script>
+  <script src="/coverage.js" defer></script>
+  <script src="/results.js" defer></script>
+  <script src="/scope.js" defer></script>
+  <script src="/viewer.js" defer></script>
+</head>
+<body>
+  <header>
+    <div class="heading"><span class="eyebrow">需求覆盖 · 场景审查 · 验收追踪</span><h1>交付验收台账</h1><p id="project">正在读取所选 JSON 台账…</p></div>
+    <div class="refresh"><button id="refresh" type="button">重新加载</button><p id="loaded" aria-live="polite"></p></div>
+  </header>
+  <main>
+    <div id="alerts" aria-live="polite"></div>
+    <section id="summary" class="summary" aria-label="台账概览"></section>
+    <nav aria-label="台账视图">
+      <button data-view="overview" type="button">总览统计</button>
+      <button data-view="trace" type="button">覆盖关系</button>
+      <button data-view="scenarios" type="button">场景</button>
+    </nav>
+    <section id="filters" class="filters" aria-label="筛选台账">
+      <label class="search">搜索 ID 或正文<input id="search" type="search" placeholder="搜索需求、场景、操作或错误实现…"></label>
+      <label>业务包<select id="package"><option value="">全部业务包</option></select></label>
+      <label id="unit-label">验收组织<select id="unit"><option value="">全部验收组织</option></select></label>
+      <label>覆盖状态<select id="coverage"><option value="">全部状态</option><option value="gap">有审查缺口</option><option value="needs_clarification">需求待澄清</option><option value="sufficient">审查充分</option><option value="stale">审查已过期</option><option value="unavailable">审查不可核验</option><option value="unreviewed">未审查</option><option value="uncovered">未关联场景</option><option value="out_of_scope">本轮范围外</option></select></label>
+      <label id="kind-label">场景类型<select id="kind"><option value="">全部类型</option><option value="black_box">黑盒</option><option value="white_box">白盒</option></select></label>
+      <label id="priority-label">重要度<select id="priority"><option value="">全部等级</option><option value="P0">P0 核心</option><option value="P1">P1 重要</option><option value="P2">P2 一般</option><option value="P3">P3 较低</option><option value="unclassified">未分级</option></select></label>
+    </section>
+    <div id="workspace" class="workspace">
+      <aside aria-label="条目列表"><p id="count" aria-live="polite"></p><div id="list"></div></aside>
+      <article id="detail" aria-label="条目详情"></article>
+    </div>
+    <section id="extra" hidden></section>
+  </main>
+  <footer>直接读取 JSON · 只读查看 · 场景设计门禁与应用执行结果分别展示</footer>
+</body>
+</html>

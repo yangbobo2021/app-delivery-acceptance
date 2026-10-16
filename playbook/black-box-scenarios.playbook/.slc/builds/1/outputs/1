@@ -1,0 +1,111 @@
+# Black-box delivery scenarios
+
+This Playbook takes a project, a confirmed requirements JSON file, and the installed path of this Skill. Its sole deliverable is a reviewed set of black-box delivery acceptance scenarios. A runnable application, application code, devices, test accounts, credentials, third-party integrations, resource preflight, white-box scenarios, and execution evidence are not prerequisites. Never ask Boss for the location of an unimplemented app in this workflow. Never declare application delivery accepted here.
+
+The ledger is `<project>/.delivery-acceptance/`, is Git-ignored, and follows `<skill>/references/data-model.md`. The deterministic stage checker is `python3 <skill>/scripts/playbook.py check <project> --stage black-box`. Never put real credentials in the ledger. This is already an active Playbook session: neither Captain nor any role may invoke `run_workflow.py`, `/black-box-scenarios`, or another Playbook from inside it. All role outcomes leave Git HEAD and Git-visible worktree unchanged.
+
+Roles:
+
+- Analyst
+- Reviewer
+
+Analyst creates and repairs scenarios and methods under the ignored ledger. Reviewer independently checks requirement coverage and scenario meaning. Captain reports the terminal result. Reviewer must not modify Analyst's ledger; only Analyst repairs it. The deterministic `script` actor independently reruns the stage checker after a positive Reviewer verdict. Only a zero exit may produce `scenariosReady`. A failed checker returns to Analyst for repair, at most three review rounds. No Tester role and no test execution in this workflow.
+
+### ENTRY-1
+
+When the playbook receives the project, the requirements JSON file, and the installed Skill path, Captain shall prompt Analyst:
+
+> Verify that the supplied requirements file contains a confirmed version with source and stable, unique IDs with nonempty text.
+> If it is absent or ambiguous, report the exact gap; do not invent or approve requirements.
+> Otherwise run `python3 <skill>/scripts/playbook.py init <project> --requirements <requirements-file>` on first use, or `import-requirements` when the approved source changed.
+> If an initialized ledger already has the same requirements snapshot, reuse it without deleting prior decisions.
+> A changed approved requirements snapshot invalidates prior scenario completeness.
+> Never put real credentials in the ledger.
+> Do not invoke `run_workflow.py`, `/black-box-scenarios`, or another Playbook from inside this session.
+> > <project>
+> > <requirements-file>
+> > <skill>
+
+Results:
+- `ready`: The requirements file contains a confirmed version with source and stable, unique IDs with nonempty text, and the successful first-use initialization or changed-source import is complete.
+- `requirementsGap`: The requirements file is absent or ambiguous; do not invent or approve requirements. Output shall include `failureDetails: <exact requirements gap>`.
+
+### DESIGN-1
+
+When the requirements are ready, Captain shall prompt Analyst:
+
+> Map every confirmed requirement to at least one black-box scenario.
+> Cover normal, exception, boundary, and state-change behavior where relevant.
+> Keep the scenario observable from the user or external system boundary, and do not claim a particular implementation.
+> Record in `.delivery-acceptance/scenarios.json` with `kind: black_box`, `title`, `requirement_ids`, `expected`, and `method_ids`.
+> Record reusable AI-operated methods in `.delivery-acceptance/methods.json` with concrete `preconditions`, `actions`, `evidence_expected`, and `description`; these are plans for later execution, not evidence that execution occurred.
+> Link existing test-case references only if they are actually present.
+> Set `black_box_complete` only after assessing every confirmed ID.
+> Do not set `white_box_complete` without reviewing implemented design or code.
+> Preserve any existing white-box scenarios and resource decisions; a new requirements import already invalidates completeness.
+> Follow the ledger structure in `<skill>/references/data-model.md`; keep the ledger Git-ignored and put no real credentials in it.
+> Leave Git HEAD and the Git-visible worktree unchanged.
+> Never ask Boss for the location of an unimplemented app in this workflow.
+> Do not invoke `run_workflow.py`, `/black-box-scenarios`, or another Playbook from inside this session.
+> > <project>
+> > <skill>
+
+### REVIEW-1
+
+When the scenario draft is ready for independent review or has been repaired, and fewer than three review rounds have occurred, Captain shall prompt Reviewer:
+
+> Inspect the requirements snapshot and the scenario and method ledgers.
+> Check that every confirmed ID has meaningful coverage, that expected outcomes are observable and testable, and that normal, exceptional, boundary, and state-change cases are present where relevant.
+> Identify specific missing or contradictory behavior by requirement and scenario ID.
+> Run `python3 <skill>/scripts/playbook.py check <project> --stage black-box` and report its exact requirements and black-box gate results.
+> Do not require the resources, white-box, execution, or review gates to pass at this stage.
+> Do not ask Boss to approve an ordinary scenario list.
+> Do not modify Analyst's ledger; only Analyst repairs it.
+> Do not invoke `run_workflow.py`, `/black-box-scenarios`, or another Playbook from inside this session.
+> > <project>
+> > <skill>
+
+Results:
+- `passed`: Independent review finds meaningful, observable, and testable coverage for every confirmed ID, and the direct stage checker reports its requirements and black-box gates pass.
+- `gaps`: Independent review finds specific missing or contradictory behavior. Output shall include `failureDetails: <exact failure details with requirement and scenario references>`.
+
+### GATE-1
+
+When independent scenario review has passed, Captain shall run:
+
+> python3 '<skill>'/scripts/playbook.py check '<project>' --stage black-box > '<project>'/.delivery-acceptance/black-box-gate.json
+
+Results:
+- `passed`: The stage checker exited with status zero and its black-box gate report is written; `scenariosReady` may follow only on this zero exit.
+- `failed`: The stage checker exited with a nonzero status; do not report `scenariosReady`, and return to Analyst for repair while review rounds remain.
+
+### REPAIR-1
+
+When Reviewer identifies material gaps or the black-box stage checker exits nonzero, and fewer than three review rounds have occurred, Captain shall prompt Analyst:
+
+> Repair only the named gaps in the ignored ledger files, preserving confirmed requirement IDs and existing valid scenarios.
+> Read the black-box gate report at `<project>/.delivery-acceptance/black-box-gate.json` when the stage checker failed.
+> Leave Git HEAD and the Git-visible worktree unchanged.
+> Do not invoke `run_workflow.py`, `/black-box-scenarios`, or another Playbook from inside this session.
+> > <project>
+> > <failureDetails>
+
+### COMPLETION-1
+
+When the Reviewer verdict and the black-box stage gate have passed, or the workflow cannot proceed after the allowed repairs or because the requirements are unavailable, Captain shall report the terminal result:
+
+> Report `scenariosReady` with a nonempty `response` naming the scenario ledger path, the number of black-box scenarios, the requirement coverage, and the black-box gate report.
+> Explicitly state that no App behavior was executed or accepted.
+> A `scenariosReady` result is a successful design deliverable, not full application acceptance.
+> Otherwise report `incomplete` with the exact failure details.
+> Never declare application delivery accepted here.
+> > <project>
+> > <failureDetails>
+
+Results:
+- `scenariosReady`: The Reviewer verdict and the black-box stage gate both pass. Output shall include `response: <nonempty report naming the scenario ledger path, the number of black-box scenarios, requirement coverage, and the black-box gate report>`.
+- `incomplete`: A black-box gate fails after the allowed repairs, material gaps remain after three rounds, or the requirements are unavailable. Output shall include `response: <nonempty report of the exact failure details>`.
+
+## Optimizations
+
+- GATE-1: captain → script

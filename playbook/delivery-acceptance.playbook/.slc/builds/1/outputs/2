@@ -1,0 +1,231 @@
+# App delivery acceptance
+
+This playbook accepts a target application project, a confirmed requirements JSON file, and the installed path of this skill. It performs testing and delivery acceptance only; requirement extraction and business approval are outside this workflow. The project ledger lives at `<project>/.delivery-acceptance/` and follows the skill's `references/data-model.md`. The deterministic checker is `python3 <skill>/scripts/playbook.py`. Never put real credential values in the ledger or evidence, including files under an ignored fixture directory; refer to an external environment or credential store. Public synthetic fixture tokens are test data.
+
+This is already an active Playbook session. Never invoke `run_workflow.py`, `/delivery-acceptance`, or another Playbook session from any role or Captain step. Use `playbook.py` directly for ledger operations and script gates. The ledger must be ignored by Git because Playbook 16 rejects uncommitted worktree changes inside governed calls; the outer launcher verifies this before entry.
+
+Roles:
+
+- Analyst
+- Tester
+- Reviewer
+
+Analyst inspects the project and manages resources, scenarios, and methods. Tester operates the actual application and tests and records run results and evidence. Reviewer independently inspects requirements, implementation, scenarios, actual evidence, and gate reports; Reviewer owns the black-box `coverage_review.json` and each run's `review.json`.
+
+Fundamental review principle: For every requirement, a plausible wrong implementation in any important operation mode or user state must fail at least one linked acceptance scenario through an observable result. If an important fault could escape, reject the scenario set and name that counterexample. Passing scenario design review means only that later real execution of the scenarios, with sufficient evidence, could support delivery within the agreed usage scope without an obvious defect. It does not prove the App works or that every possible bug is absent. When unsure how to review, use this counterfactual principle.
+
+Captain coordinates the roles and never declares acceptance from a player's assertion alone. After each positive Reviewer verdict, the Playbook `script` actor independently reruns the relevant checker. Its exit status, not the Reviewer's statement, decides the structural gate: nonzero cannot enter execution or full acceptance. A gate passes only when both the relevant script check and substantive Reviewer verdict pass. Keep the exact project revision fixed during one execution and review. If implementation or ledger definitions change, start a new run and repeat affected full scenario paths on the new revision. Do not silently treat a partial run as full acceptance. Every negative outcome must return an exact `failureDetails` string; after the required Captain settlement, the machine emits only that result and the terminal run ID for an incomplete final response. Missing requirements, unavailable resources, and actual product failures finish as incomplete acceptance.
+
+This testing workflow creates no Git commits or tracked-file changes. Every delegated role outcome, including a `needsBossReply` pause, leaves Git HEAD and the Git-visible working tree unchanged. Put new test-only Mocks, harnesses, and evidence under the Git-ignored `.delivery-acceptance/` directory. A test-only harness may import the application and supply a provider double without editing application source. If a verified flow requires a tracked application or test change, report that blocker for work outside this acceptance run; do not silently edit the tracked project. A resumed question continues the same task; do not classify it as a deferred commit outcome.
+
+### ENTRY-1
+
+When the playbook receives the project, the requirements JSON file, and the skill path, Captain shall prompt Analyst:
+
+> Check whether the supplied requirements file has confirmed, stable requirement IDs.
+> If IDs are absent or ambiguous, report the exact gap; do not generate or approve requirements.
+> If valid, run `python3 <skill>/scripts/playbook.py init` on first use, or `import-requirements` when the approved source changed.
+> Follow the ledger structure in the skill's `references/data-model.md`, keep the ledger under `<project>/.delivery-acceptance/` and ignored by Git, and put no real credential values in the ledger or evidence.
+> Use `playbook.py` directly for ledger operations; never invoke `run_workflow.py`, `/delivery-acceptance`, or another Playbook session.
+> > <project>
+> > <requirements-file>
+> > <skill>
+
+Results:
+- `ready`: The requirements file has confirmed, stable requirement IDs and the applicable first-use initialization or changed-source import is complete.
+- `requirementsGap`: Confirmed, stable requirement IDs are absent or ambiguous; the exact gap is reported without generating or approving requirements, and the workflow finishes as incomplete acceptance.
+
+### RESOURCE-1
+
+Boss's answer resumes this same behavior with continuation context. The framework suspends this task for the Boss question and resumes it with the question and answer in the next prompt; a resumed question continues the same task.
+
+When confirmed requirements are initialized or imported, Captain shall prompt Analyst:
+
+> Read prior ledger decisions, project documentation, and configuration.
+> Verify application commands, target devices, test identities, data setup and reset, credentials by secure reference, and all third-party services.
+> Persist decisions and their verification evidence in `resources.json`, so future runs can reuse them after validity checks.
+> Follow the ledger structure in the skill's `references/data-model.md`, keep the ledger under `<project>/.delivery-acceptance/` and ignored by Git, and put no real credential values in the ledger or evidence.
+> For each third-party service, assess whether a faithful Mock supports the full application flow.
+> Test the real integration separately and keep its evidence and tested adapter and version.
+> If Mock is viable, use it for later E2E flows.
+> If it is viable but absent, create and verify a test-only Mock under the ignored ledger when the application can be exercised by importing it or supplying a test provider; do not change tracked application code to install that Mock.
+> Allow real third-party E2E only when Mock cannot represent the flow and repeatable credentials and resources exist.
+> Neither a Mock flow nor an existing token proves real integration correctness.
+> If a resource, authorization, or business decision cannot be obtained using available tools, ask Boss one specific question and suspend.
+> Do not ask Boss to approve ordinary scenario lists, plans, or gate outcomes.
+> Resume with Boss's answer, persist the resulting decision, and repeat resource verification.
+> > <project>
+> > <skill>
+
+Results:
+- `ready`: Required resources and decisions are verified and persisted with evidence.
+- `environmentBlocked`: A required resource remains unavailable after Boss's answer; the workflow finishes as an environment-blocked incomplete acceptance rather than claiming acceptance.
+
+### SCENARIO-1
+
+When confirmed requirements and verified resources are ready, Captain shall prompt Analyst:
+
+> Map every confirmed requirement to black-box scenarios covering important operation modes and user states, including normal, exceptional, boundary, and state-change behavior relevant to that requirement.
+> After inspecting design and code, add white-box scenarios for material branches and state transitions.
+> Link every white-box scenario to a confirmed requirement and describe its target condition; a permanent line-number link is optional.
+> Link each scenario to one or more existing test cases, or describe an AI-operated check with preconditions, actions, expected result, and evidence.
+> A scenario may have multiple methods and needs no automated test case when an AI-operated check can verify it.
+> Record the completeness assessment and its basis in the ledger.
+> Do not write or self-approve `coverage_review.json`.
+> Follow the ledger structure in the skill's `references/data-model.md`, keep the ledger under `<project>/.delivery-acceptance/` and ignored by Git, and put no real credential values in the ledger or evidence.
+> > <project>
+> > <skill>
+
+### SCENARIO-2
+
+When the scenario set is ready for independent review or has been repaired, and fewer than three scenario review rounds have occurred, Captain shall prompt Reviewer:
+
+> Independently challenge every confirmed requirement against the scenario set: enumerate important operation modes and user states, propose plausible wrong implementations, and identify which linked scenario would visibly fail.
+> Fundamental review principle: for every requirement, a plausible wrong implementation in any important operation mode or user state must fail at least one linked acceptance scenario through an observable result; if an important fault could escape, reject the scenario set and name that counterexample.
+> Identify omissions or contradictions in the scenario definitions with specific requirement and branch references.
+> Check the inspected code branches.
+> Run `python3 <skill>/scripts/playbook.py review-hashes <project>` and write or revalidate your per-requirement `coverage_review.json` using the schema in the skill's `references/data-model.md`; do not edit Analyst's scenarios or methods.
+> Run `python3 <skill>/scripts/playbook.py check <project>` and report the exact script verdict; the check's JSON is saved as `.delivery-acceptance/scenario-gate.json`.
+> A suspected product defect already covered by a scenario is not a scenario coverage gap: preserve that scenario and enter execution so the behavior can be observed and reported.
+> Use `playbook.py` directly for ledger operations and script gates; never invoke `run_workflow.py`, `/delivery-acceptance`, or another Playbook session.
+> > <project>
+> > <skill>
+
+Results:
+- `passed`: Independent challenge finds no material scenario omission or contradiction against confirmed requirements and inspected code branches, substantive counterfactual coverage holds, and the three script gates pass. Passing scenario design review means only that later real execution of the scenarios, with sufficient evidence, could support delivery within the agreed usage scope without an obvious defect; it does not prove the App works or that every possible bug is absent.
+- `gaps`: Independent challenge finds material omissions or contradictions with exact requirement and branch references, or a required script gate does not pass; a suspected product defect already covered by a scenario is not a coverage gap. If this is the third scenario review round, the exact gaps are reported as unproven and the workflow finishes as incomplete acceptance. Output shall include `scenarioFindings: <verbatim final text>`.
+
+### SCENARIO-3
+
+When independent scenario review identifies material scenario gaps and fewer than three scenario review rounds have occurred, Captain shall prompt Analyst:
+
+> Repair the identified scenario omissions or contradictions, preserving links to confirmed requirements and target code branches.
+> Update the ledger's completeness assessment and basis.
+> Follow the ledger structure in the skill's `references/data-model.md` and put no real credential values in the ledger or evidence.
+> > <project>
+> > <scenario-findings>
+
+### SCENARIO-4
+
+When independent scenario review has passed, Captain shall check the pre-execution gates:
+
+> Run `python3 <skill>/scripts/playbook.py check <project>`.
+> Let the script's exit status, not the Reviewer's statement, decide the structural gate: a nonzero exit cannot enter execution.
+> Inspect whether the requirements, resources, and scenarios gates pass before execution starts.
+> Use `playbook.py` directly for ledger operations and script gates; never invoke `run_workflow.py`, `/delivery-acceptance`, or another Playbook session.
+> > <project>
+> > <skill>
+
+Results:
+- `passed`: The script's requirements, resources, and scenarios gates all pass, so execution may start.
+- `failed`: At least one required pre-execution script gate does not pass; do not start execution or claim full acceptance, retain and report the exact failed gate, and return to Analyst for repair and another review while scenario review rounds remain, otherwise finishing as incomplete acceptance.
+
+### SCENARIO-5
+
+When the pre-execution structural gate fails and fewer than three scenario review rounds have occurred, Captain shall prompt Analyst:
+
+> Repair the structural issue the failed pre-execution gate reported in the applicable ledger definitions.
+> Update the ledger's completeness assessment and basis.
+> Follow the ledger structure in the skill's `references/data-model.md` and put no real credential values in the ledger or evidence.
+> > <project>
+
+### EXECUTION-1
+
+When the pre-execution gates pass, or a changed implementation or ledger definition requires a new run and affected complete scenario paths to be repeated, Captain shall prompt Tester:
+
+> Choose a unique run ID, the exact project revision, and an environment description; create a run with `python3 <skill>/scripts/playbook.py new-run <project> --id RUN_ID --revision REVISION --environment ENVIRONMENT`, substituting the chosen values, and use that run ID.
+> Keep the exact project revision fixed during this execution and review.
+> On the initial run, execute each linked case or AI-operated method; after a change, repeat the affected complete scenario paths.
+> Use the actual application or applicable test target, and interact with the running UI for UI paths.
+> Save logs, screenshots, and observations that show the asserted outcomes, not merely command startup.
+> Record every dependency check, exact environment, method used, actual result, status, and evidence path in `run.json`.
+> Keep real integration evidence separate from Mock E2E evidence.
+> Follow the ledger structure in the skill's `references/data-model.md`, keep the ledger under `<project>/.delivery-acceptance/` and ignored by Git, and put no real credential values in the ledger or evidence.
+> This testing workflow creates no Git commits or tracked-file changes; put new test-only Mocks, harnesses, and evidence under the Git-ignored `.delivery-acceptance/` directory, and do not silently edit the tracked project.
+> Record a failed or unproven method as such; never convert a failure to pass because another path passed.
+> When a fix changes code, make a new run and repeat the affected complete paths.
+> > <project>
+> > <skill>
+
+Results:
+- `recorded`: The new run's execution results and evidence are recorded. Output shall include `runId: <unique run ID>`.
+
+### EXECUTION-2
+
+When Tester has recorded a run and fewer than three execution and review rounds have occurred, Captain shall prompt Reviewer:
+
+> Open the actual evidence and compare it with each scenario's expected behavior.
+> Independently inspect the confirmed requirements, implementation, scenarios, available gate reports, and actual evidence.
+> Check black-box coverage and material implementation branches.
+> Write this run's `review.json` with a reasoned verdict for every scenario, uncovered branches, review basis, and exact revision.
+> Keep the exact project revision fixed during this execution and review.
+> Change no application code or other ledger definitions during this review.
+> Run `python3 <skill>/scripts/playbook.py check <project> --run <run-id>`, inspect `gate-report.json` and `acceptance-report.md`, and report the exact script verdict.
+> A passing script report never substitutes for your substantive evidence judgment.
+> Fundamental review principle: for every requirement, a plausible wrong implementation in any important operation mode or user state must fail at least one linked acceptance scenario through an observable result; use this counterfactual principle when unsure how to review.
+> > <project>
+> > <skill>
+> > <run-id>
+
+Results:
+- `sufficient`: Every required scenario's outcome is proven by sufficient evidence and all five script gates pass, with reasoned verdicts for the exact revision recorded in `review.json`.
+- `repairable`: Only ledger or evidence recording needs another execution; Analyst then corrects the applicable ledger definitions and Tester starts a new run repeating every required scenario. If this is the third execution and review round, the workflow reports incomplete acceptance with those items instead. Output shall include `reviewFindings: <verbatim final text>`.
+- `productFailed`: Actual behavior fails or a required path cannot be operated; a product failure finishes as incomplete acceptance. Output shall include `reviewFindings: <verbatim final text>`.
+
+### EXECUTION-3
+
+A Boss interruption may re-enter this run-gate check after a run ID exists even if the in-memory Reviewer verdict is not present; such a re-entry can only produce incomplete acceptance, because full acceptance requires both the script gates and the independent Reviewer verdict in the current session. Do not let an interrupted gate check infer that the missing verdict passed.
+
+When independent evidence review finds the run sufficient for the exact revision, Captain shall check the run gates:
+
+> Run `python3 <skill>/scripts/playbook.py check <project> --run <run-id>`.
+> Inspect `gate-report.json` and `acceptance-report.md`.
+> Let the script's exit status, not the Reviewer's statement, decide the structural gate: a nonzero exit cannot permit full acceptance.
+> Treat a passing script report as insufficient without Reviewer's substantive evidence judgment.
+> Use `playbook.py` directly for ledger operations and script gates; never invoke `run_workflow.py`, `/delivery-acceptance`, or another Playbook session.
+> > <project>
+> > <skill>
+> > <run-id>
+
+Results:
+- `passed`: The script's requirements, resources, scenarios, execution, and review gates pass for this run, and a zero exit permits full acceptance.
+- `failed`: At least one script gate fails for this run; retain and report its exact failures. Analyst then repairs the reported structural issue and Tester starts a fresh full run while execution and review rounds remain; otherwise the workflow reports incomplete acceptance.
+
+### EXECUTION-4
+
+When review classifies a gap as repairable and fewer than three execution and review rounds have occurred, Captain shall prompt Analyst:
+
+> Correct the applicable ledger definitions so the recording gap is resolved.
+> A new run and repetition of every required scenario are needed before another review.
+> Follow the ledger structure in the skill's `references/data-model.md` and put no real credential values in the ledger or evidence.
+> > <project>
+> > <run-id>
+> > <review-findings>
+
+### EXECUTION-5
+
+When the run gate fails and fewer than three execution and review rounds have occurred, Captain shall prompt Analyst:
+
+> Repair the structural issue the failed run gate reported in the applicable ledger definitions.
+> A fresh full run of the required scenarios follows before another review.
+> Follow the ledger structure in the skill's `references/data-model.md` and put no real credential values in the ledger or evidence.
+> > <project>
+> > <run-id>
+
+### COMPLETION-1
+
+Captain settles the terminal run without creating a new run, executing more tests, or changing ledger files. On an incomplete outcome the machine emits the terminal run's exact failure detail string and the terminal run ID, even if Captain's summary mentions other evidence.
+
+When the workflow reaches a gate outcome, the applicable review-round limit, or another terminal outcome such as absent requirements or an unavailable resource, Captain shall report delivery acceptance:
+
+> Report full acceptance only when the script's requirements, resources, scenarios, execution, and review gates all pass and Reviewer finds sufficient evidence for every required scenario.
+> Otherwise report failed, uncovered, unproven, and environment-blocked items with exact run and evidence paths where they exist.
+> Do not infer acceptance from a player's assertion or a partial run.
+> Do not ask Boss to click through ordinary tests; agents execute available tests and actual application paths themselves.
+> If available tools truly cannot operate a required path, report that specific limitation and leave its scenario unproven.
+> Never invoke `run_workflow.py`, `/delivery-acceptance`, or another Playbook session.
+> > <project>
+
+Results:
+- `accepted`: All script gates and Reviewer's substantive evidence judgment support full acceptance. Output shall include `response: <nonempty full-acceptance report>`.
+- `incomplete`: Any required gate or substantive review does not support full acceptance, or a required path cannot be operated. Output shall include `response: <nonempty report of failed, uncovered, unproven, and environment-blocked items with exact run and evidence paths where they exist>`, `failureDetails: <exact failure detail string of the terminal run>`, and `runId: <terminal run ID>`.
