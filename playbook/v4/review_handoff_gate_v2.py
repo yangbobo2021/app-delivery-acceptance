@@ -24,6 +24,38 @@ def main():
     log_path = Path(request["frozen_execution_log"]).resolve()
     receipt = json.loads(receipt_path.read_text()) if receipt_path.is_file() else {}
     revision = catalog.get("revision")
+    build = None
+    prepared = None
+    extra_bound = set()
+    if receipt.get('coverage_build_path'):
+        try:
+            build_path = Path(receipt['coverage_build_path'])
+            if sha(build_path) != receipt['coverage_build_sha256']:
+                raise ValueError('instrumentation manifest changed')
+            build = json.loads(build_path.read_text())
+            prepared_path = Path(build['prepared']) / 'prepared.json'
+            if sha(prepared_path) != build['prepared_sha256']:
+                raise ValueError('coverage preparation changed')
+            prepared = json.loads(prepared_path.read_text())
+            if prepared['spec']['source_hashes'] != catalog.get('source_hashes'):
+                raise ValueError('coverage source catalog mismatch')
+            if build['product_files'] != prepared['files']:
+                raise ValueError('incomplete isolated instrumentation build')
+            for name, expected in build['runtime_files'].items():
+                if sha(build_path.parent / 'coverage-runtime' / name) != expected or expected != prepared['tools']['implementation'][name]:
+                    raise ValueError('coverage runtime adapter changed')
+            fixture_path=build.get('fixture_path','e2e/acceptance-coverage-fixture.ts')
+            if receipt['test_file_sha256_before'].get(fixture_path) != build['runtime_files']['playwright-fixture.ts']:
+                raise ValueError('unbound Playwright coverage adapter')
+            extra_bound = set(build['product_files']) | {fixture_path}
+            for name, binding in build['product_files'].items():
+                if receipt['test_file_sha256_before'].get(name) != binding['instrumented_sha256'] or sha(root / name) != binding['original_sha256']:
+                    raise ValueError('instrumented/original product binding mismatch: ' + name)
+            for name, binding in build['test_import_adapters'].items():
+                if sha(root / name) != binding['original_sha256'] or receipt['test_file_sha256_before'].get(name) != binding['adapter_sha256']:
+                    raise ValueError('test import adapter binding mismatch: ' + name)
+        except (KeyError, OSError, ValueError) as error:
+            errors.append('invalid isolated coverage build: ' + str(error))
     if not receipt:
         errors.append("frozen execution receipt missing")
     if request.get("frozen_revision") != revision:
@@ -35,7 +67,10 @@ def main():
             errors.append("execution changed or used a different source revision")
         changed_before = set(receipt.get("tracked_changes_before", "").splitlines())
         changed_after = set(receipt.get("tracked_changes_after", "").splitlines())
-        if changed_before != changed_after or changed_after - set(request.get("test_files", [])):
+        allowed_changes = set(request.get('test_files', [])) | extra_bound
+        if prepared:
+            allowed_changes.update(prepared['spec'].get('components', {}))
+        if changed_before != changed_after or changed_after - allowed_changes:
             errors.append("tracked product/source changes during execution")
         if not isinstance(receipt.get("exit_code"), int):
             errors.append("actual command exit code missing")
@@ -49,11 +84,12 @@ def main():
     before = receipt.get("test_file_sha256_before", {})
     after = receipt.get("test_file_sha256_after", {})
     if receipt:
-        if set(before) != set(paths) or set(after) != set(paths):
+        if set(before) != set(paths) | extra_bound or set(after) != set(paths) | extra_bound:
             errors.append("test-file receipt does not bind exactly the selected files")
         for name in paths:
             path = (root / name).resolve()
-            if not path.is_relative_to(root) or not path.is_file() or after.get(name) != before.get(name) or after.get(name) != sha(path):
+            expected_current = (build or {}).get('test_import_adapters', {}).get(name, {}).get('original_sha256', after.get(name))
+            if not path.is_relative_to(root) or not path.is_file() or after.get(name) != before.get(name) or expected_current != sha(path):
                 errors.append("test file changed, missing or outside project: " + name)
     if request.get("artifact_scope") == "isolated_worktree":
         actual = set(subprocess.check_output(
@@ -81,9 +117,16 @@ def main():
         errors.append("coverage measurement status missing")
     else:
         coverage = json.loads(coverage_path.read_text())
-        if coverage.get("status") not in ("measured", "unavailable", "off"):
+        if coverage.get("status") not in ("measured", "incomplete", "unavailable", "off"):
             errors.append("invalid coverage status")
-        if coverage.get("status") == "measured":
+        if coverage.get("status") in ("measured", "incomplete"):
+            if coverage.get('provider') != 'istanbul-source-v1':
+                errors.append('coverage has no registered dedicated provider')
+            else:
+                provider=Path(__file__).resolve().parents[2]/'scripts/coverage-istanbul/provider.mjs'
+                original=Path(coverage['istanbul_path']).with_name('coverage-report.json')
+                checked=subprocess.run(['node',str(provider),'verify',str(original)],capture_output=True,text=True)
+                if checked.returncode:errors.append('dedicated coverage provider validation failed: '+checked.stderr[-500:])
             report = Path(coverage.get("line_raw_path", ""))
             if (coverage.get("execution_sha256") != sha(receipt_path) or
                     coverage.get("collection_relation") != "same_run" or

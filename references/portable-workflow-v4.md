@@ -4,6 +4,8 @@
 
 ## 项目只准备一次
 
+准备时必须执行[覆盖率专用工具规约](coverage-tool-contract.md)：按项目语言/运行时确定专用采集、转换、源码映射及合并统计模块，记录真实版本、调用和指标能力。禁止让用例 Agent 自行实现分支识别、AST 分母或转译还原算法。
+
 先冻结目标 Git revision、项目拥有的非测试源文件、测试目录、组件版本及已有依赖的就绪标记。`prepare_project.py` 只执行项目输入中声明的 setup/能力检查命令，不猜语言或框架；同一 revision 的场景复用产出的 catalog。可用 `prepare_project_semantics.mjs` 在一个只读 Agent 过程中补充测试命令、夹具隔离和环境变量路标；其 `guide.json` 不是业务预期依据。每个场景的隔离工作树可能仍需安装或链接该工作树自己的依赖，catalog 不等于依赖已在所有工作树可用。
 
 ```sh
@@ -44,7 +46,9 @@ python3 <skill>/playbook/v4/run_plan.py plan.json
 
 ## 覆盖率与实时视图
 
-`case-template.coverage` 可以是 `{"policy":"unavailable","reason":"..."}`、明确决定跳过的 `{"policy":"off"}`，或 `{"policy":"required","source_paths":["完整/源文件"],"line_report_path":"{project}/.../lcov.info","line_parser":"lcov"}`；也支持 `coveragepy-json`。项目自身测试命令须在**本次冻结执行**中产生所选用例的报告。门禁只接受该执行之后形成、含零命中可执行行、覆盖全部声明源文件的报告；它冻结报告和 SHA-256，复审仍需判断收集关系是否可信。没有可靠收集器则报 `unavailable`，不展示虚构百分比。PR 变更文件/变更行分母仍来自 v3 的完整变更清单；视图以已测行集合实时重算项目、变更文件和变更行三个分母。覆盖率不替代业务判定。
+此阶段及离线补采/重算必须遵守[覆盖率专用工具执行规约](coverage-tool-contract.md)。行与分支统计只接受对应专用工具的正式支持流程；适配器只做调用、格式/路径转换、证据绑定、基于工具位置的范围筛选及展示。禁止自制 AST 基线、命中推断、语义还原或计数合并来绕过工具缺口。缺失、不可兼容或不可可靠映射的数据单独标注，不能凑数。覆盖率区域同时注明采集、转换/映射、合并/统计工具的名称与版本；范围切换同步重算行与分支。用户限制不重跑、不做独立复审或不扩大范围时继续遵守，不能由覆盖率处理暗中启动这些动作。
+
+`case-template.coverage` 可以明确记录 `unavailable`（具体原因）或用户明确关闭的 `off`。持续采集时先按 [专用工具执行规约](coverage-tool-contract.md) 验证工具链并冻结工具生成的完整分母，项目 catalog 保存 `{ "policy":"required", "provider":"istanbul-source-v1", "prepared":"/absolute/prepared", "inventory_path":"/absolute/change-inventory.json" }`。当前注册实现服务于 JS/TS；其他语言须接入对应专用 provider，不以格式解析器冒充工具链。`bind_case.py` 自动继承项目配置，场景不能降级；执行和差量执行都通过 `run_evidence_v2.py --coverage-config` 调用同一个 `run_coverage.py` 入口。项目准备、执行前、证据冻结及展示汇总均强制验证。仅给 LCOV、`coveragepy-json` 或工具标签不能成为 `measured`。行/分支及嵌套分支、零命中分母、合并与汇总全部由专用工具负责，切换项目/修改文件/修改行范围同步筛选工具单位并重算。保留失败用例的实际计数，采集缺口明确 `incomplete/unavailable`；覆盖率不替代业务判定。
 
 `python3 <skill>/scripts/v3/serve.py <project-assets-dir> [...]` 可读 v4 的 `request.frozen.json`、阶段 `state.json`、冻结收据、覆盖率和审查结果；对场景显示“内部自审”，不会误标为独立场景审查。查看目录须包含项目完整场景清单及已有执行、复审和用户决策；不能只传本批次目录而把批次总数当项目分母。
 

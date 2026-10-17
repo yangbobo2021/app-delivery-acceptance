@@ -288,6 +288,8 @@ def prepare(manifest_path, out):
     raw = manifest_path.read_bytes()
     manifest = json.loads(raw)
     root, revision, hashes, test_hashes = validate_manifest(manifest, manifest_path)
+    if manifest['coverage']['policy'] == 'required':
+        fail('Legacy separate coverage commands cannot certify new metrics. Use the registered provider through v4 run_evidence_v2.py --coverage-config before executing cases; retain v3 for manual/source-free work.')
     path = out / "preparation.json"
     record = {"schema": SCHEMA, "manifest_sha256": sha(raw), "project_id": manifest["project"]["id"],
               "revision": revision, "source_hashes": hashes, "test_hashes": test_hashes,
@@ -383,6 +385,8 @@ def execute(manifest_path, out):
     if (out / "execute-intent.json").exists():
         fail("previous execution has no terminal record; inspect uncertain effects and use a new attempt")
     manifest = load(manifest_path)
+    if manifest.get('coverage', {}).get('policy') == 'required':
+        fail('Registered continuous coverage must use the v4 common execution entry; legacy separate collection is disabled before case execution.')
     if len(manifest.get("scenarios") or []) != 1:
         fail("execution requires one scenario")
     if not manifest.get("bindings"):

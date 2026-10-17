@@ -17,12 +17,18 @@ if(resume){
 }else{
  mkdirSync(output,{recursive:false});writeFileSync(join(output,'input.json'),inputText);
 }
+const coverageContract=readFileSync(new URL('../../references/coverage-tool-contract.md',import.meta.url),'utf8');
 const prompt=`你是独立测试审查者，判断一个场景的测试结论是否可靠。不能沿用实现者的 passed_local 自评。所有需求、场景和范围都在本任务输入中；无需读取项目外的测试 SKILL 或 Playbook。只读检查：选用的测试断言能否识别该场景的错误实现，预期是否来自需求与独立夹具，是否运行真实产品路径，冻结日志与观察是否支撑全部判据，失败究竟来自产品还是测试。若有逐行覆盖率，核对它来自本次冻结用例；覆盖率不能替代业务判断。
 
 调度器已做确定性门禁：本次冻结重跑的版本、组件、测试文件哈希、日志哈希和证据路径均通过，门禁结果为 ${JSON.stringify(gate)}。不重复计算文件哈希、不扫描整仓，不重新运行测试。先读目标测试代码和执行摘要，必要时再读少量相关产品路径与原始观察。读取大型 JSON 证据时，先列记录标签和键，再只抽取判定所需字段；单次命令输出尽量不超过 12 KB，不打印完整嵌套响应、状态快照或大日志。若有明确疑点，可以扩大读取并说明原因。只审查给定场景。若输入包含 previous_review，只核对具体缺口与新证据，保留已通过的检查，除非发生冲突。
 
+涉及截图布局、遮挡或可读性时，必须用可用的图片查看工具打开真实冻结截图后才能声称截图支持结论；不能仅从文件存在、DOM文字或几何检查推断已经看过图片。优先查看支持的窄窗口及关键阶段代表截图。若当前工具确实不能查看图片，如实说明审查能力缺口，不虚构视觉观察。
+
 只输出简洁 JSON：{"status":"passed|repair_required|product_bug|inconclusive","coverage":"判定与缺口","oracle":"预期依据","evidence":"关键实际证据","findings":[{"kind":"case_code|case_design|evidence|scenario|product|contract","reason":"具体原因","requested_change":"具体修复"}],"summary":"一句话"}。本地命令成功本身不足以证明场景通过。不修改文件或运行测试。
 
+
+覆盖率强制执行规约：
+${coverageContract}
 输入：${JSON.stringify(input)}`;
 if(resume){if(readFileSync(join(output,'prompt.txt'),'utf8')!==prompt)throw Error('review resume prompt changed');}
 else writeFileSync(join(output,'prompt.txt'),prompt);

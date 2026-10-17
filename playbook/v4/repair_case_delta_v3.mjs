@@ -18,11 +18,15 @@ if(git('rev-parse','HEAD')!==catalog.revision||changed.some(x=>!roots.some(root=
 const brief={revision:catalog.revision,test_roots:catalog.test_roots,runner_hints:catalog.runner_hints,
  guide_summary:guide.summary,fixture_isolation:guide.fixture_isolation,
  environment_contract:(guide.environment_contract??[]).filter(x=>x.must_match&&x.must_match!=='无')};
+const coverageContract=readFileSync(new URL('../../references/coverage-tool-contract.md',import.meta.url),'utf8');
 const prompt=`你负责一个验收场景用例在本地调试或独立审查后的差量修复，在同一个连续 Agent 过程中修改测试代码、运行并本地调试。工作目录为该场景的隔离测试工作树。只处理反馈指出的具体缺口；保留已有有效测试和证据，不重新设计全部需求或场景。先读现有测试文件、失败摘要与相关片段；仅在需要时读取更多源码。勿读取项目外测试 SKILL、整仓扫描或重新安装依赖。
 
 依照场景判据构造能区分正确与错误实现的输入，说明独立于产品返回值的观察方法。新增或修正的断言要在实际执行中验证；若发现产品问题，保存原始响应与状态，不能删断言、跳过或 mock 产品响应来制造通过。涉及自然语言说明的语义判断，保留完整原文交给独立复审，不用关键词伪造充分性。只修复测试自身缺口，禁止修改产品源码、需求和审查结论。
 
 外部调度器负责版本、组件、文件哈希、冻结重跑与独立复审；不自建全仓哈希或审查凭证。修复后执行针对性测试，若失败先识别环境、测试、产品或合同原因，最多两次有依据的再次运行。test_files 列出本场景所有新增的非忽略测试与夹具文件，包括复用的配置和服务脚本；可额外列入依赖的已有测试文件。最终只输出 JSON：{"status":"passed_local|product_failure|needs_contract|blocked","test_files":["相对路径"],"test_command":["程序","参数"],"test_env":{"变量":"值"},"observations":["实际观察"],"evidence_paths":["路径"],"limitations":["..."],"reason":"一句话"}。本地结论仍需独立复审。
+
+覆盖率强制执行规约：
+${coverageContract}
 
 场景输入：${JSON.stringify(input)}
 具体反馈：${JSON.stringify(review)}

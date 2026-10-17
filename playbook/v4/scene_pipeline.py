@@ -86,6 +86,25 @@ def prepare(config, output):
     template = load(template_path)
     if not template or template.get("schema") != "portable-project-catalog-v1":
         raise ValueError("invalid project catalog")
+    required_coverage = template.get('coverage', {})
+    if required_coverage.get('policy') == 'required':
+        configured = config.get('coverage', {})
+        if configured.get('policy') != 'required' or any(configured.get(k) != required_coverage.get(k) for k in ['provider','prepared','inventory_path']):
+            raise ValueError('Scene cannot downgrade or replace frozen project coverage preparation')
+    from coverage_registry import project_coverage
+    coverage = project_coverage(source,config.get('coverage',template.get('coverage'))) or {}
+    config['coverage']=coverage
+    if coverage.get('policy') == 'required':
+        if not coverage.get('scene_id') or coverage.get('revision')!=config.get('revision'):
+            raise ValueError('Required coverage must be scene-bound; use bind_case with the current project catalog')
+        if coverage.get('provider') != 'istanbul-source-v1' or not coverage.get('prepared'):
+            raise ValueError('Verify a registered coverage toolchain before case implementation/execution')
+        provider=HERE.parents[1]/'scripts/coverage-istanbul/provider.mjs'
+        subprocess.run(['node',str(provider),'verify-preparation',coverage['prepared']],check=True,
+                       stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        coverage_prepared=load(Path(coverage['prepared'])/'prepared.json')
+        if coverage_prepared['spec']['source_hashes'] != template.get('source_hashes'):
+            raise ValueError('Coverage preparation differs from frozen project sources')
     revision = config["revision"]
     if template["revision"] != revision or git(source, "rev-parse", "HEAD") != revision:
         raise ValueError("source revision differs from frozen catalog")
@@ -114,6 +133,7 @@ def prepare(config, output):
         if git(component_root, "rev-parse", "HEAD") != component["revision"]:
             raise ValueError("component worktree revision mismatch")
     catalog = dict(template)
+    if coverage.get('policy')=='required':catalog['coverage']=coverage
     catalog["project_root"] = str(root)
     catalog["write_roots"] = config.get("allowed_test_roots", template.get("test_roots", []))
     for name, expected in template.get("binding_files", {}).items():
@@ -355,26 +375,54 @@ def main():
     if answer.get("status") == "blocked" or not answer.get("test_command"):
         raise RuntimeError("case Agent did not produce an executable case")
     files = collect_files(root, answer, catalog)
-    execution_dir = output / "execution"
+    execution_name=state.get('execution_attempt_directory','execution')
+    if Path(execution_name).name!=execution_name or not execution_name.startswith('execution'):
+        raise ValueError('Invalid explicit execution-attempt directory')
+    execution_dir = output / execution_name
 
     def execute_step():
         if execution_dir.exists():
             raise RuntimeError("execution directory exists without completed stage; reconcile first")
         command = ["python3", str(HERE / "run_evidence_v2.py"), "--cwd", str(root),
                    "--output", str(execution_dir)]
+        if config.get('coverage', {}).get('policy') == 'required':
+            coverage_config = output / 'coverage-execution-config.json'
+            save(coverage_config, config['coverage'])
+            command += ['--coverage-config', str(coverage_config)]
         for file in files:
             command += ["--file", file]
+        business_command=answer['test_command']
+        # Case Agents may use the required collector for local debugging, but
+        # the host already supplies that collector around the frozen run.
+        # Unwrap only our exact, scene/source/file-bound entry, never an arbitrary
+        # shell command or a request belonging to another scene/worktree.
+        if len(business_command)==3 and Path(business_command[1]).resolve()==(HERE/'run_coverage.py').resolve():
+            nested_path=(root/business_command[2]).resolve()
+            nested=load(nested_path)
+            coverage=config.get('coverage',{})
+            if (not nested or Path(nested.get('cwd','')).resolve()!=root or
+                nested.get('scene_id')!=load(config['case_input'])['scene']['id'] or
+                nested.get('revision')!=config['revision'] or
+                Path(nested.get('prepared','')).resolve()!=Path(coverage.get('prepared','')).resolve() or
+                set(nested.get('files',[]))!=set(files) or not nested.get('command') or
+                any(Path(part).name in {'run_coverage.py','run_evidence_v2.py'} for part in nested['command'])):
+                raise ValueError('Nested collector request is not the exact frozen case')
+            business_command=nested['command']
+            save(output/'execution-command-binding.json',{'declared_command':answer['test_command'],
+              'local_debug_request':str(nested_path),'local_debug_request_sha256':digest(nested_path),
+              'frozen_business_command':business_command,
+              'reason':'Host supplies required collection once; local-debug command was already wrapped. Fresh host env/dirs replace local-debug paths.'})
         env_values = dict(answer.get("test_env", {}))
         fresh_key = config.get("fresh_env_root_key")
         if fresh_key:
-            fresh_root = output / "fresh-execution"
+            fresh_root = output / ('fresh-'+execution_name)
             command += ["--fresh-dir", str(fresh_root)]
             env_values[fresh_key] = str(fresh_root)
             for key, relative in config.get("fresh_env_paths", {}).items():
                 env_values[key] = str(fresh_root / relative)
         for key, value in env_values.items():
             command += ["--env", key + "=" + value]
-        command += ["--"] + answer["test_command"]
+        command += ["--"] + business_command
         result = run(command, log=output / "execution-stage.log", timeout=600)
         receipt = load(execution_dir / "execution.json")
         if not receipt:
@@ -394,7 +442,7 @@ def main():
         receipt = load(execution["receipt"])
         coverage_result, coverage_path = freeze_coverage(config.get("coverage"), root, execution_dir,
                                                          execution["receipt"], output / "coverage-report")
-        if coverage_result["status"] == "measured":
+        if coverage_result["status"] in ("measured", "incomplete"):
             roots.append(Path(coverage_result["line_raw_path"]))
         for key in config.get("evidence_env_dir_keys", []):
             value = receipt.get("env_changes", {}).get(key)

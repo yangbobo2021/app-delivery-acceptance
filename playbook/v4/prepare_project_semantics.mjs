@@ -9,9 +9,13 @@ if(!catalogArg||!outputArg)throw Error('usage: node prepare_project_semantics.mj
 const catalogPath=resolve(catalogArg),bytes=readFileSync(catalogPath),catalog=JSON.parse(bytes);
 if(catalog.schema!=='portable-project-catalog-v1')throw Error('Invalid project catalog');
 const output=resolve(outputArg);mkdirSync(output,{recursive:false});
+const coverageContract=readFileSync(new URL('../../references/coverage-tool-contract.md',import.meta.url),'utf8');
 const prompt=`你负责一次性项目测试准备补充，只发现项目运行测试所需的操作事实，不设计需求、场景或用例，也不执行测试。项目目录：${catalog.project_root}。确定性准备目录已经存在，见输入。优先读取测试命令配置、测试助手和一份代表性既有测试，最多十次短源码读取，单次输出尽量不超过4KB。禁止读取正式测试SKILL或扫描整仓；禁止修改文件、安装依赖或连接外部服务。不要把具体业务预期硬编码为所有测试的规则。
 
-最终只输出 JSON：{"runner_command_hint":["程序","参数"],"environment_contract":[{"name":"变量名","purpose":"用途","must_match":"与哪个服务/测试路径共享或无"}],"fixture_isolation":"每次尝试如何隔离状态","existing_test_examples":["相对路径"],"smoke_command_hint":["程序","参数"],"source_basis":[{"path":"项目内相对路径","why":"依据"}],"uncertainties":["..."],"summary":"一两句话"}。发现不了的字段用空数组或明确不确定，不要猜测。此结果只作为后续Agent的项目级操作路标，不是验收预期证据。
+最终只输出 JSON：{"runner_command_hint":["程序","参数"],"environment_contract":[{"name":"变量名","purpose":"用途","must_match":"与哪个服务/测试路径共享或无"}],"fixture_isolation":"每次尝试如何隔离状态","existing_test_examples":["相对路径"],"smoke_command_hint":["程序","参数"],"source_basis":[{"path":"项目内相对路径","why":"依据"}],"coverage_tools":[{"role":"collector|converter|source_map|statistics","name":"工具名","version":"实测版本或未记录","invocation":"实际命令或API","supported_metrics":["lines","branches"],"basis":"项目证据或明确未知"}],"uncertainties":["..."],"summary":"一两句话"}。发现不了的字段用空数组或明确不确定，不要猜测。此结果只作为后续Agent的项目级操作路标，不是验收预期证据。
+
+覆盖率强制执行规约：
+${coverageContract}
 
 确定性准备：${JSON.stringify(catalog)}`;
 writeFileSync(join(output,'prompt.txt'),prompt);

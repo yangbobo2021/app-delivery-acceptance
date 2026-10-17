@@ -25,10 +25,10 @@ if(git('diff','--name-only','HEAD').split('\n').filter(Boolean).some(x=>!allowed
 if(resume){if(!existsSync(output))throw Error('resume output missing');}
 else mkdirSync(output,{recursive:false});
 const fingerprint=createHash('sha256').update(catalogBytes).digest('hex');
-const guideBrief={summary:guide.summary,fixture_isolation:guide.fixture_isolation,ui_state_notes:guide.ui_state_notes,
+const guideBrief={coverage_tools:guide.coverage_tools,summary:guide.summary,fixture_isolation:guide.fixture_isolation,ui_state_notes:guide.ui_state_notes,
  environment_contract:(guide.environment_contract??[]).filter(x=>x.must_match&&x.must_match!=='无'),
  existing_test_examples:guide.existing_test_examples,uncertainties:guide.uncertainties};
-const catalogBrief={project_root:catalog.project_root,revision:catalog.revision,components:catalog.components,
+const catalogBrief={project_root:catalog.project_root,revision:catalog.revision,components:catalog.components,coverage:catalog.coverage,
  test_roots:catalog.test_roots,source_roots:catalog.source_roots,runner_hints:catalog.runner_hints,
  capability_checks:(catalog.capability_checks??[]).map(x=>({command:x.command,env:x.env,exit_code:x.exit_code}))};
 const inputText=JSON.stringify(input,null,2)+'\n';
@@ -42,13 +42,17 @@ if(resume){
  writeFileSync(join(output,'input.json'),inputText);
  writeFileSync(join(output,'catalog-binding.json'),bindingText);
 }
+const coverageContract=readFileSync(new URL('../../references/coverage-tool-contract.md',import.meta.url),'utf8');
 const prompt=`你负责一个验收场景的“用例实现与本地调试”，在同一个连续 Agent 过程中完成。工作目录已隔离，允许修改项目常规测试目录，禁止修改产品源码、需求、流程框架文件、真实外部数据或部署。全部验收信息在本任务输入中；无需查阅项目外的测试 SKILL 或 Playbook。
 
 项目公共准备已完成。复用测试工具、依赖和环境能力，不重新安装或重新发现整个项目。目录与指南仅是操作路标，不是业务预期证据。你可自主读取项目代码与测试；先用 rg 定位，再读所需短片段。日志只看失败摘要与相关上下文，避免整仓读取或重复贴大日志。
 
 只以给定需求与场景为目标。相关需求仅提供上下文。动手前用不超过三句话列出：本场景最重要的错误实现假设、能让正确与错误实现得出不同结果的输入，以及独立观察方法。尤其面对“资源可用、状态正确、数据一致”等判据，考虑仅凭浅层格式、状态码或非空值检查会放过什么；选择真实消费方仍无法使用的反例，而不是仅提供明显无效的值。不要强制使用某语言、格式或项目特定反例。先找一个最小但可判定的测试路径：真实输入、操作、可观察断言和隔离环境；先让它实际运行，再补足场景内尚未覆盖的不同错误机理。不要把同一机理的值与状态做无意义笛卡尔积；场景明确要求的每个状态和每类错误仍须覆盖，可用有依据的代表组合，先写覆盖清单。优先复用已有用例，新测试放项目常规测试目录。若判据涉及说明是否具体、易懂或准确等语义，自动用例保留完整原始文本和对应状态，只断言可机械判定的事实；不要用关键词、当前文案或永远失败的断言冒充语义判定，交由独立审查判断。进入页面后先用当前 DOM 或截图识别所处状态，再选择定位器；不要假定上一场景的页面状态恒定。对尚未出现的元素先用约 5 秒的小超时检查，失败后检查页面，不要等待整场测试超时。测试失败时先分清环境、测试导航、产品或合同；修正具体原因后才重跑。不要反复运行同一失败命令，也不要靠删除断言、跳过测试或 mock 产品响应制造通过。若三次有针对性重跑后仍未完成，诚实输出 blocked 和已验证部分。
 
-外部调度器会自动校验仓库与组件版本、文件变更并冻结重跑；不要自己扫描或哈希整仓，也不要自建审查凭证。你只需保留场景每项判据的真实执行观察，并给出可重跑的命令、环境变量和测试文件。test_files 必须列出本场景新增的所有非忽略测试与夹具文件，包括借用的配置和服务脚本；可额外列入依赖的已有测试文件。只输出 JSON 对象：{"status":"passed_local|product_failure|needs_contract|blocked","test_files":["相对路径"],"test_command":["命令","参数"],"test_env":{"变量名":"值"},"observations":["真实观察"],"evidence_paths":["路径"],"limitations":["..."],"reason":"一句话"}。本地通过仍需独立审查。
+外部调度器会自动校验仓库与组件版本、文件变更并冻结重跑；不要自己扫描或哈希整仓，也不要自建审查凭证。你只需保留场景每项判据的真实执行观察，并给出可重跑的命令、环境变量和测试文件。test_command 必须是原始业务用例命令（例如 node e2e/run-case.mjs），不能返回 run_coverage.py、run_evidence_v2.py 等采集包装命令；调度器会自动且只包装一次。本地调试仍须按覆盖率规约通过统一入口执行；不要把本地调试目录和请求包装成最终业务命令。test_files 必须列出本场景新增的所有非忽略测试与夹具文件，包括借用的配置和服务脚本；可额外列入依赖的已有测试文件。只输出 JSON 对象：{"status":"passed_local|product_failure|needs_contract|blocked","test_files":["相对路径"],"test_command":["命令","参数"],"test_env":{"变量名":"值"},"observations":["真实观察"],"evidence_paths":["路径"],"limitations":["..."],"reason":"一句话"}。本地通过仍需独立审查。
+
+覆盖率强制执行规约：
+${coverageContract}
 
 公共准备目录：${catalogPath}
 必要操作信息：${JSON.stringify(catalogBrief)}

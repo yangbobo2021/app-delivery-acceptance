@@ -65,8 +65,14 @@ def main():
                   "scenario_source_sha256": sha(scenes_path),
                   "scenario_self_check": "internal",
                   "local_loopback_required": bool(template.get("local_loopback_required", False))}
-    coverage = template.get("coverage", {"policy": "unavailable",
-                                        "reason": "No project coverage collector was supplied"})
+    coverage = template.get("coverage", catalog.get("coverage", {"policy": "unavailable",
+                                        "reason": "No project coverage collector was supplied"}))
+    if catalog.get('coverage', {}).get('policy') == 'required':
+        coverage = catalog['coverage']
+    from coverage_registry import project_coverage
+    coverage=project_coverage(root,coverage if catalog.get('coverage',{}).get('policy')=='required' else template.get('coverage',catalog.get('coverage'))) or coverage
+    if coverage.get('provider'):
+        coverage = {**coverage, 'scene_id': scene['id'], 'revision': revision}
     case_input["coverage"] = coverage
     if request["scenario_kind"] == "WHITE_BOX":
         case_input["source_evidence"] = request["source_evidence"]

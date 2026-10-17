@@ -63,6 +63,10 @@ def continue_after_review(config, output, state_path, state, prepared, catalog,
                 values[fresh_key] = str(fresh)
                 for key, relative in config.get("fresh_env_paths", {}).items():
                     values[key] = str(fresh / relative)
+            if config.get('coverage', {}).get('policy') == 'required':
+                coverage_config = output / f'coverage-execution-config-{number}.json'
+                save(coverage_config, config['coverage'])
+                command += ['--coverage-config', str(coverage_config)]
             for key, value in values.items():
                 command += ["--env", key + "=" + value]
             command += ["--"] + answer["test_command"]
@@ -85,7 +89,7 @@ def continue_after_review(config, output, state_path, state, prepared, catalog,
             roots = [execution_dir]
             coverage_result, coverage_path = freeze_coverage(config.get("coverage"), root, execution_dir,
                                                              execution["receipt"], output / f"coverage-review-{number}-report")
-            if coverage_result["status"] == "measured":
+            if coverage_result["status"] in ("measured", "incomplete"):
                 roots.append(Path(coverage_result["line_raw_path"]))
             for key in config.get("evidence_env_dir_keys", []):
                 value = receipt.get("env_changes", {}).get(key)

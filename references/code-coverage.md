@@ -1,5 +1,7 @@
 # Optional code-coverage enhancement
 
+**Mandatory for every coverage mode and offline reprocessing:** follow [coverage-tool-contract.md](coverage-tool-contract.md). Language-specific dedicated providers and their supported conversion, source-map, merge and summary modules own coverage semantics. Do not implement AST/regex denominators, branch/nested-branch recognition, raw-range hit inference, transpilation reconstruction or custom counter merging. The adapter only invokes tools, binds evidence, normalizes report formats/paths and filters tool-reported units for the declared scope. Show the actual collector, converter/mapping and statistics tools with versions in the coverage panel. Missing or incompatible data stays visible; a tool label never upgrades custom/unsupported numbers into measured results. These constraints apply even where a legacy paragraph below refers to AST generation or merging: those operations must be provided by supported coverage tooling.
+
 Business acceptance scope follows [acceptance-organization.md](acceptance-organization.md) and is separate from the measured denominator. User-selected full PR coverage keeps its complete denominator even when a test topic is excluded. Missing coverage never authorizes additional business scenarios; opt-in enhancement must remain within the published scope.
 
 Read this reference when the fixed acceptance `coverageMode` is `coverage`, or when the user requests the optional live execution indicator described below.

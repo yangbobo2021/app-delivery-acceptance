@@ -70,6 +70,22 @@ def main():
         if not path.is_relative_to(root) or not path.is_file():
             raise ValueError("declared non-test source missing: " + item)
         source_files[item] = sha(path.read_bytes())
+    from coverage_registry import project_coverage
+    coverage = spec.get('coverage')
+    if not coverage or coverage.get('policy')!='required':
+        coverage = project_coverage(root,coverage)
+    if coverage and coverage.get('policy') == 'required':
+        if coverage.get('provider') != 'istanbul-source-v1':
+            raise ValueError('Coverage requires a registered language-specific provider')
+        provider = Path(__file__).resolve().parents[2] / 'scripts/coverage-istanbul/provider.mjs'
+        subprocess.run(['node', str(provider), 'verify-preparation', coverage['prepared']], check=True)
+        prepared = json.loads((Path(coverage['prepared']) / 'prepared.json').read_text())
+        if prepared['spec']['revision']!=spec['revision'] or prepared['spec'].get('components',{})!={item['path']:item['revision'] for item in components}:
+            raise ValueError('Coverage preparation binds another product/component revision')
+        if not prepared['spec'].get('registry_path') or not prepared['spec'].get('inventory_path'):
+            raise ValueError('Required coverage needs a persistent registry and frozen scope inventory')
+        if prepared['spec']['source_hashes'] != source_files:
+            raise ValueError('Coverage preparation does not match complete project source inventory')
     markers = []
     for item in spec.get("ready_markers", []):
         path = (root / item).resolve()
@@ -85,10 +101,14 @@ def main():
     if catalog_path.exists() and terminal_path.exists():
         old = json.loads(catalog_path.read_text())
         terminal = json.loads(terminal_path.read_text())
-        if old.get("fingerprint") == fingerprint and terminal.get("catalog_sha256") == sha(catalog_path.read_bytes()) and all(x["exists"] for x in markers):
+        if old.get("fingerprint") == fingerprint and terminal.get("catalog_sha256") == sha(catalog_path.read_bytes()) and all(x["exists"] for x in markers) and old.get('coverage')==(coverage if coverage and coverage.get('policy')=='required' else None):
             print(json.dumps({"state": "reused", "setup_calls": 0,
                               "fingerprint": fingerprint, "catalog": str(catalog_path)}))
+            if coverage and coverage.get('policy')=='required':
+                from coverage_registry import activate
+                activate(coverage['prepared'],catalog_path)
             return
+    if catalog_path.exists():raise ValueError('Existing project catalog is immutable; use a new output directory')
     setup = []
     if any(not x["exists"] for x in markers):
         for argv in spec.get("setup_commands", []):
@@ -114,11 +134,16 @@ def main():
                "source_roots": spec.get("source_roots", []),
                "runner_hints": spec.get("runner_hints", {}),
                "ready_markers": markers, "setup": setup, "capability_checks": checks}
+    if coverage and coverage.get('policy') == 'required':
+        catalog['coverage'] = coverage
     raw = json.dumps(catalog, ensure_ascii=False, indent=2) + "\n"
     catalog_path.write_text(raw)
     terminal_path.write_text(json.dumps({"state": "prepared", "fingerprint": fingerprint,
                                          "catalog_sha256": sha(raw.encode()),
                                          "setup_calls": len(setup)}, indent=2) + "\n")
+    if coverage and coverage.get('policy')=='required':
+        from coverage_registry import activate
+        activate(coverage['prepared'],catalog_path)
     print(json.dumps({"state": "prepared", "setup_calls": len(setup),
                       "fingerprint": fingerprint, "catalog": str(catalog_path)}))
 
