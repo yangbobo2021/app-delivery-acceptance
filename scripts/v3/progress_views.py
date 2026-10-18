@@ -387,6 +387,11 @@ def collect(roots, traces, request_paths=None, artifact_resolver=None, request_o
                           else 'scenario_approved') if state == 'done' else 'awaiting_review') if kind == 'scenario' else (
             'reviewed' if kind == 'case' and state == 'done' else
             'awaiting_review' if kind == 'case' and case_results else 'prepared')
+        attempt_label = f"第 {stage['attempt']} 次尝试" if stage['attempt'] else '准备阶段'
+        if request.get('progress_schema') == 'single-agent-scene-v1' and case_results:
+            # Flat v4 receipts have no attempt-N directory; absence of a directory
+            # number does not mean the recorded execution is still preparation.
+            attempt_label = '冻结执行'
         previews.append({'schema': 'delivery-trace-v1', 'provisional': True, 'project': project,
                          'requirements': requirements, 'reverse_rules': reverse_rules,
                          'change': request.get('change') or {}, 'scenarios': scenes,
@@ -396,7 +401,7 @@ def collect(roots, traces, request_paths=None, artifact_resolver=None, request_o
                          'progress_folder': stage['folder'],
                          'attempt_number': stage['attempt'],
                          'progress_updated_at': stage['updated_at'],
-                         'attempt_id': f"第 {stage['attempt']} 次尝试" if stage['attempt'] else '准备阶段',
+                         'attempt_id': attempt_label,
                          'generated_at': preview_at, 'progress_kind': kind, 'progress_state': state,
                          'workflow_origin': origin.get('original_path', str(folder / 'request.frozen.json'))})
     # A later attempt for the same stage and target is the current one. Preserve older

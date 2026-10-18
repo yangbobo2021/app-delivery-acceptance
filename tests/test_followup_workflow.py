@@ -185,6 +185,19 @@ class FollowupTests(unittest.TestCase):
         self.assertEqual(row['change']['inventory']['source_hashes'], {'src.js':'synthetic'})
         self.assertFalse((self.local/'project-context.json').exists())
 
+    def test_flat_v4_execution_label_uses_receipt_not_directory_number(self):
+        source = self.frozen_scene()
+        with patch('project_view.summarize',return_value=[]):
+            data = ProjectView(self.root).snapshot('AT-tools')
+        case = next(r for r in data['progress']['previews'] if r['progress_kind']=='case')
+        self.assertEqual(case['attempt_number'], 0)
+        self.assertEqual(case['attempt_id'], '冻结执行')
+        (source/'execution/execution.json').unlink()
+        with patch('project_view.summarize',return_value=[]):
+            data = ProjectView(self.root).snapshot('AT-tools')
+        case = next(r for r in data['progress']['previews'] if r['progress_kind']=='case')
+        self.assertEqual(case['attempt_id'], '准备阶段')
+
     def test_full_v4_archive_keeps_result_when_local_stage_is_removed(self):
         source = self.frozen_scene()
         archive(self.root,'AT-tools',source,[], 'Synthetic reviewed v4 metadata profile', v4_result=True)
