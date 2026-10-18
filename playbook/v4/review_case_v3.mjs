@@ -24,6 +24,8 @@ const prompt=`你是独立测试审查者，判断一个场景的测试结论是
 
 涉及截图布局、遮挡或可读性时，必须用可用的图片查看工具打开真实冻结截图后才能声称截图支持结论；不能仅从文件存在、DOM文字或几何检查推断已经看过图片。优先查看支持的窄窗口及关键阶段代表截图。若当前工具确实不能查看图片，如实说明审查能力缺口，不虚构视觉观察。
 
+结论结构门禁：passed 必须是冻结命令退出码为 0 且 findings 为空；product_bug 必须有失败的冻结执行和 product finding。若命令通过但发现断言缺口，即使原始页面提示产品问题，也应返回 repair_required 并列出具体测试缺口及保留的产品观察，先修补测试后重新冻结执行。涉及场景或合同争议时列明 scenario/contract finding，不能通过改测试预设业务答案。若输入含 decision_gate_correction，只针对原有证据补正一次结构冲突，不执行测试、不改变原始观察或范围。
+
 只输出简洁 JSON：{"status":"passed|repair_required|product_bug|inconclusive","coverage":"判定与缺口","oracle":"预期依据","evidence":"关键实际证据","findings":[{"kind":"case_code|case_design|evidence|scenario|product|contract","reason":"具体原因","requested_change":"具体修复"}],"summary":"一句话"}。本地命令成功本身不足以证明场景通过。不修改文件或运行测试。
 
 

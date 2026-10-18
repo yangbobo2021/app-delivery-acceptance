@@ -196,8 +196,12 @@ def collect_files(root, answer, catalog):
     return all_names
 
 
-def run_independent_review(root, input_path, review_dir, log_path):
+def _run_review_attempt(root, input_path, review_dir, log_path):
     """Resume a Reviewer, or restart it once if its read-only session is unusable."""
+    from review_decision_correction import completed_review
+    existing = completed_review(review_dir, input_path)
+    if existing:
+        return existing
     review_dir = Path(review_dir)
     command = ["node", str(HERE / "review_case_v3.mjs"),
                str(root), str(input_path), str(review_dir)]
@@ -220,13 +224,29 @@ def run_independent_review(root, input_path, review_dir, log_path):
     from decision_gate import validate
     verdict = validate(answer, load(input_path))
     save(review_dir / "decision-gate.json", verdict)
-    if verdict["status"] != "valid":
-        raise RuntimeError("independent review structure invalid: " + "; ".join(verdict["errors"]))
     return {"answer": str(review_dir / "answer.json"),
             "metrics": str(review_dir / "metrics.json"),
             "status": answer.get("status"), "seconds": metrics["seconds"],
             "usage": metrics.get("usage"), "tool_calls": metrics.get("tool_calls"),
-            "restarted_after_unavailable_session": restarted}
+            "restarted_after_unavailable_session": restarted}, verdict
+
+
+def run_independent_review(root, input_path, review_dir, log_path):
+    from review_decision_correction import correction_input
+    review_dir = Path(review_dir)
+    result, verdict = _run_review_attempt(root, input_path, review_dir, log_path)
+    if verdict["status"] == "valid":
+        return result
+    # The host supplies structural feedback, never a replacement judgment.
+    correction_path = correction_input(review_dir, input_path, verdict)
+    corrected, gate = _run_review_attempt(
+        root, correction_path, review_dir.with_name(review_dir.name + "-decision-correction-1"),
+        Path(log_path).with_name(Path(log_path).stem + "-decision-correction-1.log"))
+    if gate["status"] != "valid":
+        raise RuntimeError("independent review correction invalid; bounded limit reached: " + "; ".join(gate["errors"]))
+    corrected["decision_correction"] = {"previous_answer": result["answer"],
+                                        "input": str(correction_path)}
+    return corrected
 
 
 def main():
@@ -290,6 +310,8 @@ def main():
     if state.get("bindings") != bindings:
         raise ValueError("case input, guide or catalog changed; create a new run")
     save(state_path, state)
+    from review_decision_correction import recover_parked_review
+    recover_parked_review(config, output, state, save)
     if any(item.get("status") == "running" for item in state["stages"].values()):
         from reconcile_pipeline import reconcile
         catalog_path = output / "catalog.json"

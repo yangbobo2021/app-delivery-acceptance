@@ -21,6 +21,11 @@ def validate(answer, review_input):
                 not isinstance(item.get("reason"), str) or not item["reason"].strip() or
                 not isinstance(item.get("requested_change"), str) or not item["requested_change"].strip()):
             errors.append("review finding is incomplete")
+    correction = review_input.get("decision_gate_correction")
+    if correction:
+        previous = correction.get("previous_review", {})
+        if any(item not in findings for item in previous.get("findings", [])):
+            errors.append("decision correction must retain every original finding unchanged")
     receipt = json.loads(Path(review_input["frozen_execution_receipt"]).read_text())
     if status == "passed" and (receipt.get("exit_code") != 0 or findings):
         errors.append("pass contradicts execution exit or findings")
