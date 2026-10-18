@@ -6,20 +6,17 @@
 
 新项目和重新采集的旧用例必须走同一流程：**冻结源码与完整范围 → 选择并验证专用工具链 → 工具生成完整零命中分母 → 每场景执行并保存原始报告 → 程序验证 → 专用模块合并/汇总 → 更新视图**。不把每次补采做成不同的临时脚本链路。
 
-- 按语言注册 provider。当前提供 `istanbul-source-v1`，仅适用于经验证的 JS/TS 编译链；不强加给其他语言。其他语言需增加相应专用工具适配和验证，否则明确 `unavailable`，不能通过提交 LCOV 或工具名称绕过门禁。
-- JS/TS 路线使用 `scripts/coverage-istanbul/package-lock.json` 固定的 `istanbul-lib-instrument` 在原始源码转译前插桩，使用同一实例输出 `lastFileCoverage()` 作为零命中单位，使用 `istanbul-lib-coverage` 合并与汇总。只在隔离测试工作区生成插桩构建，保存原始/插桩源码哈希，执行后恢复原始字节。业务断言保持不变；Playwright 用例和独立浏览器脚本只允许切换采集夹具的 import。
-- `scripts/coverage-istanbul/probe.mjs <project-root> <new-output> <electron-executable>` 是工具链合成验证，不是业务验收。覆盖 Node、浏览器导航、Electron 主进程/渲染进程/sandbox preload、嵌套条件和空值表达式，并验证项目实际 ESM/CJS 加载方式、显式浏览器服务连接和独立 Node 浏览器脚本。目标项目未使用某运行时，应通过项目配置选择对应的验证器，不能把 Electron 变成其他项目的前置要求。验证器不能访问真实业务资源。
-- 项目配置显式列出完整 `source_paths/source_hashes`、纯类型/静态资源的 `non_executable` 处置、未支持语言/内联脚本的 `unsupported` 处置和实际 `preload_paths/required_runtimes`。不以工具不支持为理由缩小原有范围。`provider.mjs prepare <spec> <new-prepared-dir>` 绑定源文件、工具/配置、源码单位和运行时验证；工具或配置改变必须重新准备与验证。
-- 项目 catalog 的 `coverage` 为 `{policy:"required",provider:"istanbul-source-v1",prepared:"绝对准备目录",inventory_path:"冻结变更清单"}`。`prepare_project.py` 验证后保存它，`bind_case.py` 自动继承并绑定场景，执行/修复执行均调用 `run_evidence_v2.py --coverage-config <config>`，由 `run_coverage.py` 完成采集。仅执行采集时也可以直接调用 `run_coverage.py <request.json>`；不得另外编写覆盖率识别或统计程序。新场景继续使用该入口，不增加人工补采步骤。准备阶段在 Git common-dir 的 `delivery-acceptance-coverage.json` 激活项目级索引，供共享该仓库的隔离工作区继承。`bind_case.py`、`scene_pipeline.py` 和执行入口均读取它；旧模板可继承已验证配置，显式降级、旧配置或新版本未准备时拒绝执行。启用后，绕过 `--coverage-config` 的普通执行命令也会在创建执行目录之前拒绝。旧项目 catalog 不覆盖，配置变化使用新目录。
-- 门禁拒绝：未注册工具、缺少运行时验证、工具/配置变更、源码/插桩字节变化、源码恢复失败、已冻结统计范围被改写、覆盖率单位不兼容、原始报告/执行凭证哈希变化、伪造统计，以及重复使用已有执行目录。报告必须能从绑定的原始计数通过注册 provider 再算出来。失败用例的真实计数仍可用，不据此改变验收结论。夹具收尾超时、最终快照错误、工作进程被强制结束等情况必须按真实日志标注采集完整性缺口，不因已有快照就宣称完整。
-- 每进程/页面文档保存独立快照；累计快照更新同一对象而非反复相加。场景之间隔离计数；不能把上一场景的持续服务计数归到下一场景。程序先检查兼容性，再由专用模块合并。相同场景的新旧尝试默认选最新有效采集；旧证据保留，不能混算不兼容来源。
-- 准备配置同时固定 `registry_path`（持续证据索引）和 `inventory_path`（范围清单）；项目准备激活该配置。每次统一入口执行结束并恢复源码后，`coverage_registry.py` 校验报告、保存不可变条目及原始数据清单，以文件锁和原子替换发布 `coverage-view.json`。同配置按场景取最新采集，后续新场景自动追加到同一索引与视图；不得依赖固定的首批场景列表。登记失败可对同一冻结报告重试 `coverage_registry.py register <report>`，不得为更新视图重跑业务。切换配置建立新统计集合并保留旧条目。
-- `provider.mjs summarize <request> <output>` 使用专用工具合并。整个项目/修改文件按文件筛选，修改行按工具提供的语句行、分支父决策行筛选全部对应出口，再调用工具汇总；无单位显示不适用。不得在 Python 或前端另写命中集合合并、分母生成或覆盖率算法。
-- 版本变更建立新的统计集合；同版本新增场景继续增加兼容报告，分母不随访问文件数变化。覆盖率状态与验收结果独立；无复审授权时不启动复审，也不覆盖历史已确认结论。
+工具选择、依赖锁定、配置、夹具和调用适配由项目准备阶段根据实际语言、框架和运行方式生成，保存在项目测试树及项目知识中。通用 Skill 不设置语言/provider 白名单，不因缺少内置实现就结束项目准备。无法采集时记录实际尝试及具体缺口。
 
-准备 spec 的 `runtime_probe_path` 指向真实合成验证报告；`prepare` 把它和工具分母冻结。已有原始数据可另做工具支持的离线迁移，不能伪称它使用了新的源码插桩流程。无法恢复的数据保留明确缺口。覆盖率准备的“已验证”只表示工具能力，不表示业务场景通过。
+- 新准备使用语言无关的 `project-coverage-v1` 协议；manifest、操作和报告格式见[项目覆盖率准备协议](project-coverage-protocol.md)。项目入口提供 `verify-preparation / run / finish / verify-report / summarize`，由所选成熟工具完成全部覆盖率计算。只交汇总 JSON 或工具标签不能成为 `measured`。
+- 项目 catalog 保存 `{policy:"required",protocol:"project-coverage-v1",prepared:"绝对准备目录",prepared_sha256:"manifest摘要",inventory_path:"冻结范围清单"}`。准备验证工具版本、真实探针、完整源码处置和工具生成的零命中单位，再激活持续索引。工具、配置、源码、适配器或统计范围改变都使用新准备/catalog；先结束仍使用旧准备的活动执行，保留旧资料。
+- prep spec 的 `coverage_test_files` 声明项目内适配器与必要夹具，宿主冻结哈希并自动绑定到场景、本地调试和正式执行。统一入口为 `run_evidence_v2.py --coverage-config <配置>`；直接补采使用同一个 `run_coverage.py`，不能另写识别/统计链路。已激活配置不能由旧模板降级或替换。
+- 通用程序验证项目目录、完整源范围、场景/版本/准备关联、真实执行会话/收据、工具来源及所有冻结证据字节；统计与合并仍调用项目专用工具。输出、fresh dirs 及目录环境变量须在本 ID workflows 内，实际执行使用唯一验收 workspace。独立合成探针不能冒充业务执行或绕过验收绑定。
+- 按进程/页面文档保留独立快照，累计快照更新同一对象；不得反复相加或把上一场景计数归到下一场景。失败用例的可靠原始计数仍可登记，覆盖率不会改变独立业务结论。收尾错误、强制终止和缺失数据如实标 `incomplete/unavailable`。
+- `coverage_registry.py` 保存不可变采集条目，同一准备按场景选最新有效采集，兼容报告由项目工具合并。登记失败可以对同一冻结报告重试，不为刷新视图重跑业务。混合语言分别显示组件的原生行/分支口径；无法可靠合并时不制造统一百分比。
+- 覆盖率专用归档使用公开 `archive --coverage-report` 配置，保留原生报告、收据、会话、准备、范围及冻结源码/适配器；按同哈希路径映射读取，不改写历史证据。视图每次核验绑定及实际工具版本，缓存不得掩盖证据或工具变化。
 
-验收型执行从已激活的 project catalog 继承 acceptance 和 `required_test_files`。这些夹具由 prep spec 的 `coverage_test_files` 声明并哈希冻结，统一入口自动加入实际测试文件和导入适配；调用方不能替换或移除绑定。输出、fresh dirs 和声明的目录环境变量必须位于本 ID 的 workflows 内。独立合成工具链探针可保留无验收 API，验收 workspace 不得用该 API 逃逸存储门禁。本地调试通过 v4 生成的 debug contract 使用同一 collector，不另写采集链路。
+旧 `istanbul-source-v1` 实现保留为明确的 legacy 兼容入口，服务于既有准备和历史证据；它不是新项目的固定技术栈或工具注册要求。准备验证只证明工具能力，不表示业务场景已通过。
 
 ## 工具选择与职责边界
 

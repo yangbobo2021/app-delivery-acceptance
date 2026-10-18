@@ -116,6 +116,11 @@ class ProjectView:
                 dirs[:] = [d for d in dirs if d not in SKIP and not (Path(folder) / d).is_symlink()]
                 files.extend(Path(folder) / name for name in names)
                 for name in names:
+                    if name=='prepared.json':
+                        prepared=read(Path(folder)/name)
+                        if prepared.get('schema')=='project-coverage-preparation-v1':
+                            source=Path(prepared['spec']['project_root'])
+                            files.extend(source/item for item in prepared['adapter_files'])
                     if name == 'trace.json':
                         transport = read(Path(folder) / name).get('coverage', {}).get('transport')
                         if transport:
@@ -131,6 +136,7 @@ class ProjectView:
             kind, name = item['storage'].split(':', 1)
             files.append(inside(local if kind == 'local' else shared, name))
         files.extend([Path(__file__), Path(__file__).with_name('coverage_views.py'),
+                      Path(__file__).parents[2] / 'playbook/v4/coverage_protocol.py',
                       Path(__file__).parents[1] / 'coverage-istanbul/provider.mjs',
                       Path(__file__).parents[1] / 'coverage-istanbul/evidence-transport.mjs'])
         stamps = []
@@ -190,17 +196,16 @@ class ProjectView:
                 return copy.deepcopy(cached[2])
             payload = self._snapshot(requested)
             active = any(not s.get('finished') for s in payload['progress'].get('stages', []))
-            self._snapshots[selected] = (token, time.monotonic(), payload, active)
+            recheck = active or any(row.get('profile') for row in payload.get('coverage',[]))
+            self._snapshots[selected] = (token, time.monotonic(), payload, recheck)
             return copy.deepcopy(payload)
 
-    def registered_coverage(self, selected):
+    def registered_coverage(self, selected, warnings=None):
         """Coverage-only reruns supply counters, never a new business judgment."""
         _, shared, local = locations(self.root, selected)
         context_path = local / 'project-context.json'
-        if not context_path.is_file():
-            return []
-        context = read(context_path)
-        if (context.get('acceptance', {}).get('id') != selected or
+        context = read(context_path) if context_path.is_file() else {}
+        if context and (context.get('acceptance', {}).get('id') != selected or
                 context.get('acceptance', {}).get('project_root') != str(self.root)):
             raise ValueError('coverage context belongs to another acceptance')
         known_scenes = {item['id'] for item in read(shared / 'scenarios.json')['scenarios']}
@@ -208,21 +213,50 @@ class ProjectView:
         if context.get('coverage_registry'):
             paths = [*paths, context['coverage_registry']]
         rows = []
+        from coverage_views import artifact_mapping
+        from coverage_protocol import resolved
+        mapping=artifact_mapping(local)
+        warnings=warnings if warnings is not None else []
+        entries={}
         for name in paths:
-            registry = read(owned_path(local, name))
-            if registry.get('schema') != 'continuous-coverage-index-v1':
-                raise ValueError('invalid registered coverage index')
-            for entry in registry.get('entries', []):
+            try:
+                registry_path=resolved(owned_path(local,name),mapping)
+                if not registry_path.is_file():continue  # Explicit archived captures remain discoverable below.
+                registry=read(registry_path)
+                if registry.get('schema') not in {'continuous-coverage-index-v1','project-coverage-index-v1'}:
+                    raise ValueError('invalid registered coverage index')
+                for entry in registry.get('entries',[]):entries[entry['report_sha256']]=entry
+            except (ValueError,OSError,KeyError) as error:
+                warnings.append('覆盖率运行索引不可用：'+str(error))
+        for record_path in sorted((shared/'records').glob('*/record.json')):
+            record=read(record_path)
+            for name in record.get('coverage_reports',[]):
+                report_file=inside(record_path.parent,name)
+                if digest(report_file)!=record['files'].get(name):raise ValueError('Archived coverage report changed')
+                report=read(report_file)
+                original=next((path for path,relative in record['original_paths'].items() if relative==name),None)
+                if not original:raise ValueError('Archived coverage report lacks origin')
+                entries[record['files'][name]]={'report':original,'report_sha256':record['files'][name],
+                    'scene_id':report['scene_id'],'profile':report['prepared_sha256']}
+        for entry in entries.values():
+            try:
                 if entry['scene_id'] not in known_scenes:
                     raise ValueError('coverage scene is outside the registered project catalog')
-                report_path = owned_path(local, entry['report'])
+                report_path = resolved(owned_path(local, entry['report']),mapping,entry['report_sha256'])
                 if digest(report_path) != entry['report_sha256']:
                     raise ValueError('registered coverage report changed')
                 report = read(report_path)
                 if report['scene_id'] != entry['scene_id'] or report['prepared_sha256'] != entry['profile']:
                     raise ValueError('registered coverage binding changed')
-                prepared = read(owned_path(local, report['prepared']) / 'prepared.json')
-                receipt = read(owned_path(local, report['receipt_path']))
+                prepared = read(resolved(owned_path(local, report['prepared']) / 'prepared.json',mapping,report['prepared_sha256']))
+                receipt = read(resolved(owned_path(local, report['receipt_path']),mapping,report.get('execution_sha256')))
+                if report.get('protocol')=='project-coverage-v1':
+                    rows.append({'schema':'registered-coverage-capture-v1',
+                        'project':{'id':read(shared/'manifest.json')['project_id'],'revision':receipt['head_after']},
+                        'scenarios':[{'id':entry['scene_id']}],'generated_at':receipt['end_utc'],
+                        'change':{'inventory':read(resolved(owned_path(local,prepared['spec']['inventory_path']),mapping))},
+                        'coverage':{**report,'report_path':entry['report'],'capture_end':receipt['end_utc']}})
+                    continue
                 check = report_path.parent / 'collection-check.json'
                 rows.append({'schema': 'registered-coverage-capture-v1',
                     'project': {'id': read(shared / 'manifest.json')['project_id'], 'revision': receipt['head_after']},
@@ -231,6 +265,8 @@ class ProjectView:
                     'coverage': {'provider': report['provider'], 'istanbul_path': report['istanbul_path'],
                                  'capture_end': receipt['end_utc'],
                                  'collection_check': read(check) if check.is_file() else {}}})
+            except (ValueError,OSError,KeyError) as error:
+                warnings.append('覆盖率条目未通过校验：'+str(error))
         return rows
 
     def coverage_cohort_rows(self, selected, rows):
@@ -425,17 +461,38 @@ class ProjectView:
         else:
             payload["warnings"].append("缺少项目完整场景清单；当前仅显示已发现记录，不能作为项目整体覆盖或完整验收结论。")
         coverage_rows = coverage_inputs(traces, progress, folders)
+        coverage_rows.extend(t for t in all_traces if t.get('attempt_id')=='catalog')
         try:
-            coverage_rows.extend(self.registered_coverage(selected))
+            coverage_rows.extend(self.registered_coverage(selected,payload['warnings']))
         except (ValueError, OSError, KeyError) as error:
             payload['warnings'].append('新增覆盖率索引核对失败；原确认结论保持不变：' + str(error))
         try:
             coverage_rows = self.coverage_cohort_rows(selected, coverage_rows)
         except (ValueError, OSError, KeyError) as error:
             payload['warnings'].append('覆盖率保持各实际版本分别展示：' + str(error))
+        measured=summarize(coverage_rows,evidence_root=local)
         payload.update(traces=traces, progress=progress,
                        project_state=project_state(all_traces, progress),
-                       coverage=summarize(coverage_rows, evidence_root=local))
+                       coverage=measured)
+        # Coverage-only captures replace no business judgment. Attach each proved
+        # capture only to its actual scene/revision, retaining the original time.
+        from coverage_views import artifact_mapping
+        from coverage_protocol import resolved
+        mapping=artifact_mapping(local);captures={}
+        for group in measured:
+            for item in group.get('verified_reports',[]):
+                file=resolved(item['path'],mapping)
+                if digest(file)!=item['sha256']:continue
+                report=read(file)
+                key=(group['project_id'],report['revision'],report['scene_id'])
+                value={**report,'report_path':item['path'],'verified':True}
+                if key not in captures or value.get('capture_end','')>captures[key].get('capture_end',''):captures[key]=value
+        for trace in [*traces,*progress.get('previews',[]),*progress.get('case_history',[]),*payload['project_state'].get('traces',[])]:
+            scenes=trace.get('scenarios',[])
+            if len(scenes)!=1:continue
+            project=trace.get('project',{});capture=captures.get((project.get('id'),project.get('revision'),scenes[0]['id']))
+            if capture:
+                trace['coverage']={**capture,'capture_note':'独立补采记录；业务结论和原执行时间保持不变。'}
         # Uncollected catalog scenes must not be treated as new coverage captures.
         payload["warnings"] = sorted(set(payload["warnings"]))
         return payload
@@ -536,15 +593,16 @@ let selectedCoverageKey='';
 function renderCoverage(){
  const project=document.querySelector('#project').value,scope=document.querySelector('#coverageScope').value;
  const rows=coverageRows.filter(x=>!project||x.project_id===project),selector=document.querySelector('#coverageVersion');
- const key=x=>JSON.stringify([x.project_id,x.revision]);
+ const key=x=>JSON.stringify(x.profile?[x.project_id,x.revision,x.profile]:[x.project_id,x.revision]);
  const when=x=>x.last_capture_at?new Date(x.last_capture_at).toLocaleString('zh-CN',{hour12:false}):'采集时间未记录';
  selector.innerHTML=rows.map(x=>`<option value="${esc(key(x))}">${esc(when(x))} · ${esc(String(x.revision||'版本未记录').slice(0,12))} · ${esc(x.scenes_with_coverage??x.scenes??0)} 个场景</option>`).join('');
  const x=rows.find(x=>key(x)===selectedCoverageKey)||rows[0];
  selector.disabled=!x;selectedCoverageKey=x?key(x):'';selector.value=selectedCoverageKey;
  if(!x){document.querySelector('#coverageSummary').innerHTML='<span class="muted">暂无可计算的执行数据</span>';return;}
- const m=x.scopes?.[scope]||{},tools=(x.tools||[]).map(t=>`${t.name} ${t.version||'版本未记录'}`).join(' → ');
- const metric=(label,v)=>{const ready=v&&typeof v.total==='number'&&typeof v.covered==='number';return `<div class="metric"><span>${esc(label)}</span><strong>${ready?(v.total?esc(v.pct)+'%':'不适用'):'暂不可计算'}</strong><div class="small">${ready?`${v.covered} / ${v.total}`:''}</div><div class="small">${esc(v?.status==='incomplete'?'已测范围，数据尚不完整':m.reason||'')}</div></div>`;};
- document.querySelector('#coverageSummary').innerHTML=`<div class="small coverage-meta">实际采集版本：${esc(x.revision)} · ${esc(x.scenes_with_coverage??x.scenes??0)} 个场景 · 最近采集：${esc(when(x))}</div><div class="coverage-pair">${metric('行覆盖率',m.line)}${metric('分支覆盖率',m.branch)}</div><div class="small coverage-meta">${esc(tools?'工具：'+tools:'工具信息未记录')}</div>`+(rows.length>1?'<div class="small">按最近采集时间从新到旧排列；不同版本不混算，也不代表当前交付版本已重新采集。</div>':'');
+ const m=x.scopes?.[scope]||{},tools=(x.tools||[]).map(t=>`${t.name} ${t.version||'版本未记录'}`).join('；');
+ const metric=(label,v)=>{const ready=v&&typeof v.total==='number'&&typeof v.covered==='number';return `<div class="metric"><span>${esc(label)}</span><strong>${ready?(v.total?esc(toolPct(v)):'不适用'):'暂不可计算'}</strong><div class="small">${ready?`${v.covered} / ${v.total}`:''}</div><div class="small">${esc(v?.status==='incomplete'||m.status==='incomplete'?'已测范围，数据尚不完整':v?.reason||m.reason||'')}</div></div>`;};
+ const values=m.components?.length?m.components.map(c=>`<h3>${esc(c.label||c.id)}</h3><div class="coverage-pair">${metric('行覆盖率',c.line)}${metric('分支覆盖率',c.branch)}</div>`).join(''):`<div class="coverage-pair">${metric('行覆盖率',m.line)}${metric('分支覆盖率',m.branch)}</div>`;
+ document.querySelector('#coverageSummary').innerHTML=`<div class="small coverage-meta">实际采集版本：${esc(x.revision)} · ${esc(x.scenes_with_coverage??0)} / ${esc(x.scenes??0)} 个场景有采集 · 最近采集：${esc(when(x))}</div>${values}<div class="small coverage-meta">${esc(m.reason||m.basis||'')} ${esc(tools?'工具：'+tools:'工具信息未记录')}</div><div class="small">${esc(x.collection_note||'')}</div>`+(rows.length>1?'<div class="small">按最近采集时间从新到旧排列；不同版本或准备不混算，也不代表当前交付版本已重新采集。</div>':'');
 }
 document.querySelector('#coverageVersion').addEventListener('change',()=>{selectedCoverageKey=document.querySelector('#coverageVersion').value;renderCoverage();});
 ''' + html[end:]

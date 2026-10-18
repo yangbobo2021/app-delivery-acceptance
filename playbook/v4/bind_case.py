@@ -85,7 +85,7 @@ def main():
         coverage = catalog['coverage']
     from coverage_registry import project_coverage
     coverage=project_coverage(root,coverage if catalog.get('coverage',{}).get('policy')=='required' else template.get('coverage',catalog.get('coverage'))) or coverage
-    if coverage.get('provider'):
+    if coverage.get('policy')=='required':
         coverage = {**coverage, 'scene_id': scene['id'], 'revision': revision}
     case_input["coverage"] = coverage
     case_input['debug_environment'] = {key: template[key] for key in

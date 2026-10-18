@@ -26,7 +26,7 @@ node <skill>/playbook/v4/prepare_project_semantics.mjs prep-output/catalog.json 
 - 沿用现有检查，区分其职责：`guard` 核对验收身份、当前指针、范围和知识凭据；准备入口核对源码/组件版本与工作树。再对照 spec、`catalog.json` 和 `terminal.json`，确认 terminal 的 `state` 为 `prepared`、`fingerprint` 与 catalog 一致、`catalog_sha256` 匹配实际 catalog。`acceptance_store.py check` 只做存储结构等校验，不能单独证明准备完成。
 - 对照声明的 `ready_markers`、setup 和 `capability_checks`，确认所需标记存在，每项实际执行的检查都有命令及结果，失败未被忽略。标记已就绪时 setup 可以按既有逻辑跳过；合法复用准备时引用原有凭据，不冒称本次重新执行。缺记录或输入不符时不能标为已检查，也不为补记录而重跑已合法完成的准备。
 - 结合本次范围和项目测试约定，确认这些检查足以支持即将使用的测试入口、隔离和清理方式。这项由宿主阅读判断，程序不能证明声明完整；不适用或尚未验证的能力说明理由，不把空检查列表当作所有能力已就绪。不因此强求其他项目安装浏览器、数据库或新增基础设施门禁。
-- 要求覆盖率时，确认现有专用 provider 的准备验证通过，工具、源码和统计范围与 catalog 绑定；工具能力缺口按覆盖率规约说明。准备检查不代替业务用例执行或独立复审。
+- 要求覆盖率时，确认项目选用的专用工具和项目内适配器的准备验证通过，工具、源码和统计范围与 catalog 绑定；工具能力缺口按覆盖率规约说明。准备检查不代替业务用例执行或独立复审。
 
 在现有准备记录或交接说明中引用上述检查依据；发现缺口先修正配置/准备或明确限制，不能靠勾选、重跑业务用例或扩大测试范围补齐。
 
@@ -65,13 +65,13 @@ python3 <skill>/playbook/v4/run_plan.py plan.json
 
 此阶段及离线补采/重算必须遵守[覆盖率专用工具执行规约](coverage-tool-contract.md)。行与分支统计只接受对应专用工具的正式支持流程；适配器只做调用、格式/路径转换、证据绑定、基于工具位置的范围筛选及展示。禁止自制 AST 基线、命中推断、语义还原或计数合并来绕过工具缺口。缺失、不可兼容或不可可靠映射的数据单独标注，不能凑数。覆盖率区域同时注明采集、转换/映射、合并/统计工具的名称与版本；范围切换同步重算行与分支。用户限制不重跑、不做独立复审或不扩大范围时继续遵守，不能由覆盖率处理暗中启动这些动作。
 
-`case-template.coverage` 可以明确记录 `unavailable`（具体原因）或用户明确关闭的 `off`。持续采集时先按 [专用工具执行规约](coverage-tool-contract.md) 验证工具链并冻结工具生成的完整分母，项目 catalog 保存 `{ "policy":"required", "provider":"istanbul-source-v1", "prepared":"/absolute/prepared", "inventory_path":"/absolute/change-inventory.json" }`。当前注册实现服务于 JS/TS；其他语言须接入对应专用 provider，不以格式解析器冒充工具链。`bind_case.py` 自动继承项目配置，场景不能降级；执行和差量执行都通过 `run_evidence_v2.py --coverage-config` 调用同一个 `run_coverage.py` 入口。项目准备、执行前、证据冻结及展示汇总均强制验证。仅给 LCOV、`coveragepy-json` 或工具标签不能成为 `measured`。行/分支及嵌套分支、零命中分母、合并与汇总全部由专用工具负责，切换项目/修改文件/修改行范围同步筛选工具单位并重算。保留失败用例的实际计数，采集缺口明确 `incomplete/unavailable`；覆盖率不替代业务判定。
+`case-template.coverage` 可以记录实际验证后仍无法采集的 `unavailable`（具体原因），或用户明确关闭的 `off`。持续采集时，由项目准备阶段根据实际语言、框架和进程选择成熟工具，生成项目内配置/夹具并实测；通用 Skill 不注册语言或工具白名单。新 catalog 保存 `{ "policy":"required", "protocol":"project-coverage-v1", "prepared":"/absolute/prepared", "prepared_sha256":"manifest摘要", "inventory_path":"/absolute/change-inventory.json" }`；格式及项目操作见[项目覆盖率准备协议](project-coverage-protocol.md)。`bind_case.py` 自动继承配置，场景不能降级；调试、正式执行和差量执行通过同一 `run_evidence_v2.py --coverage-config` 链路。项目准备、证据冻结和展示强制验证原生报告、工具版本、源码、范围及实际场景/执行绑定，统计全部由项目选用的专用工具负责。保留失败用例的可靠计数和旧验收结论；缺口明确 `incomplete/unavailable`，不把覆盖率当业务判定。旧 provider 仅保留既有准备/历史读取兼容。
 
 `python3 <skill>/scripts/v3/serve.py <项目目录> [--acceptance-id AT-<ID>]` 可读 v4 的 `request.frozen.json`、阶段 `state.json`、冻结收据、覆盖率和审查结果；对场景显示“内部自审”，不会误标为独立场景审查。视图只读所选验收 ID 的完整项目场景清单及已有执行、复审和用户决策，可切换历史/当前 ID；不能把批次总数当项目分母或混入其他 ID 的结论。缺完整清单则不显示项目比例。旧产物目录用显式 `--legacy-assets` 只读入口，不自动迁移。
 
 统一使用[项目统计口径](project-state-statistics.md)：所有场景指标以项目全部场景数为分母；一个场景执行过任何一次用例就算已执行，版本、成败、业务链路是否完成和风险处置均不改变执行事实；按场景 ID 去重。结果取最近一次已确认结论，新版本或准备重跑不自动变成“待复验”。接受风险单列，未曾形成有效结论的已执行场景列为“待确认结论”；各互斥结果分类之和必须等于已执行数。视图/API均核对该等式。保留原始收据、复审和实际版本；同版本 PR 交付仍使用原有完成门禁，不能由项目保留结果推断新版本全部重测通过。实时视图只读，不代替原始 JSON、日志与证据。
 
-正常 v4 视图直接读取最终复审指向的执行、用例与覆盖率；需求验收也冻结 collector inventory，不要求手写 `trace.json` 或 `project-context.json`。后者只用于已有跨版本 cohort/迁移配置。v4 结果归档使用 `acceptance_store.py archive <项目> <ID> --source <本场景输出目录> --v4-result --basis <已筛选脱敏的共享依据>`：固定协议选项按 summary 的最终 review/input 自动选取 request、state、summary、实际用例 answer、review 的 answer/input/metrics/decision-gate、对应 execution 收据/日志与 coverage-report，返工后无需猜轮次或手工拼清单；缺文件或引用越出本场景目录时在复制前拒绝。额外实际观察、可共享原始计数等仍以 `--files <相对路径...>` 明确选择；不会递归打包 debug、环境或会话。缺原始计数/工具依赖时覆盖率明确不可复算，不能由归档补造。归档记录保留请求来源和原时间；同一来源的部分归档不覆盖完整本机工作流，也不会成为一次新的执行或确认时间。完整归档在原执行目录不在时仍可保留已确认结论；缺少复审绑定则保留待确认。
+正常 v4 视图直接读取最终复审指向的执行、用例与覆盖率；需求验收也冻结 collector inventory，不要求手写 `trace.json`。`project-context.json` 仅在仅补采索引、跨版本 cohort 或迁移需要时使用。启用 `project-coverage-v1` 时，默认归档入口是 `acceptance_store.py archive <项目> <ID> --source <含准备与场景的共同workflows父目录> --v4-scene <场景相对目录> --basis <已筛选脱敏依据>`，自动跟随 summary 的最终 review/input 选择当前实际执行、独立复审及同次原生覆盖率，返工后无需猜轮次。独立补采使用 `--coverage-report`；详见[公开归档配置](project-coverage-protocol.md#归档与展示验证)。无覆盖率或只需固定元数据时仍可使用 `--source <本场景目录> --v4-result`，它只选择 request、state、summary、实际 case answer、review answer/input/metrics/decision-gate、对应 execution 收据/日志与 coverage wrapper。额外实际观察用 `--files <相对路径...>` 选择；所有模式都在复制前检查完整性与目录，不递归打包 debug、业务状态、环境或会话。缺原生依赖时明确不可复算，不补造。归档保留请求来源、原时间及版本，同一来源的部分归档不覆盖完整本机工作流，不成为新的执行时间；原目录不在时，完整归档仍保留已确认结论及已发布的可复算覆盖率。
 
 复审结论须与冻结执行一致：成功命令仍有断言缺口时返回 `repair_required`，保留产品观察，补齐测试后再冻结执行；`product_bug` 必须有失败执行及产品证据。结构门禁拒绝已完成复审时，宿主最多创建一次新的只读补正审查，保留原回答、门禁和绑定输入，不替 Reviewer 改判、不重跑产品命令。补正仍无效则停下；补正中断仅恢复同一尝试，已完成的补正可验证后采用。历史上因此 parked 的 review 也仅在输入、会话原答、执行日志与测试字节仍匹配且未用过补正预算时恢复；其他 parked 不自动重试。
 

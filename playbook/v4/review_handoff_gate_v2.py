@@ -120,18 +120,15 @@ def main():
         if coverage.get("status") not in ("measured", "incomplete", "unavailable", "off"):
             errors.append("invalid coverage status")
         if coverage.get("status") in ("measured", "incomplete"):
-            if coverage.get('provider') != 'istanbul-source-v1':
-                errors.append('coverage has no registered dedicated provider')
+            if coverage.get('protocol') == 'project-coverage-v1':
+                from coverage_protocol import verify_report
+                try:
+                    verify_report(coverage_path,receipt_path)
+                except (ValueError,OSError,KeyError) as error:
+                    errors.append('project coverage evidence invalid: '+str(error))
             else:
-                provider=Path(__file__).resolve().parents[2]/'scripts/coverage-istanbul/provider.mjs'
-                original=Path(coverage['istanbul_path']).with_name('coverage-report.json')
-                checked=subprocess.run(['node',str(provider),'verify',str(original)],capture_output=True,text=True)
-                if checked.returncode:errors.append('dedicated coverage provider validation failed: '+checked.stderr[-500:])
-            report = Path(coverage.get("line_raw_path", ""))
-            if (coverage.get("execution_sha256") != sha(receipt_path) or
-                    coverage.get("collection_relation") != "same_run" or
-                    not report.is_file() or coverage.get("line_raw_sha256") != sha(report)):
-                errors.append("measured coverage is not bound to frozen execution")
+                from legacy_coverage_evidence import handoff_errors
+                errors.extend(handoff_errors(coverage,receipt_path))
     if not errors:
         head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
         if head != revision:

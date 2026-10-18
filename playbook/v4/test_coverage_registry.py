@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from coverage_registry import ensure_active,project_coverage
+from legacy_coverage_registry import ensure_active,project_coverage
 from unittest.mock import patch
 
 class CoverageRegistryTest(unittest.TestCase):
@@ -31,11 +31,11 @@ class CoverageRegistryTest(unittest.TestCase):
             root=Path(folder);prepared=root/'prepared';prepared.mkdir();(prepared/'prepared.json').write_text('{}')
             policy=root/'policy.json';coverage={'policy':'required','provider':'istanbul-source-v1','prepared':str(prepared),'inventory_path':'frozen.json'}
             policy.write_text(json.dumps({'coverage':coverage,'revision':'frozen','prepared_sha256':hashlib.sha256((prepared/'prepared.json').read_bytes()).hexdigest()}))
-            with patch('coverage_registry.project_policy_path',return_value=policy),patch('coverage_registry._git',return_value='frozen'):
+            with patch('legacy_coverage_registry.project_policy_path',return_value=policy),patch('legacy_coverage_registry._git',return_value='frozen'):
                 self.assertEqual(project_coverage(root),coverage)
                 with self.assertRaisesRegex(ValueError,'downgrade'):project_coverage(root,{'policy':'unavailable'})
                 with self.assertRaisesRegex(ValueError,'active project'):project_coverage(root,{**coverage,'prepared':'old'})
-            with patch('coverage_registry.project_policy_path',return_value=policy),patch('coverage_registry._git',return_value='new-revision'):
+            with patch('legacy_coverage_registry.project_policy_path',return_value=policy),patch('legacy_coverage_registry._git',return_value='new-revision'):
                 with self.assertRaisesRegex(ValueError,'this revision'):project_coverage(root)
 
 if __name__=='__main__':unittest.main()

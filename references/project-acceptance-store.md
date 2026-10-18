@@ -183,7 +183,7 @@ python3 <skill>/scripts/acceptance_store.py catalog <项目目录> AT-<ID> --inp
 python3 <skill>/scripts/acceptance_store.py archive <项目目录> AT-<ID> --source <本验收阶段目录> --files trace.json execution.json review.json evidence.log --basis '<已筛选脱敏、需要共享的依据>'
 ```
 
-归档记录请求的原来源及文件时间；视图按来源去重同一工作流，优先完整本机实例，其次选择配套文件更完整的归档。部分 v4 元数据归档不能借复制时间覆盖已完成尝试。v4 完整结果以 `--v4-result` 固定协议选项按 [v4 规约](portable-workflow-v4.md#覆盖率与实时视图) 自动选择当前实际执行/独立复审的绑定文件，额外证据仍以 `--files` 明确选择；不要手写新判定或修改旧 JSON 来适应视图。
+归档记录请求的原来源及文件时间；视图按来源去重同一工作流，优先完整本机实例，其次选择配套文件更完整的归档。部分 v4 元数据归档不能借复制时间覆盖已完成尝试。v4 完整结果以 `--v4-result` 固定协议选项按 [v4 规约](portable-workflow-v4.md#覆盖率与实时视图) 自动选择当前实际执行/独立复审的绑定文件，可复算覆盖率使用[项目覆盖率归档配置](project-coverage-protocol.md#归档与展示验证)的 `--v4-scene` 自动跟随最终复审一并发布，独立补采使用 `--coverage-report`；其他额外证据仍以 `--files` 选择；不要手写新判定或修改旧 JSON 来适应视图。
 
 归档仅复制显式文件清单或调用者明确选择的固定 v4 结果协议文件，不递归打包工作树、原始环境或全部 Agent 会话；用户授权分享的前提不由此命令补足。冻结文件字节保持不变，`record.json` 保存路径映射和文件哈希，使迁移后的视图能找到随包证据。覆盖率若依赖未归档的原始数据/源码/工具配置，明确不可复算；不凭摘要恢复命中，不把其他版本计数加进来。
 

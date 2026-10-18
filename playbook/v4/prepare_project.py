@@ -88,17 +88,16 @@ def prepare(spec_path, out, spec, spec_bytes):
     if coverage and coverage.get('policy') == 'required':
         coverage = {**coverage, 'required_test_files': coverage_test_files,
                     'acceptance': spec['acceptance']}
-        if coverage.get('provider') != 'istanbul-source-v1':
-            raise ValueError('Coverage requires a registered language-specific provider')
-        provider = Path(__file__).resolve().parents[2] / 'scripts/coverage-istanbul/provider.mjs'
-        subprocess.run(['node', str(provider), 'verify-preparation', coverage['prepared']], check=True)
-        prepared = json.loads((Path(coverage['prepared']) / 'prepared.json').read_text())
+        from coverage_protocol import preparation
+        prepared = preparation(coverage)
         if prepared['spec']['revision']!=spec['revision'] or prepared['spec'].get('components',{})!={item['path']:item['revision'] for item in components}:
             raise ValueError('Coverage preparation binds another product/component revision')
         if not prepared['spec'].get('registry_path') or not prepared['spec'].get('inventory_path'):
             raise ValueError('Required coverage needs a persistent registry and frozen scope inventory')
         if prepared['spec']['source_hashes'] != source_files:
             raise ValueError('Coverage preparation does not match complete project source inventory')
+        if any(coverage_test_files.get(name)!=digest for name,digest in prepared['adapter_files'].items()):
+            raise ValueError('Project coverage adapters must be bound coverage_test_files')
     markers = []
     for item in spec.get("ready_markers", []):
         path = (root / item).resolve()

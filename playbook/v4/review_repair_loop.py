@@ -84,13 +84,12 @@ def continue_after_review(config, output, state_path, state, prepared, catalog,
         evidence_dir = output / f"frozen-evidence-review-{number}"
 
         def evidence_step():
-            from coverage_evidence import freeze_coverage
+            from coverage_evidence import freeze_coverage, evidence_paths
             receipt = load(execution["receipt"])
             roots = [execution_dir]
             coverage_result, coverage_path = freeze_coverage(config.get("coverage"), root, execution_dir,
                                                              execution["receipt"], output / f"coverage-review-{number}-report")
-            if coverage_result["status"] in ("measured", "incomplete"):
-                roots.append(Path(coverage_result["line_raw_path"]))
+            roots.extend(evidence_paths(coverage_result))
             for key in config.get("evidence_env_dir_keys", []):
                 value = receipt.get("env_changes", {}).get(key)
                 if value:

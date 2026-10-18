@@ -26,8 +26,9 @@ parser.add_argument("--output", required=True)
 parser.add_argument("--file", action="append", default=[])
 parser.add_argument("--env", action="append", default=[])
 parser.add_argument("--fresh-dir", action="append", default=[])
-parser.add_argument("--coverage-config", help="Registered, prepared coverage provider; same entry for every scene")
+parser.add_argument("--coverage-config", help="Verified project-owned coverage protocol; same entry for every scene")
 parser.add_argument("--coverage-build", help="Host-bound isolated instrumentation manifest")
+parser.add_argument("--coverage-session", help="Frozen project-owned coverage invocation")
 parser.add_argument("command", nargs=argparse.REMAINDER)
 args = parser.parse_args()
 command = args.command[1:] if args.command and args.command[0] == "--" else args.command
@@ -36,8 +37,6 @@ if not command:
 if args.coverage_config:
     from run_coverage import run_coverage
     coverage = json.loads(pathlib.Path(args.coverage_config).read_text())
-    if coverage.get('provider') != 'istanbul-source-v1':
-        parser.error('Unregistered coverage provider; cannot certify its metrics')
     changes = dict(item.split('=', 1) for item in args.env)
     command_binding = None
     if len(command)==3 and pathlib.Path(command[1]).resolve()==(pathlib.Path(__file__).parent/'run_coverage.py').resolve():
@@ -56,15 +55,21 @@ if args.coverage_config:
     sys.exit(run_coverage({'cwd': args.cwd, 'output': args.output, 'files': args.file,
                           'command': command, 'env': changes, 'fresh_dirs': args.fresh_dir,
                           'business_command_binding':command_binding,
+                          'coverage':coverage,
                           'prepared': coverage['prepared'], 'scene_id': coverage['scene_id'],
-                          'fixture_path': coverage.get('fixture_path', 'e2e/acceptance-coverage-fixture.ts'),
                           'revision': coverage.get('revision'),
                           'inventory_path': coverage.get('inventory_path', '')}))
 root = pathlib.Path(args.cwd).resolve()
-if not args.coverage_build:
-    from coverage_registry import project_coverage
-    if (project_coverage(root) or {}).get('policy')=='required':
+from coverage_registry import project_coverage
+active_coverage=project_coverage(root) or {}
+if args.coverage_session:
+    from run_coverage import validate_session
+    validate_session(args.coverage_session,root,args.output,command)
+elif not args.coverage_build:
+    if active_coverage.get('policy')=='required':
         parser.error('Active project requires --coverage-config; use the registered scene entry')
+elif active_coverage.get('protocol'):
+    parser.error('Project coverage needs its frozen coverage session, not a legacy build')
 out = pathlib.Path(args.output).resolve()
 fresh_dirs = []
 for item in args.fresh_dir:
@@ -125,6 +130,8 @@ intent = {
     "tracked_changes_before": tracked_changes_before,
     "status_before": status_before,
     "test_file_sha256_before": files,
+    **({'coverage_session_path':str(pathlib.Path(args.coverage_session).resolve()),
+        'coverage_session_sha256':sha(pathlib.Path(args.coverage_session))} if args.coverage_session else {}),
     **({'coverage_build_path': str(build_path), 'coverage_build_sha256': sha(build_path)} if args.coverage_build else {}),
 }
 (out / "execution-intent.json").write_text(json.dumps(intent, ensure_ascii=False, indent=2) + "\n")

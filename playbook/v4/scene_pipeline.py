@@ -115,12 +115,8 @@ def prepare(config, output):
     if coverage.get('policy') == 'required':
         if not coverage.get('scene_id') or coverage.get('revision')!=config.get('revision'):
             raise ValueError('Required coverage must be scene-bound; use bind_case with the current project catalog')
-        if coverage.get('provider') != 'istanbul-source-v1' or not coverage.get('prepared'):
-            raise ValueError('Verify a registered coverage toolchain before case implementation/execution')
-        provider=HERE.parents[1]/'scripts/coverage-istanbul/provider.mjs'
-        subprocess.run(['node',str(provider),'verify-preparation',coverage['prepared']],check=True,
-                       stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-        coverage_prepared=load(Path(coverage['prepared'])/'prepared.json')
+        from coverage_protocol import preparation
+        coverage_prepared=preparation(coverage)
         if coverage_prepared['spec']['source_hashes'] != template.get('source_hashes'):
             raise ValueError('Coverage preparation differs from frozen project sources')
     revision = config["revision"]
@@ -465,13 +461,12 @@ def main():
     if args.stop_after == "execution":
         return
     def evidence_step():
-        from coverage_evidence import freeze_coverage
+        from coverage_evidence import freeze_coverage, evidence_paths
         roots = [execution_dir]
         receipt = load(execution["receipt"])
         coverage_result, coverage_path = freeze_coverage(config.get("coverage"), root, execution_dir,
                                                          execution["receipt"], output / "coverage-report")
-        if coverage_result["status"] in ("measured", "incomplete"):
-            roots.append(Path(coverage_result["line_raw_path"]))
+        roots.extend(evidence_paths(coverage_result))
         for key in config.get("evidence_env_dir_keys", []):
             value = receipt.get("env_changes", {}).get(key)
             if value:

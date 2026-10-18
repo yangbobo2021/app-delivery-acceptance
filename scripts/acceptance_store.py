@@ -509,12 +509,72 @@ def v4_result_files(source):
     return sorted({path.relative_to(source).as_posix() for path in paths})
 
 
-def archive(project, acceptance_id, source, files, basis, *, v4_result=False):
+def coverage_archive_files(source, reports):
+    """Explicit protocol publication profile, without scanning runtime folders."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'playbook/v4'))
+    from coverage_protocol import verify_report, preparation
+    source=Path(source).resolve();selected=set();aliases={}
+    def include(path):
+        path=owned_path(source,path)
+        if not path.is_file():raise ValueError('Coverage publication dependency missing: '+str(path))
+        name=path.relative_to(source).as_posix();selected.add(name);return name
+    for name in reports:
+        report_path=owned_path(source,source/name if not Path(name).is_absolute() else name)
+        report=verify_report(report_path);profile=preparation(report)
+        include(report_path);include(Path(report['prepared'])/'prepared.json')
+        receipt=read(report['receipt_path']);include(report['receipt_path'])
+        include(Path(report['receipt_path']).with_name('execution.log'))
+        include(receipt['coverage_session_path']);include(profile['spec']['inventory_path'])
+        for item in [*report['raw_evidence'],*profile['preparation_evidence']]:include(item['path'])
+        for original,frozen in profile.get('artifact_aliases',{}).items():
+            relative=Path(original).relative_to(Path(profile['spec']['project_root']))
+            expected=profile['adapter_files'].get(str(relative)) or profile['spec']['source_hashes'].get(str(relative))
+            if not expected or digest(frozen)!=expected:raise ValueError('Coverage publication alias lacks frozen source binding')
+            aliases[original]=include(frozen)
+        for name,expected in profile['adapter_files'].items():
+            original=str(Path(profile['spec']['project_root'])/name)
+            if original not in aliases:raise ValueError('Coverage publication requires frozen project adapter copies: '+name)
+    return sorted(selected),aliases
+
+
+def v4_scene_publication(source, scenes):
+    """Select final reviewed execution and coverage together, including repairs."""
+    selected=[];reports=[]
+    for name in scenes:
+        scene=owned_path(source,source/name if not Path(name).is_absolute() else name)
+        def bound(reference):
+            path=Path(reference)
+            return owned_path(scene,path if path.is_absolute() else scene/path)
+        selected.extend((scene/relative).relative_to(source).as_posix() for relative in v4_result_files(scene))
+        summary=read(scene/'summary.json')
+        review=bound(summary.get('review_path') or scene/'review/answer.json')
+        review_input=read(review.with_name('input.json'))
+        coverage_path=bound(review_input.get('coverage_result_path') or scene/'coverage-report.json')
+        coverage=read(coverage_path)
+        if coverage.get('protocol')=='project-coverage-v1':
+            request=read(scene/'request.frozen.json')
+            if (coverage['scene_id']!=request['scene']['id'] or coverage['revision']!=request['project']['revision']):
+                raise ValueError('Final coverage differs from the archived scene/version')
+            native=owned_path(source,coverage['report_path'])
+            if digest(native)!=coverage['report_sha256']:
+                raise ValueError('Final reviewed coverage report changed')
+            if digest(bound(review_input['frozen_execution_receipt']))!=coverage['execution_sha256']:
+                raise ValueError('Final coverage does not bind the reviewed execution')
+            reports.append(str(native))
+    return selected,reports
+
+
+def archive(project, acceptance_id, source, files, basis, *, v4_result=False, coverage_reports=None, v4_scenes=None):
     """Copy only explicitly chosen, redacted publication artifacts; never scan raw evidence."""
     root, shared, local = locations(project, acceptance_id)
     state = validate(root, acceptance_id)
     source = owned_path(local / "workflows", source)
     files = [*(files or []), *(v4_result_files(source) if v4_result else [])]
+    scene_files,scene_reports=v4_scene_publication(source,v4_scenes) if v4_scenes else ([],[])
+    files=[*files,*scene_files]
+    coverage_reports=[*(coverage_reports or []),*scene_reports]
+    coverage_files,aliases=coverage_archive_files(source,coverage_reports) if coverage_reports else ([],{})
+    files=[*files,*coverage_files]
     if not files or not basis.strip():
         raise ValueError("explicit reviewed file allowlist and publication basis required")
     data = {}
@@ -535,6 +595,9 @@ def archive(project, acceptance_id, source, files, basis, *, v4_result=False):
          "scope_sha256": state["scope"]["sha256"], "created_at": now(), "basis": basis,
          "files": {name: digest(path) for name, path in data.items()},
          "original_paths": {str(path): name for name, path in data.items()},
+         "path_aliases": aliases,
+         "coverage_reports": [owned_path(source,source/name if not Path(name).is_absolute() else name).relative_to(source).as_posix()
+                              for name in (coverage_reports or [])],
          "workflow_requests": {name: {"original_path": str(path),
              "source_mtime": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat()}
              for name, path in data.items() if path.name == 'request.frozen.json'}}, exclusive=True)
@@ -562,6 +625,10 @@ def main():
             cmd.add_argument("--files", nargs="+", default=[])
             cmd.add_argument("--v4-result", action="store_true",
                              help="select the fixed final v4 result metadata profile; extra evidence still uses --files")
+            cmd.add_argument('--coverage-report',action='append',default=[],
+                             help='explicitly publish a verified project coverage report and its frozen native dependencies, relative to --source')
+            cmd.add_argument('--v4-scene',action='append',default=[],
+                             help='publish final reviewed v4 metadata and project coverage together; scene directory relative to common --source')
             cmd.add_argument("--basis", required=True)
         if name == "catalog":
             cmd.add_argument("--input", type=Path, required=True)
@@ -579,7 +646,7 @@ def main():
         result = read_knowledge(args.project, args.acceptance_id, args.paths)
     elif args.command == "archive":
         result = archive(args.project, args.acceptance_id, args.source, args.files, args.basis,
-                         v4_result=args.v4_result)
+                         v4_result=args.v4_result,coverage_reports=args.coverage_report,v4_scenes=args.v4_scene)
     elif args.command == "catalog":
         result = publish_catalog(args.project, args.acceptance_id, read(args.input))
     elif args.command == "start":

@@ -74,9 +74,8 @@ def run(contract_path, request_path):
     if contract['coverage'].get('policy') == 'required':
         from run_coverage import run_coverage
         coverage = contract['coverage']
-        return run_coverage({**bound, 'prepared': coverage['prepared'],
-                             'inventory_path': coverage['inventory_path'],
-                             'fixture_path': coverage.get('fixture_path', 'e2e/acceptance-coverage-fixture.ts')})
+        return run_coverage({**bound, 'coverage':coverage, 'prepared': coverage['prepared'],
+                             'inventory_path': coverage['inventory_path']})
     command = [sys.executable, str(HERE / 'run_evidence_v2.py'), '--cwd', bound['cwd'],
                '--output', bound['output'], '--fresh-dir', str(state)]
     for name in bound['files']:
