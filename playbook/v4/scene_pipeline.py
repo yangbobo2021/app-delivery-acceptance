@@ -6,7 +6,6 @@ language, app type, or business oracle. A running stage with no receipt is parke
 for reconciliation rather than silently replayed.
 """
 import argparse
-import fcntl
 import hashlib
 import json
 import os
@@ -14,10 +13,17 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+
+# Shared project-owned storage and knowledge gate.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from acceptance_store import guard as acceptance_guard
+from acceptance_workspace import (POLICY, workspace_path, workspace_lease, ensure_workspace,
+                                  verify_frozen_workspace, finish_scene)
 import time
 from datetime import datetime, timezone
 
 HERE = Path(__file__).resolve().parent
+ACTIVE_ACCEPTANCE_CONFIG = None
 
 
 def digest(path):
@@ -55,6 +61,12 @@ def git(root, *args):
 
 
 def stage(state_path, state, name, fn):
+    if ACTIVE_ACCEPTANCE_CONFIG is not None:
+        acceptance_guard(ACTIVE_ACCEPTANCE_CONFIG, [ACTIVE_ACCEPTANCE_CONFIG["output_dir"]])
+    if ACTIVE_ACCEPTANCE_CONFIG is not None:
+        catalog_path = Path(ACTIVE_ACCEPTANCE_CONFIG["output_dir"]) / "catalog.json"
+        if catalog_path.is_file():
+            verify_frozen_workspace(ACTIVE_ACCEPTANCE_CONFIG, load(catalog_path))
     item = state["stages"].get(name)
     if item and item["status"] == "completed":
         return item["result"]
@@ -68,6 +80,10 @@ def stage(state_path, state, name, fn):
     save(state_path, state)
     try:
         result = fn()
+        if ACTIVE_ACCEPTANCE_CONFIG is not None:
+            catalog_path = Path(ACTIVE_ACCEPTANCE_CONFIG["output_dir"]) / "catalog.json"
+            if catalog_path.is_file():
+                verify_frozen_workspace(ACTIVE_ACCEPTANCE_CONFIG, load(catalog_path))
     except Exception as error:
         state["stages"][name]["status"] = "parked"
         state["stages"][name]["error"] = str(error)
@@ -80,7 +96,6 @@ def stage(state_path, state, name, fn):
 
 
 def prepare(config, output):
-    root = output / "checkout"
     source = Path(config["source_checkout"]).resolve()
     template_path = Path(config["template_catalog"]).resolve()
     template = load(template_path)
@@ -91,6 +106,7 @@ def prepare(config, output):
         configured = config.get('coverage', {})
         if configured.get('policy') != 'required' or any(configured.get(k) != required_coverage.get(k) for k in ['provider','prepared','inventory_path']):
             raise ValueError('Scene cannot downgrade or replace frozen project coverage preparation')
+    root = workspace_path(config)
     from coverage_registry import project_coverage
     coverage = project_coverage(source,config.get('coverage',template.get('coverage'))) or {}
     config['coverage']=coverage
@@ -108,34 +124,15 @@ def prepare(config, output):
     revision = config["revision"]
     if template["revision"] != revision or git(source, "rev-parse", "HEAD") != revision:
         raise ValueError("source revision differs from frozen catalog")
-    if not root.exists():
-        created = run(["git", "worktree", "add", "--detach", str(root), revision], cwd=source,
-                      log=output / "worktree-create.log", timeout=120)
-        if created["exit_code"]:
-            raise RuntimeError("worktree creation failed: " + created["output_tail"])
-    if git(root, "rev-parse", "HEAD") != revision:
-        raise ValueError("worktree revision mismatch")
-    for component in template.get("components", []):
-        component_root = root / component["path"]
-        if component_root.is_dir() and (component_root / ".git").exists():
-            pass
-        else:
-            if component_root.exists() and not any(component_root.iterdir()):
-                component_root.rmdir()
-            component_source = Path(config["component_sources"][component["path"]]).resolve()
-            if git(component_source, "rev-parse", "HEAD") != component["revision"]:
-                raise ValueError("component source version mismatch")
-            created = run(["git", "worktree", "add", "--detach", str(component_root),
-                           component["revision"]], cwd=component_source,
-                          log=output / ("component-" + component["path"].replace("/", "_") + ".log"), timeout=120)
-            if created["exit_code"]:
-                raise RuntimeError("component checkout failed: " + created["output_tail"])
-        if git(component_root, "rev-parse", "HEAD") != component["revision"]:
-            raise ValueError("component worktree revision mismatch")
+    root = ensure_workspace(config, source, revision, template.get("components", []),
+                            config.get("component_sources"))
+    if Path(template["project_root"]).resolve() != root or template.get("workspace_policy") != POLICY:
+        raise ValueError("prepare a new catalog in the single acceptance workspace; preserve old records")
     catalog = dict(template)
     if coverage.get('policy')=='required':catalog['coverage']=coverage
     catalog["project_root"] = str(root)
     catalog["write_roots"] = config.get("allowed_test_roots", template.get("test_roots", []))
+    verify_frozen_workspace(config, catalog)
     for name, expected in template.get("binding_files", {}).items():
         path = root / name
         if not path.is_file() or digest(path) != expected:
@@ -259,7 +256,7 @@ def main():
     catalog_template = load(config["template_catalog"]) or {}
     scenario_request = (load(Path(source).with_name("request.frozen.json")) if source else None) or {}
     originals = scenario_request.get("requirements", {}).get("items", [case_input["requirement"]])
-    preview = {"progress_schema": "single-agent-scene-v1",
+    preview = {"acceptance": config["acceptance"],"progress_schema": "single-agent-scene-v1",
                "project": {"id": catalog_template.get("project_id") or Path(config["source_checkout"]).name,
                            "label": catalog_template.get("project_label") or Path(config["source_checkout"]).name,
                            "root": str(Path(config["source_checkout"]).resolve()),
@@ -550,6 +547,7 @@ def main():
                                     for data in state["stages"].values()
                                     if data["status"] == "completed")}
     save(output / "summary.json", summary)
+    finish_scene(config, output)
     print(json.dumps({"scene_id": summary["scene_id"],
                       "review_status": summary["review_status"],
                       "total_seconds": summary["total_seconds"],
@@ -562,13 +560,25 @@ def locked_main():
     config = load(Path(sys.argv[1]).resolve())
     if not config or not config.get("output_dir"):
         raise ValueError("invalid pipeline configuration")
+    global ACTIVE_ACCEPTANCE_CONFIG
+    acceptance_guard(config, [config["output_dir"]])
+    ACTIVE_ACCEPTANCE_CONFIG = config
     output = Path(config["output_dir"]).resolve()
-    output.mkdir(parents=True, exist_ok=True)
-    with (output / "pipeline.lock").open("a+") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise RuntimeError("scene pipeline already running") from exc
+    if config.get("workspace_policy") != POLICY:
+        raise ValueError("legacy per-scene config is read-only; bind a new single-workspace attempt")
+    # Completed results remain readable even when another scene owns the workspace.
+    if (output / "summary.json").is_file():
+        saved = load(output / "state.json") or {}
+        if saved.get("config_sha256") != digest(Path(sys.argv[1]).resolve()):
+            raise ValueError("completed pipeline configuration changed")
+        # A crash may have saved summary just before releasing its persistent owner.
+        owner = workspace_path(config).parent / 'workspace-owner.json'
+        if owner.is_file() and load(owner).get('output_dir') == str(output):
+            with workspace_lease(config, output, scene=True):
+                finish_scene(config, output)
+        print(json.dumps(load(output / "summary.json"), ensure_ascii=False))
+        return
+    with workspace_lease(config, output, scene=True):
         main()
 
 

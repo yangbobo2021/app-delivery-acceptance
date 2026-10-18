@@ -95,17 +95,20 @@ class ProgressViewTests(unittest.TestCase):
                    'progress_updated_at': '2026-01-01T00:01:00+00:00',
                    'coverage': {'status': 'pending'}}
         rows = coverage_inputs([old], {'previews': [current]})
-        self.assertEqual(summarize(rows)[0]['scopes']['project']['status'], 'pending')
+        self.assertEqual(rows[-1]['coverage']['status'], 'pending')
+        self.assertEqual(summarize(rows)[0]['scopes']['project']['status'], 'unavailable')
         final = {**old, 'attempt_id': 'attempt-2',
                  'generated_at': '2026-01-01T00:02:00+00:00'}
         rows = coverage_inputs([old, final], {'previews': [current]})
-        self.assertEqual(summarize(rows)[0]['scopes']['project']['status'], 'measured')
+        self.assertEqual(rows[-1]['attempt_id'], 'attempt-2')
+        # These old hand-authored counters are not a verified provider report.
+        self.assertEqual(summarize(rows)[0]['scopes']['project']['status'], 'unavailable')
         copied = {**current, 'attempt_number': 1, 'progress_folder': '/old-run'}
         rows = coverage_inputs([old], {'previews': [copied]}, ['/old-run'])
-        self.assertEqual(summarize(rows)[0]['scopes']['project']['status'], 'measured')
+        self.assertEqual(len(rows), 1)
         restarted = {**current, 'attempt_number': 1, 'progress_folder': '/new-run'}
         rows = coverage_inputs([old], {'previews': [restarted]}, ['/old-run'])
-        self.assertEqual(summarize(rows)[0]['scopes']['project']['status'], 'pending')
+        self.assertEqual(rows[-1]['coverage']['status'], 'pending')
 
     def test_published_trace_shows_completed_stage(self):
         folder = self.root / 'case'

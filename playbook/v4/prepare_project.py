@@ -11,6 +11,11 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+
+# Shared project-owned storage and knowledge gate.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from acceptance_store import guard as acceptance_guard
+from acceptance_workspace import POLICY, workspace_lease, ensure_workspace, verify_frozen_workspace
 import time
 
 
@@ -38,16 +43,12 @@ def run(root, item, timeout):
             "output_tail": process.stdout[-3000:]}
 
 
-def main():
-    if len(sys.argv) != 3:
-        raise SystemExit("usage: prepare_project.py spec.json output-dir")
-    spec_path = Path(sys.argv[1]).resolve()
-    spec_bytes = spec_path.read_bytes()
-    spec = json.loads(spec_bytes)
-    out = Path(sys.argv[2]).resolve()
+def prepare(spec_path, out, spec, spec_bytes):
     if spec.get("schema") != "portable-project-prep-v1":
         raise ValueError("unsupported spec schema")
-    root = Path(spec["project_root"]).resolve()
+    acceptance_guard(spec, [out])
+    root = ensure_workspace(spec, spec.get("source_checkout", spec["project_root"]),
+                            spec["revision"], spec.get("components", []), spec.get("component_sources"))
     if not root.is_dir():
         raise ValueError("project root missing")
     if git(root, "rev-parse", "HEAD") != spec["revision"]:
@@ -102,6 +103,7 @@ def main():
         old = json.loads(catalog_path.read_text())
         terminal = json.loads(terminal_path.read_text())
         if old.get("fingerprint") == fingerprint and terminal.get("catalog_sha256") == sha(catalog_path.read_bytes()) and all(x["exists"] for x in markers) and old.get('coverage')==(coverage if coverage and coverage.get('policy')=='required' else None):
+            verify_frozen_workspace(spec, old)
             print(json.dumps({"state": "reused", "setup_calls": 0,
                               "fingerprint": fingerprint, "catalog": str(catalog_path)}))
             if coverage and coverage.get('policy')=='required':
@@ -134,6 +136,9 @@ def main():
                "source_roots": spec.get("source_roots", []),
                "runner_hints": spec.get("runner_hints", {}),
                "ready_markers": markers, "setup": setup, "capability_checks": checks}
+    catalog["acceptance"] = spec["acceptance"]
+    catalog["workspace_policy"] = POLICY
+    verify_frozen_workspace(spec, catalog)
     if coverage and coverage.get('policy') == 'required':
         catalog['coverage'] = coverage
     raw = json.dumps(catalog, ensure_ascii=False, indent=2) + "\n"
@@ -146,6 +151,18 @@ def main():
         activate(coverage['prepared'],catalog_path)
     print(json.dumps({"state": "prepared", "setup_calls": len(setup),
                       "fingerprint": fingerprint, "catalog": str(catalog_path)}))
+
+
+def main():
+    if len(sys.argv) != 3:
+        raise SystemExit("usage: prepare_project.py spec.json output-dir")
+    spec_path = Path(sys.argv[1]).resolve()
+    spec_bytes = spec_path.read_bytes()
+    spec = json.loads(spec_bytes)
+    out = Path(sys.argv[2]).resolve()
+    acceptance_guard(spec, [out])
+    with workspace_lease(spec, out):
+        prepare(spec_path, out, spec, spec_bytes)
 
 
 if __name__ == "__main__":

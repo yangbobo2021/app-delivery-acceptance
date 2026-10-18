@@ -4,6 +4,8 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from change_inventory import build
 from coverage_views import summarize
@@ -43,26 +45,38 @@ class PrCoverageTest(unittest.TestCase):
             self.assertEqual(line_result["files"][0]["changed_lines"], [2])
             self.assertEqual(line_result["files"][0]["non_executable_changed_lines"], [1])
 
-    def test_three_denominators_use_union_of_completed_attempts(self):
+    def test_three_scopes_delegate_reports_and_inventory_to_dedicated_provider(self):
         inventory = {"schema": "change-inventory-v1", "changed_source_paths": ["app.py"],
                      "files": [{"path": "app.py", "changed_lines": [2, 3]}]}
         base = {"project": {"id": "p", "revision": "head", "sources": ["app.py", "other.py"]},
                 "change": {"inventory": inventory}, "generated_at": "2026-10-15T01:00:00Z"}
-        a = {**base, "scenarios": [{"id": "S1"}], "coverage": {"status": "measured", "line_files": [
-            {"path": "app.py", "executable_lines": [1, 2, 3], "hit_lines": [1, 2]},
-            {"path": "other.py", "executable_lines": [1, 2], "hit_lines": []}]}}
-        b = {**base, "scenarios": [{"id": "S2"}], "coverage": {"status": "measured", "line_files": [
-            {"path": "app.py", "executable_lines": [1, 2, 3], "hit_lines": [2, 3]},
-            {"path": "other.py", "executable_lines": [1, 2], "hit_lines": [1]}]}}
-        scopes = summarize([a, b])[0]["scopes"]
-        self.assertEqual((scopes["project"]["covered"], scopes["project"]["total"]), (4, 5))
-        self.assertEqual((scopes["changed_files"]["covered"], scopes["changed_files"]["total"]), (3, 3))
-        self.assertEqual((scopes["changed_lines"]["covered"], scopes["changed_lines"]["total"]), (2, 2))
-        b["coverage"]["line_files"] = [b["coverage"]["line_files"][0]]
-        self.assertEqual(summarize([a, b])[0]["scopes"]["project"]["status"], "measured")
-        a["coverage"]["line_files"] = [a["coverage"]["line_files"][0]]
-        self.assertEqual(summarize([a, b])[0]["scopes"]["project"]["status"], "incomplete")
-        self.assertEqual(summarize([a, b])[0]["scopes"]["changed_lines"]["status"], "measured")
+        a = {**base, "scenarios": [{"id": "S1"}], "coverage": {
+            "provider": "istanbul-source-v1", "istanbul_path": "/synthetic/a/istanbul.json"}}
+        b = {**base, "scenarios": [{"id": "S2"}], "coverage": {
+            "provider": "istanbul-source-v1", "istanbul_path": "/synthetic/b/istanbul.json"}}
+        # Synthetic provider response: verify delegation and display, not coverage math.
+        expected = {name: {"status": "measured", "line": {"covered": n, "total": d},
+                          "branch": {"covered": 1, "total": 3}}
+                    for name, n, d in [("project", 4, 5), ("changed_files", 3, 3), ("changed_lines", 2, 2)]}
+        requests = []
+        def provider(args, **kwargs):
+            self.assertEqual(args[-3], 'summarize')
+            requests.append(json.loads(Path(args[-2]).read_text()))
+            Path(args[-1]).write_text(json.dumps({"scopes": expected, "tools": {
+                "instrumenter": {"name": "fixture"}, "statistics": {"name": "fixture"}}}))
+            return SimpleNamespace(returncode=0)
+        with patch('coverage_views.subprocess.run', side_effect=provider):
+            self.assertEqual(summarize([a, b])[0]["scopes"], expected)
+            self.assertEqual(requests[-1], {"inventory": inventory, "reports": [
+                "/synthetic/a/coverage-report.json", "/synthetic/b/coverage-report.json"]})
+            b["coverage"] = {"status": "unavailable", "reason": "Missing report"}
+            scopes = summarize([a, b])[0]["scopes"]
+            self.assertEqual(requests[-1]["reports"], ["/synthetic/a/coverage-report.json"])
+            for name, scope in scopes.items():
+                self.assertEqual(scope["status"], "incomplete")
+                self.assertEqual(scope["scenes_without_line_report"], 1)
+                self.assertEqual(scope["line"]["covered"], expected[name]["line"]["covered"])
+                self.assertEqual(scope["branch"]["covered"], expected[name]["branch"]["covered"])
 
 
 if __name__ == "__main__":

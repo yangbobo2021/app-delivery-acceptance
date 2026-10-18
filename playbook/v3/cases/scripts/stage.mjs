@@ -44,7 +44,7 @@ if(stage==='plan'){
    const coverage={...request.coverage};
    if(coverage.policy==='required'&&coverage.case_binding_ids==='selected')
     coverage.case_binding_ids=bindings.filter(x=>x.kind==='automated').map(x=>x.id);
-   const manifest={schema:'delivery-trace-v1',project:request.project,requirements:request.requirements,
+   const manifest={schema:'delivery-trace-v1',acceptance:request.acceptance,project:request.project,requirements:request.requirements,
     reverse_rules:request.reverse_rules??[],change:request.change,
     scenarios:[scene],bindings,coverage};
    save('plan.current.json',plan);save('manifest.current.json',manifest);status='ready';

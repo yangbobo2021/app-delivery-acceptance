@@ -1,3 +1,4 @@
+import {acceptanceGuard} from '../../acceptance-guard.mjs';
 import {readFileSync,writeFileSync,renameSync,mkdirSync,rmSync,existsSync,openSync,closeSync} from 'node:fs';
 import {resolve,dirname,join} from 'node:path';
 import {createHash} from 'node:crypto';
@@ -7,6 +8,7 @@ const [specArg,ledgerArg,...flags]=process.argv.slice(2);
 if(!specArg||!ledgerArg)throw Error('usage: node orchestrator.mjs spec.json ledger-dir [--retry job-id]');
 const specPath=resolve(specArg),specDir=dirname(specPath),ledgerDir=resolve(ledgerArg);
 const spec=JSON.parse(readFileSync(specPath,'utf8'));
+acceptanceGuard(spec,[ledgerDir]);
 if(spec.schema!==1||!Array.isArray(spec.jobs)||!spec.jobs.length)throw Error('Invalid pipeline spec');
 const retryIndex=flags.indexOf('--retry'),retry=retryIndex>=0?flags[retryIndex+1]:null;
 if(retryIndex>=0&&!retry)throw Error('--retry needs a job ID');
@@ -153,6 +155,7 @@ try{
   ledger.jobs[id]=intent;save(ledger);
   if(process.env.SCHEDULER_FAIL_AFTER_INTENT===id)process.exit(97);
   const outFd=openSync(stdout,'w'),errFd=openSync(stderr,'w');
+  acceptanceGuard(spec,[ledgerDir]);
   child=spawn(command[0],command.slice(1),{cwd,stdio:['ignore',outFd,errFd],env:{...process.env,...job.env}});
   const record={...intent,status:'running',pid:child.pid};
   ledger.jobs[id]=record;save(ledger);closeSync(outFd);closeSync(errFd);

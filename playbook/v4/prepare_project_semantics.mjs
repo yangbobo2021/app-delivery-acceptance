@@ -1,3 +1,4 @@
+import {acceptanceGuard,knowledgeContext} from '../acceptance-guard.mjs';
 import {readFileSync,writeFileSync,appendFileSync,mkdirSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {createHash} from 'node:crypto';
@@ -8,7 +9,10 @@ const [catalogArg,outputArg]=process.argv.slice(2);
 if(!catalogArg||!outputArg)throw Error('usage: node prepare_project_semantics.mjs prepared-catalog.json new-output-dir');
 const catalogPath=resolve(catalogArg),bytes=readFileSync(catalogPath),catalog=JSON.parse(bytes);
 if(catalog.schema!=='portable-project-catalog-v1')throw Error('Invalid project catalog');
-const output=resolve(outputArg);mkdirSync(output,{recursive:false});
+const output=resolve(outputArg);
+const acceptanceBinding=acceptanceGuard(catalog,[output]);
+const acceptanceKnowledge=knowledgeContext(acceptanceBinding);
+mkdirSync(output,{recursive:false});
 const coverageContract=readFileSync(new URL('../../references/coverage-tool-contract.md',import.meta.url),'utf8');
 const prompt=`你负责一次性项目测试准备补充，只发现项目运行测试所需的操作事实，不设计需求、场景或用例，也不执行测试。项目目录：${catalog.project_root}。确定性准备目录已经存在，见输入。优先读取测试命令配置、测试助手和一份代表性既有测试，最多十次短源码读取，单次输出尽量不超过4KB。禁止读取正式测试SKILL或扫描整仓；禁止修改文件、安装依赖或连接外部服务。不要把具体业务预期硬编码为所有测试的规则。
 
@@ -17,7 +21,7 @@ const prompt=`你负责一次性项目测试准备补充，只发现项目运行
 覆盖率强制执行规约：
 ${coverageContract}
 
-确定性准备：${JSON.stringify(catalog)}`;
+项目验收经验（操作参考，不是业务预期）：${JSON.stringify(acceptanceKnowledge)}\n确定性准备：${JSON.stringify(catalog)}`;
 writeFileSync(join(output,'prompt.txt'),prompt);
 const result={model:process.env.ACCEPTANCE_MODEL??'gpt-6.1-sol',effort:'medium',started_at:new Date().toISOString(),
  catalog_sha256:createHash('sha256').update(bytes).digest('hex'),prompt_characters:prompt.length};

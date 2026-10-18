@@ -73,6 +73,8 @@ def project_state(traces, progress):
                                       'revision': source['project'].get('revision'),
                                       'confirmed_at': source.get('judgment_confirmed_at') or
                                       source['judgment'].get('confirmed_at') or source.get('generated_at')}
+            if source.get('judgment_source'):
+                row['judgment_source'] = deepcopy(source['judgment_source'])
             row['current_links'] = deepcopy(source.get('current_links', {}))
         state = row['judgment']['status']
         category = (state if state in {'passed', 'product_bug', 'accepted_risk'} else

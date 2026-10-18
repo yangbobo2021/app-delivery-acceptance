@@ -19,14 +19,7 @@ class PortableAcceptanceTest(unittest.TestCase):
         self.root.mkdir()
         self.out = Path(self.temp.name) / "attempt"
         (self.root / "app.py").write_text("VALUE = 1\n")
-        (self.root / "check.py").write_text(
-            "import json, sys\n"
-            "print('CASE_OK')\n"
-            "if len(sys.argv) > 1:\n"
-            "  with open(sys.argv[1], 'w') as f:\n"
-            "    json.dump({'files': {'app.py': {'lines': {'covered': 1, 'total': 2}, "
-            "'branches': {'covered': 0, 'total': 1}}}}, f)\n"
-        )
+        (self.root / "check.py").write_text("print('CASE_OK')\n")
         self.manifest = {
             "schema": portable.SCHEMA,
             "project": {"id": "sample", "root": str(self.root), "revision_mode": "declared",
@@ -38,10 +31,7 @@ class PortableAcceptanceTest(unittest.TestCase):
             "bindings": [{"id": "C1", "scenario_id": "S1", "kind": "automated", "title": "Check",
                           "test_file": "check.py", "command": [sys.executable, "check.py"],
                           "success_markers": ["CASE_OK"]}],
-            "coverage": {"policy": "required", "parser": "normalized-json", "source_paths": ["app.py"],
-                         "case_binding_ids": ["C1"], "collection_relation": "replay_same_cases",
-                         "run_command": [sys.executable, "check.py", "{artifacts}/coverage.json"],
-                         "report_path": "{artifacts}/coverage.json"},
+            "coverage": {"policy": "off"},
         }
         self.path = Path(self.temp.name) / "manifest.json"
         self.write_manifest()
@@ -67,7 +57,7 @@ class PortableAcceptanceTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "contract drift"):
             portable.frozen_contract(self.root, descriptor)
 
-    def test_prepared_to_measured_trace(self):
+    def test_prepared_to_executed_trace_without_coverage(self):
         portable.prepare(self.path, self.out)
         portable.project(self.path, self.out)
         self.assertEqual(portable.load(self.out / "trace.json")["stage"], "prepared")
@@ -75,32 +65,22 @@ class PortableAcceptanceTest(unittest.TestCase):
         portable.project(self.path, self.out)
         trace = portable.load(self.out / "trace.json")
         self.assertEqual(trace["case_results"][0]["status"], "passed")
-        self.assertEqual(trace["coverage"]["files"][0]["lines"], {"covered": 1, "total": 2})
+        self.assertEqual(trace["coverage"]["status"], "off")
         self.assertEqual(trace["judgment"]["status"], "pending_review")
         before = (self.out / "trace.json").read_bytes()
         portable.project(self.path, self.out)
         self.assertEqual((self.out / "trace.json").read_bytes(), before)
 
-    def test_failed_selected_case_can_keep_its_real_coverage_report(self):
-        (self.root / "check.py").write_text(
-            "import json, sys\n"
-            "print('CASE_OK')\n"
-            "if len(sys.argv) > 1:\n"
-            "  with open(sys.argv[1], 'w') as f:\n"
-            "    json.dump({'files': {'app.py': {'lines': {'covered': 1, 'total': 2}, "
-            "'branches': {'covered': 0, 'total': 1}}}}, f)\n"
-            "raise SystemExit(1)\n"
-        )
-        self.manifest["coverage"]["accept_failed_case_exit"] = True
+    def test_legacy_separate_coverage_command_is_rejected_before_execution(self):
+        self.manifest["coverage"] = {"policy": "required", "parser": "normalized-json",
+            "source_paths": ["app.py"], "case_binding_ids": ["C1"],
+            "collection_relation": "replay_same_cases", "accept_failed_case_exit": True,
+            "run_command": [sys.executable, "check.py", "{artifacts}/coverage.json"],
+            "report_path": "{artifacts}/coverage.json"}
         self.write_manifest()
-        portable.prepare(self.path, self.out)
-        portable.execute(self.path, self.out)
-        portable.project(self.path, self.out)
-        trace = portable.load(self.out / "trace.json")
-        self.assertEqual(trace["case_results"][0]["status"], "failed")
-        self.assertEqual(trace["coverage"]["status"], "measured")
-        self.assertEqual(trace["coverage"]["collection_exit_code"], 1)
-        self.assertEqual(trace["coverage"]["files"][0]["lines"], {"covered": 1, "total": 2})
+        with self.assertRaisesRegex(ValueError, "Legacy separate coverage commands"):
+            portable.prepare(self.path, self.out)
+        self.assertFalse(self.out.exists())
 
     def test_unavailable_coverage_has_reason_and_is_distinct_from_off(self):
         self.manifest["coverage"] = {"policy": "unavailable", "reason": "Original source has no reliable line collector"}
@@ -127,7 +107,7 @@ class PortableAcceptanceTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "requires a reason"):
             portable.prepare(self.path, self.out)
 
-    def test_cumulative_scope_is_incomplete_if_one_scene_lacks_line_report(self):
+    def test_unregistered_line_counts_cannot_certify_partial_coverage(self):
         project = {"id": "sample", "revision": "frozen", "sources": ["app.py"]}
         measured = {"project": project, "scenarios": [{"id": "S1"}], "generated_at": "1",
                     "coverage": {"status": "measured", "line_files": [
@@ -135,8 +115,9 @@ class PortableAcceptanceTest(unittest.TestCase):
         unavailable = {"project": project, "scenarios": [{"id": "S2"}], "generated_at": "1",
                        "coverage": {"status": "unavailable", "reason": "No trustworthy collector"}}
         result = coverage_views.summarize([measured, unavailable])[0]["scopes"]["project"]
-        self.assertEqual(result["status"], "incomplete")
-        self.assertEqual(result["scenes_without_line_report"], 1)
+        self.assertEqual(result["status"], "unavailable")
+        self.assertIsNone(result["line"]["covered"])
+        self.assertIsNone(result["branch"]["covered"])
         self.assertEqual(result["unavailable_reasons"], ["No trustworthy collector"])
 
     def test_cumulative_scope_waits_when_no_scene_exists(self):
@@ -145,15 +126,16 @@ class PortableAcceptanceTest(unittest.TestCase):
 
     def test_test_code_change_invalidates_preparation(self):
         portable.prepare(self.path, self.out)
-        (self.root / "check.py").write_text("print('CASE_OK')\n")
+        (self.root / "check.py").write_text("print('CASE_CHANGED')\n")
         with self.assertRaisesRegex(ValueError, "preparation binding changed"):
             portable.execute(self.path, self.out)
 
     def test_evidence_change_invalidates_projection(self):
         portable.prepare(self.path, self.out)
         portable.execute(self.path, self.out)
-        (self.out / "coverage.json").write_text("{}")
-        with self.assertRaisesRegex(ValueError, "coverage evidence changed"):
+        record=portable.load(self.out / "execution.json")["case_results"][0]
+        Path(record["evidence_path"]).write_text("Altered execution log\n")
+        with self.assertRaisesRegex(ValueError, "case evidence changed"):
             portable.project(self.path, self.out)
 
     def test_stale_review_cannot_approve(self):

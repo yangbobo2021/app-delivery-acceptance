@@ -1,3 +1,4 @@
+import {acceptanceGuard} from '../../acceptance-guard.mjs';
 import {readFileSync,writeFileSync,mkdirSync,existsSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {createHash} from 'node:crypto';
@@ -7,6 +8,7 @@ if(!['reverse','scenario','case'].includes(mode)||!templateArg||!outputArg)throw
 const templatePath=resolve(templateArg),out=resolve(outputArg);
 if(existsSync(out))throw Error('Handoff output already exists');
 const template=JSON.parse(readFileSync(templatePath,'utf8'));
+acceptanceGuard(template,[out]);
 const sha=p=>createHash('sha256').update(readFileSync(p)).digest('hex');
 const analysisPath=template.analysis_path?resolve(template.analysis_path):null;
 const analysis=analysisPath?JSON.parse(readFileSync(analysisPath,'utf8')):template.analysis;
@@ -56,6 +58,7 @@ if(mode==='reverse'){
   ...(scene.kind==='BLACK_BOX'?{pr_reviewed_reverse_path:approvedPath,pr_reviewed_reverse_sha256:sha(approvedPath)}:
     {reviewed_reverse_path:approvedPath,reviewed_reverse_sha256:sha(approvedPath)})};
 }
+request.acceptance=template.acceptance;
 mkdirSync(out,{recursive:true});
 const target=join(out,'request.json');writeFileSync(target,JSON.stringify(request,null,2)+'\n');
 const result={final_state:'done',finished_at:new Date().toISOString(),mode,

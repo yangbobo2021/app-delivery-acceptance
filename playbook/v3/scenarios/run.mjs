@@ -1,3 +1,4 @@
+import {acceptanceGuard,knowledgeContext} from '../../acceptance-guard.mjs';
 import {readFileSync,writeFileSync,appendFileSync,mkdirSync,existsSync,copyFileSync} from 'node:fs';
 import {join,dirname,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -11,9 +12,12 @@ import {reverseArtifactReady} from '../reverse/artifact.mjs';
 const {createWorktreeHostCapabilities}=hostCapabilities,{CodexAdapter}=cligent;
 const root=dirname(fileURLToPath(import.meta.url)),trial=process.argv[2];
 if(!trial||!/^[a-z0-9-]+$/.test(trial)||!process.argv[3]||!process.argv[4])throw Error('usage: node run.mjs label request.json output-dir [draft.json] [--feedback review.json]');
-const folder=resolve(process.argv[4]),requestPath=resolve(process.argv[3]);if(existsSync(folder))throw Error('Run folder exists; refusing overwrite');mkdirSync(folder,{recursive:true});
+const folder=resolve(process.argv[4]),requestPath=resolve(process.argv[3]);if(existsSync(folder))throw Error('Run folder exists; refusing overwrite');
 const request=bindReviewedReverse(JSON.parse(readFileSync(requestPath,'utf8')));if(!['BLACK_BOX','WHITE_BOX'].includes(request.scenario_kind))throw Error('Scenario kind must be BLACK_BOX or WHITE_BOX');
 const cwd=resolve(request.project_root??dirname(requestPath));
+const acceptanceBinding=acceptanceGuard(request,[folder]);
+const acceptanceKnowledge=knowledgeContext(acceptanceBinding);
+mkdirSync(folder,{recursive:true});
 if(request.scenario_kind==='BLACK_BOX'&&request.pr_reviewed_reverse_path){
  const raw=readFileSync(resolve(request.pr_reviewed_reverse_path)),approved=JSON.parse(raw);
  if(createHash('sha256').update(raw).digest('hex')!==request.pr_reviewed_reverse_sha256||
@@ -36,7 +40,7 @@ const target=(request.scenario_kind==='WHITE_BOX'?request.reverse_rules.find(x=>
 if(!target)throw Error('Target requirement/rule missing');
 const groups=request.analysis.requirement_groups.filter(g=>g.requirement_ids.includes(target.id));
 const relatedIds=[...new Set(groups.flatMap(g=>g.requirement_ids))].filter(id=>id!==target.id);
-const common={target_requirement:target,business_goal:request.analysis.business_goal,confirmed_scope:request.analysis.confirmed_scope,
+const common={acceptance_knowledge:acceptanceKnowledge,target_requirement:target,business_goal:request.analysis.business_goal,confirmed_scope:request.analysis.confirmed_scope,
  relevant_groups:groups,related_requirement_ids:relatedIds,
  all_requirements:request.requirements.items,shared_constraints:request.requirements.shared_constraints,
  genuine_user_constraints:request.user_constraints,selected_commit_scope:request.selected_commit_scope};

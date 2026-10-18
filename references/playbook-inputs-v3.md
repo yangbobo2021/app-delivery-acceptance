@@ -1,6 +1,6 @@
 # v3 Playbook request inputs
 
-Place each request JSON and all resulting artifacts under the selected test-assets directory. These are data contracts; project paths and commands are inputs, never hard-coded Skill policy. Use a fresh output directory for a new invocation. Model roles receive the supplied data only and do not scan the project or execute tests.
+Apply the [project acceptance store contract](project-acceptance-store.md). Every new request includes the hash-bound `acceptance` object returned by `read-knowledge`; place request JSON and runtime outputs under `.acceptance-local/<stable-AT-ID>/workflows/`, publish only explicit shareable records to `.acceptance/<ID>`, and keep formal tests in the project test tree. Scope changes create new dependent attempts under the same acceptance ID. These are data contracts; project paths and commands are inputs, never hard-coded Skill policy. Use a fresh output directory for a new invocation. Model roles receive the supplied data only and do not scan the project or execute tests.
 
 ## Whole-list analysis
 

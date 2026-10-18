@@ -8,6 +8,10 @@ import re
 import subprocess
 import sys
 
+# Shared project-owned storage and knowledge gate.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from acceptance_store import guard as acceptance_guard
+
 
 HERE = Path(__file__).resolve().parent
 
@@ -52,6 +56,10 @@ def main():
     plan = read(plan_path)
     if plan.get("schema") != "acceptance-v4-plan-v1" or not plan.get("scenario_requests"):
         raise ValueError("invalid v4 plan")
+    acceptance_guard(plan, [plan["run_dir"]])
+    if any(plan.get("acceptance", {}).get(k) != plan["case_template"].get("acceptance", {}).get(k)
+           for k in ("project_root", "id", "scope_sha256")):
+        raise ValueError("plan and case template acceptance differ")
     run_dir = Path(plan["run_dir"]).resolve()
     run_dir.mkdir(parents=True, exist_ok=True)
     lock = (run_dir / "plan.lock").open("a+")
@@ -66,7 +74,11 @@ def main():
     write_once(run_dir / "plan.binding.json", bindings)
     summary = []
     for index, request_path in enumerate(plan["scenario_requests"]):
+        acceptance_guard(plan, [run_dir])
         request = read(request_path)
+        if any(request.get("acceptance", {}).get(k) != plan["acceptance"].get(k)
+               for k in ("project_root", "id", "scope_sha256")):
+            raise ValueError("scenario request belongs to another acceptance or scope")
         key = f"{index:03d}-{slug(request['target_requirement_id'])}"
         scenario_dir = run_dir / "scenarios" / key
         scenario_command = ["node", str(HERE / "run_scenarios.mjs"),

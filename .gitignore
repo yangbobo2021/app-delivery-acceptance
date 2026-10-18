@@ -8,6 +8,11 @@ __pycache__/
 .venv/
 venv/
 
+# Reproducible Playbook compiler cache and intermediate drafts
+.slc/
+*.gears.raw.md
+*.gears.opt[0-9]*.md
+
 # Local configuration and OS/editor files
 .env
 .env.*

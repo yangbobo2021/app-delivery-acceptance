@@ -6,6 +6,11 @@ from pathlib import Path
 import subprocess
 import sys
 
+# Shared project-owned storage and knowledge gate.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from acceptance_store import guard as acceptance_guard
+from acceptance_workspace import POLICY, workspace_path
+
 
 def read(path):
     return json.loads(Path(path).read_text())
@@ -21,6 +26,7 @@ def main():
     template_path = Path(sys.argv[1]).resolve()
     template = read(template_path)
     out = Path(sys.argv[2]).resolve()
+    acceptance_guard(template, [out, template["case_run_dir"]])
     if out.exists():
         raise ValueError("handoff directory already exists")
     scene_dir = Path(template["scenario_run_path"]).resolve()
@@ -38,10 +44,18 @@ def main():
     if not scene or scene["requirement_id"] != request["target_requirement_id"]:
         raise ValueError("selected scene absent from frozen target list")
     root = Path(template["source_checkout"]).resolve()
+    if root != workspace_path(template):
+        raise ValueError("case source_checkout must use the single acceptance workspace")
     if root != Path(request["project_root"]).resolve():
         raise ValueError("scenario and case project roots differ")
+    for upstream in (request, read(template["template_catalog"])):
+        if any(upstream.get("acceptance", {}).get(k) != template["acceptance"].get(k)
+               for k in ("project_root", "id", "scope_sha256")):
+            raise ValueError("scenario/catalog belongs to another acceptance or scope")
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
     catalog = read(template["template_catalog"])
+    if catalog.get("workspace_policy") != POLICY or Path(catalog["project_root"]).resolve() != root:
+        raise ValueError("prepare a new single-workspace catalog before binding cases")
     if catalog.get("revision") != revision:
         raise ValueError("catalog and project revision differ")
     if request["scenario_kind"] == "WHITE_BOX" and request["source_evidence"]["revision"] != revision:
@@ -57,7 +71,7 @@ def main():
               if scene["requirement_id"] in group.get("requirement_ids", [])]
     related_ids = {id for group in groups for id in group["requirement_ids"]} - {target["id"]}
     related = [item for item in request["requirements"]["items"] if item["id"] in related_ids]
-    case_input = {"requirement": target, "scene": scene,
+    case_input = {"acceptance": template["acceptance"],"requirement": target, "scene": scene,
                   "business_goal": request["analysis"]["business_goal"],
                   "confirmed_scope": request["analysis"]["confirmed_scope"],
                   "related_requirements": related,
@@ -81,7 +95,7 @@ def main():
     elif request.get("pr_reviewed_reverse_path"):
         case_input["pr_reviewed_reverse_path"] = request["pr_reviewed_reverse_path"]
         case_input["pr_reviewed_reverse_sha256"] = request["pr_reviewed_reverse_sha256"]
-    config = {"schema": "isolated-scene-pipeline-v1", "source_checkout": str(root),
+    config = {"acceptance": template["acceptance"],"schema": "isolated-scene-pipeline-v1", "workspace_policy": POLICY, "source_checkout": str(root),
               "revision": revision, "component_sources": template.get("component_sources", {}),
               "template_catalog": str(Path(template["template_catalog"]).resolve()),
               "case_input": str(out / "case-input.json"),

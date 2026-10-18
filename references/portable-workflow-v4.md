@@ -2,18 +2,31 @@
 
 此路径适用于有冻结 Git 版本、可建立隔离工作树并能在本地自动执行测试的项目。语言、应用类型、测试框架、业务预期和覆盖率工具由项目输入决定。无源码的黑盒目标、必须人工操作的场景和无法建立隔离工作树的项目继续走 [v3 可移植执行路径](portable-workflow-v3.md)，不能伪造自动测试结果。全量需求分析和提交/PR 白盒逆向继续使用 v3 已验证入口；v4 更换其后的单目标场景生成和单场景用例执行过程。
 
+## 项目验收存储前置门禁
+
+先遵守[目录、稳定验收 ID 与 knowledge 规约](project-acceptance-store.md)。启动/恢复先读取 `.acceptance-local/current.json`；配置中的 `acceptance.id` 必须与之相同。没有指针不能从旧配置自动激活；整项验收结束由宿主 `finish` 清除指针，单场景/批次终态不清除。视图切换只读，不绑定对话。准备 spec、场景 request、case template 和计划均携带 `read-knowledge` 输出的 `acceptance` 对象；所有新阶段输出在 `.acceptance-local/<同一ID>/workflows/` 内。`prepare_project.py`、`bind_case.py`、`run_plan.py`、`run_scenarios.mjs`、用例及修复入口强制校验，单场景编排在阶段交接再次校验。目录/知识问题不执行项目命令、不改场景结论；范围变化追加记录并创建受影响的新尝试，不换验收 ID。正式用例融合项目测试/回归体系，未融合的工作树用例须如实标成候选。
+
 ## 项目只准备一次
 
 准备时必须执行[覆盖率专用工具规约](coverage-tool-contract.md)：按项目语言/运行时确定专用采集、转换、源码映射及合并统计模块，记录真实版本、调用和指标能力。禁止让用例 Agent 自行实现分支识别、AST 分母或转译还原算法。
 
-先冻结目标 Git revision、项目拥有的非测试源文件、测试目录、组件版本及已有依赖的就绪标记。`prepare_project.py` 只执行项目输入中声明的 setup/能力检查命令，不猜语言或框架；同一 revision 的场景复用产出的 catalog。可用 `prepare_project_semantics.mjs` 在一个只读 Agent 过程中补充测试命令、夹具隔离和环境变量路标；其 `guide.json` 不是业务预期依据。每个场景的隔离工作树可能仍需安装或链接该工作树自己的依赖，catalog 不等于依赖已在所有工作树可用。
+先冻结目标 Git revision、项目拥有的非测试源文件、测试目录、组件版本及已有依赖的就绪标记。`prepare_project.py` 只执行项目输入中声明的 setup/能力检查命令，不猜语言或框架；同一 revision 的场景复用产出的 catalog。可用 `prepare_project_semantics.mjs` 在一个只读 Agent 过程中补充测试命令、夹具隔离和环境变量路标；其 `guide.json` 不是业务预期依据。每个验收只在 `.acceptance-local/<ID>/workspace` 建立一个专用工作树并准备依赖，各场景串行复用；每次执行另建业务状态和输出，不能沿用上一场景的账户、数据库或页面状态。
 
 ```sh
 python3 <skill>/playbook/v4/prepare_project.py prep-spec.json prep-output
 node <skill>/playbook/v4/prepare_project_semantics.mjs prep-output/catalog.json prep-guide-output
 ```
 
-`prep-spec.json` 至少包含 `schema: portable-project-prep-v1`、`project_root`、`revision`、`test_roots`、`source_paths`（完整非测试用户代码清单，可为空但覆盖率项目分母会不可用）；按需提供 `components`、`binding_files`、`ready_markers`、`setup_commands`、`capability_checks`、`runner_hints`。命令和环境变量是数组/对象输入；不得在 SKILL 中编码项目路径。准备可能修改项目工作树时，先在隔离副本或专用测试工作树中运行。
+`prep-spec.json` 至少包含 `schema: portable-project-prep-v1`、`project_root`、`revision`、`test_roots`、`source_paths`（完整非测试用户代码清单，可为空但覆盖率项目分母会不可用）；按需提供 `components`、`binding_files`、`ready_markers`、`setup_commands`、`capability_checks`、`runner_hints`。命令和环境变量是数组/对象输入；不得在 SKILL 中编码项目路径。`source_checkout` 可指定作为初始来源的检出目录，缺省取 `project_root`；准备入口在验收唯一 workspace 中运行，catalog.project_root 返回该目录。场景 request 与后续 case template 使用返回目录；acceptance.project_root 保持用户项目根目录。产品修复后的新提交使用同一 workspace、新 revision 和新准备输出，禁止自动 reset 或新建场景工作树。
+
+**准备完成时的检查：**宿主在现有准备交接中核对以下内容，不另建阶段或检查报告格式：
+
+- 沿用现有检查，区分其职责：`guard` 核对验收身份、当前指针、范围和知识凭据；准备入口核对源码/组件版本与工作树。再对照 spec、`catalog.json` 和 `terminal.json`，确认 terminal 的 `state` 为 `prepared`、`fingerprint` 与 catalog 一致、`catalog_sha256` 匹配实际 catalog。`acceptance_store.py check` 只做存储结构等校验，不能单独证明准备完成。
+- 对照声明的 `ready_markers`、setup 和 `capability_checks`，确认所需标记存在，每项实际执行的检查都有命令及结果，失败未被忽略。标记已就绪时 setup 可以按既有逻辑跳过；合法复用准备时引用原有凭据，不冒称本次重新执行。缺记录或输入不符时不能标为已检查，也不为补记录而重跑已合法完成的准备。
+- 结合本次范围和项目测试约定，确认这些检查足以支持即将使用的测试入口、隔离和清理方式。这项由宿主阅读判断，程序不能证明声明完整；不适用或尚未验证的能力说明理由，不把空检查列表当作所有能力已就绪。不因此强求其他项目安装浏览器、数据库或新增基础设施门禁。
+- 要求覆盖率时，确认现有专用 provider 的准备验证通过，工具、源码和统计范围与 catalog 绑定；工具能力缺口按覆盖率规约说明。准备检查不代替业务用例执行或独立复审。
+
+在现有准备记录或交接说明中引用上述检查依据；发现缺口先修正配置/准备或明确限制，不能靠勾选、重跑业务用例或扩大测试范围补齐。
 
 ## 单目标场景
 
@@ -27,7 +40,7 @@ node <skill>/playbook/v4/run_scenarios.mjs scenario-request.json NEW-scenario-di
 
 ## 单场景用例、真实执行与独立复审
 
-为一个场景准备 `case-template.json`，使用 `bind_case.py` 从已完成的场景列表冻结场景、主需求/规则、相关需求、范围和证据版本。模板必需 `scenario_run_path`、`scene_id`、`source_checkout`、`template_catalog`、`guide`、`case_run_dir`；可选 `component_sources`、`allowed_test_roots`、`local_loopback_required`、证据路径配置和 `coverage`。`bind_case.py` 输出 `case-input.json` 与 `config.json`。一场景一个独立工作树与运行目录；项目原始需求和产品源码不得由用例 Agent 改动。
+为一个场景准备 `case-template.json`，使用 `bind_case.py` 从已完成的场景列表冻结场景、主需求/规则、相关需求、范围和证据版本。模板必需 `scenario_run_path`、`scene_id`、`source_checkout`、`template_catalog`、`guide`、`case_run_dir`；可选 `component_sources`、`allowed_test_roots`、`local_loopback_required`、证据路径配置和 `coverage`。`bind_case.py` 输出 `case-input.json` 与 `config.json`。一验收一个共用 workspace，一场景一个运行目录；绑定要求新 catalog 的 `workspace_policy: single-acceptance-v1`，source_checkout 必须指向该 workspace。准备、执行、复审持有验收级互斥锁，中断场景保留恢复归属，下一场景不能越过。各阶段复核产品版本/源码哈希，允许前面场景的测试修改保留。项目原始需求和产品源码不得由用例 Agent 改动；授权产品修复在验收阶段之间完成，随后新冻结版本并复验。
 
 ```sh
 python3 <skill>/playbook/v4/bind_case.py case-template.json NEW-handoff-dir
@@ -50,10 +63,10 @@ python3 <skill>/playbook/v4/run_plan.py plan.json
 
 `case-template.coverage` 可以明确记录 `unavailable`（具体原因）或用户明确关闭的 `off`。持续采集时先按 [专用工具执行规约](coverage-tool-contract.md) 验证工具链并冻结工具生成的完整分母，项目 catalog 保存 `{ "policy":"required", "provider":"istanbul-source-v1", "prepared":"/absolute/prepared", "inventory_path":"/absolute/change-inventory.json" }`。当前注册实现服务于 JS/TS；其他语言须接入对应专用 provider，不以格式解析器冒充工具链。`bind_case.py` 自动继承项目配置，场景不能降级；执行和差量执行都通过 `run_evidence_v2.py --coverage-config` 调用同一个 `run_coverage.py` 入口。项目准备、执行前、证据冻结及展示汇总均强制验证。仅给 LCOV、`coveragepy-json` 或工具标签不能成为 `measured`。行/分支及嵌套分支、零命中分母、合并与汇总全部由专用工具负责，切换项目/修改文件/修改行范围同步筛选工具单位并重算。保留失败用例的实际计数，采集缺口明确 `incomplete/unavailable`；覆盖率不替代业务判定。
 
-`python3 <skill>/scripts/v3/serve.py <project-assets-dir> [...]` 可读 v4 的 `request.frozen.json`、阶段 `state.json`、冻结收据、覆盖率和审查结果；对场景显示“内部自审”，不会误标为独立场景审查。查看目录须包含项目完整场景清单及已有执行、复审和用户决策；不能只传本批次目录而把批次总数当项目分母。
+`python3 <skill>/scripts/v3/serve.py <项目目录> [--acceptance-id AT-<ID>]` 可读 v4 的 `request.frozen.json`、阶段 `state.json`、冻结收据、覆盖率和审查结果；对场景显示“内部自审”，不会误标为独立场景审查。视图只读所选验收 ID 的完整项目场景清单及已有执行、复审和用户决策，可切换历史/当前 ID；不能把批次总数当项目分母或混入其他 ID 的结论。缺完整清单则不显示项目比例。旧产物目录用显式 `--legacy-assets` 只读入口，不自动迁移。
 
 统一使用[项目统计口径](project-state-statistics.md)：所有场景指标以项目全部场景数为分母；一个场景执行过任何一次用例就算已执行，版本、成败、业务链路是否完成和风险处置均不改变执行事实；按场景 ID 去重。结果取最近一次已确认结论，新版本或准备重跑不自动变成“待复验”。接受风险单列，未曾形成有效结论的已执行场景列为“待确认结论”；各互斥结果分类之和必须等于已执行数。视图/API均核对该等式。保留原始收据、复审和实际版本；同版本 PR 交付仍使用原有完成门禁，不能由项目保留结果推断新版本全部重测通过。实时视图只读，不代替原始 JSON、日志与证据。
 
 ## 恢复边界
 
-每个阶段只在前一阶段留下可验证的绑定和凭证后交接。修复 Agent 中断时，先核对输入哈希、Git revision、测试目录内的已修改文件和会话事件，再继续同一 session；不重新启动一个可能再次修改同一文件的新 Agent。若用例 Agent 接触本地服务且无法证明其效果可安全继续，默认停下；只有项目明确提供隔离/幂等保证，才设置 `resume_safe_after_local_loopback`。若会话无法恢复且已有无法确定的文件或外部效果，保持 `parked`，由人检查后创建新冻结尝试。执行阶段已有完整收据则接续；只有在项目明确声明“本地隔离重跑安全”且能建新鲜状态目录时，才允许对无收据执行另开一次尝试。仍存活的执行进程或外部效果不确定时停下。只读 Reviewer 会话无法恢复时，可保留失败记录并有限次新开审查，不重新执行测试。变更需求、范围、规则、场景或产品版本需新下游版本；旧证据留档。
+每个阶段只在前一阶段留下可验证的绑定和凭证后交接。修复 Agent 中断时，先核对输入哈希、Git revision、测试目录内的已修改文件和会话事件，再继续同一 session；不重新启动一个可能再次修改同一文件的新 Agent。若用例 Agent 接触本地服务且无法证明其效果可安全继续，默认停下；只有项目明确提供隔离/幂等保证，才设置 `resume_safe_after_local_loopback`。若会话无法恢复且已有无法确定的文件或外部效果，保持 `parked`，由人检查后创建新冻结尝试。执行阶段已有完整收据则接续；只有在项目明确声明“本地隔离重跑安全”且能建新鲜状态目录时，才允许对无收据执行另开一次尝试。仍存活的执行进程或外部效果不确定时停下。只读 Reviewer 会话无法恢复时，可保留失败记录并有限次新开审查，不重新执行测试。变更需求、范围、规则、场景或产品版本需新下游版本；验收期间保留旧证据；验收通过并保存代码、需求—场景—用例关系、确认结论与工具摘要后，原始数据可按[清理规约](project-acceptance-store.md#验收结束与本机清理)删除，不要求长期占盘。

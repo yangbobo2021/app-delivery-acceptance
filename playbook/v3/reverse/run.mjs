@@ -1,3 +1,4 @@
+import {acceptanceGuard,knowledgeContext} from '../../acceptance-guard.mjs';
 import {readFileSync,writeFileSync,mkdirSync,existsSync,copyFileSync} from 'node:fs';
 import {resolve,join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -10,6 +11,8 @@ const root=dirname(fileURLToPath(import.meta.url)),[requestArg,outArg,...flags]=
 if(!requestArg||!outArg||flags.some(x=>x!=='--resume'))
  throw Error('usage: node run.mjs request.json output-dir [--resume]');
 const requestPath=resolve(requestArg),folder=resolve(outArg),request=JSON.parse(readFileSync(requestPath,'utf8'));
+const acceptanceBinding=acceptanceGuard(request,[folder]);
+const acceptanceKnowledge=knowledgeContext(acceptanceBinding);
 if(existsSync(folder)&&!resume)throw Error('Output exists; preserve previous reverse analysis');
 if(!existsSync(folder)&&resume)throw Error('Resume output missing');
 if(resume&&!readFileSync(join(folder,'request.frozen.json')).equals(readFileSync(requestPath)))throw Error('Reverse resume request changed');
@@ -78,5 +81,5 @@ for(const chunk of chunks){
  else writeFileSync(path,chunk.text);
 }
 if(!inventory)throw Error('Single-Agent reverse requires a complete classified source inventory');
-const state=await runSingleAgent({folder,cwd,root,request,change,inventory,resume});
+const state=await runSingleAgent({folder,cwd,root,request,change,inventory,resume,acceptanceKnowledge});
 process.exitCode=state==='completed'?0:2;

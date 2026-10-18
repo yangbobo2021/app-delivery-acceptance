@@ -1,3 +1,4 @@
+import {acceptanceGuard,knowledgeContext} from '../acceptance-guard.mjs';
 import {readFileSync,writeFileSync,appendFileSync,mkdirSync,existsSync} from 'node:fs';
 import {resolve,join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -12,6 +13,8 @@ const [requestArg,outputArg,...flags]=process.argv.slice(2),resume=flags.include
 if(!requestArg||!outputArg||flags.some(x=>x!=='--resume'))throw Error('usage: node run_scenarios.mjs request.json NEW-output-dir [--resume]');
 const here=dirname(fileURLToPath(import.meta.url)),v3=resolve(here,'../v3');
 const requestPath=resolve(requestArg),output=resolve(outputArg),supplied=JSON.parse(readFileSync(requestPath));
+const acceptanceBinding=acceptanceGuard(supplied,[output]);
+const acceptanceKnowledge=knowledgeContext(acceptanceBinding);
 if(!['BLACK_BOX','WHITE_BOX'].includes(supplied.scenario_kind))throw Error('Invalid scenario kind');
 const request=bindReviewedReverse(supplied),root=resolve(request.project_root);
 const sha=p=>createHash('sha256').update(readFileSync(p)).digest('hex');
@@ -43,7 +46,7 @@ if(resume&&existsSync(terminalPath)){
 }
 const groups=(request.analysis.requirement_groups??[]).filter(g=>g.requirement_ids?.includes(target.id));
 const related=[...new Set(groups.flatMap(g=>g.requirement_ids))].filter(id=>id!==target.id);
-const input={target_requirement:target,business_goal:request.analysis.business_goal,
+const input={acceptance_knowledge:acceptanceKnowledge,target_requirement:target,business_goal:request.analysis.business_goal,
   confirmed_scope:request.analysis.confirmed_scope,relevant_groups:groups,
   related_requirement_ids:related,all_requirements:request.requirements.items,
   shared_constraints:request.requirements.shared_constraints,

@@ -208,5 +208,15 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("traces", nargs="+", type=Path)
     ap.add_argument("--port", type=int, default=0)
+    ap.add_argument("--acceptance-id", help="Select an acceptance within one project directory")
+    ap.add_argument("--legacy-assets", action="store_true", help="Read historical unregistered artifact roots without migration")
     args = ap.parse_args()
-    serve(args.traces, args.port)
+    if args.legacy_assets:
+        if args.acceptance_id:
+            ap.error("--acceptance-id requires project mode")
+        serve(args.traces, args.port)
+    else:
+        if len(args.traces) != 1 or not args.traces[0].is_dir():
+            ap.error("supply exactly one project directory; use --legacy-assets only for old artifact roots")
+        from project_view import serve_project
+        serve_project(args.traces[0], args.port, args.acceptance_id)

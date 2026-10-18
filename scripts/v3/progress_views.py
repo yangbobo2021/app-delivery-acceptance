@@ -81,7 +81,7 @@ def matches_scenario_review(folder: Path, review) -> bool:
             hashlib.sha256(path.read_bytes()).hexdigest() == review['scenarios_sha256'])
 
 
-def case_result_history(folder, preview):
+def case_result_history(folder, preview, artifact_resolver=None):
     """Retain execution facts/confirmed results before selecting active attempts."""
     receipts = set(folder.glob('attempt-*/execution.json'))
     receipts.update(folder.glob('execution-review-*/execution.json'))
@@ -93,12 +93,15 @@ def case_result_history(folder, preview):
     for summary_path in (folder / 'summary.json', folder / 'blocker-assessment/summary.json'):
         summary = read_json(summary_path) or {}
         if summary.get('review_path'):
-            review_paths.append(Path(summary['review_path']))
+            ref = artifact_resolver(summary_path, summary['review_path']) if artifact_resolver else Path(summary['review_path'])
+            if ref:
+                review_paths.append(ref)
     for path in dict.fromkeys(review_paths):
         answer = read_json(path) or {}
         gate = read_json(path.with_name('decision-gate.json')) or {}
         inp = read_json(path.with_name('input.json')) or {}
-        receipt = Path(inp['frozen_execution_receipt']) if inp.get('frozen_execution_receipt') else None
+        receipt = ((artifact_resolver(path, inp['frozen_execution_receipt']) if artifact_resolver else
+                    Path(inp['frozen_execution_receipt'])) if inp.get('frozen_execution_receipt') else None)
         if not receipt or not receipt.is_file() or gate.get('status') != 'valid' or gate.get('review_status') != answer.get('status'):
             continue
         receipts.add(receipt)
@@ -245,8 +248,8 @@ def matches_v4_scenarios(folder: Path, terminal: dict) -> bool:
             hashlib.sha256(path.read_bytes()).hexdigest())
 
 
-def collect(roots, traces):
-    paths = []
+def collect(roots, traces, request_paths=None, artifact_resolver=None):
+    paths = list(request_paths or [])
     for root in roots:
         paths.extend(root.rglob('request.frozen.json') if root.is_dir() else [])
     identities = {t['project']['root']: t['project'] for t in traces if t.get('project', {}).get('root')}
@@ -364,7 +367,7 @@ def collect(roots, traces):
     # A later attempt for the same stage and target is the current one. Preserve older
     # final traces separately; never make an earlier run look like the current state.
     history = [row for preview in previews if preview.get('progress_kind') == 'case'
-               for row in case_result_history(Path(preview['progress_folder']), preview)]
+               for row in case_result_history(Path(preview['progress_folder']), preview, artifact_resolver)]
     current = {}
     for stage in stages:
         key = (stage['project_id'], stage['kind'], stage['target_id'])

@@ -556,6 +556,8 @@ def project(manifest_path, out):
              "judgment": assessment, "revision": revision, "attempt_id": execution["attempt_id"] if has_execution else out.name,
              "stage": "reviewed" if assessment_path.is_file() else "awaiting_review" if has_execution else "prepared",
              "generated_at": stamp()}
+    if manifest.get("acceptance"):
+        trace["acceptance"] = manifest["acceptance"]
     trace_path = out / "trace.json"
     if trace_path.is_file():
         previous = load(trace_path)
@@ -571,6 +573,9 @@ def main():
     ap.add_argument("manifest", type=Path)
     ap.add_argument("output", type=Path)
     args = ap.parse_args()
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from acceptance_store import guard
+    guard(json.loads(args.manifest.read_text()), [args.output.resolve()])
     args.output.mkdir(parents=True, exist_ok=True)
     {"prepare": prepare, "execute": execute, "project": project}[args.action](args.manifest.resolve(), args.output.resolve())
 
