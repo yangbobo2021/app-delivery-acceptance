@@ -28,6 +28,9 @@ if(git('diff','--name-only','HEAD').split('\n').filter(Boolean).some(x=>!allowed
  throw Error('Tracked product/source changes in acceptance workspace');
 if(resume){if(!existsSync(output))throw Error('resume output missing');}
 else mkdirSync(output,{recursive:false});
+const debug=JSON.parse(execFileSync('python3',[new URL('./debug_case.py',import.meta.url).pathname,
+ 'create',catalogPath,resolve(inputArg),join(output,'debug-contract.json')],{encoding:'utf8'}));
+mkdirSync(debug.request_root,{recursive:true});
 const fingerprint=createHash('sha256').update(catalogBytes).digest('hex');
 const guideBrief={coverage_tools:guide.coverage_tools,summary:guide.summary,fixture_isolation:guide.fixture_isolation,ui_state_notes:guide.ui_state_notes,
  environment_contract:(guide.environment_contract??[]).filter(x=>x.must_match&&x.must_match!=='无'),
@@ -57,6 +60,8 @@ const prompt=`你负责一个验收场景的“用例实现与本地调试”，
 
 覆盖率强制执行规约：
 ${coverageContract}
+
+本地调试契约（请求 JSON 必须写在 request_root 内，entry 后追加请求路径；只含 command、files、env，可选新 output。状态目录和项目声明的输出变量由入口绑定，禁止另写 /tmp 采集请求或直接调用底层执行器；最终 test_command 仍返回原始业务命令）：${JSON.stringify(debug)}
 
 公共准备目录：${catalogPath}
 必要操作信息：${JSON.stringify(catalogBrief)}

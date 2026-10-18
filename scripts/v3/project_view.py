@@ -51,6 +51,35 @@ def catalog_trace(path, project_id):
             "coverage": {"status": "pending"}}
 
 
+def workflow_requests(roots, local):
+    """An archive is the same attempt, never a newer run because it was copied."""
+    selected, origins = {}, {}
+    for path in files_under(roots, 'request.frozen.json'):
+        origin = {'original_path': str(path)}
+        for parent in path.parents:
+            if parent == roots[0].parent or parent == roots[1].parent:
+                break
+            record_path = parent / 'record.json'
+            if record_path.is_file():
+                record = read(record_path)
+                if record.get('schema') != 'acceptance-evidence-record-v1':
+                    continue
+                relative = path.relative_to(parent).as_posix()
+                original = next((key for key, value in record.get('original_paths', {}).items()
+                                 if value == relative), str(path))
+                origin = record.get('workflow_requests', {}).get(relative, {'original_path': original})
+                break
+        key = (origin['original_path'], digest(path))
+        companions = ['state.json', 'summary.json', 'case/answer.json', 'coverage-report.json',
+                      'review/answer.json', 'execution/execution.json']
+        score = (path.is_relative_to(local / 'workflows'),
+                 sum((path.parent / name).is_file() for name in companions))
+        if key not in selected or score > selected[key][0]:
+            selected[key] = (score, path)
+        origins[str(path)] = origin
+    return [item[1] for item in selected.values()], origins
+
+
 class ProjectView:
     def __init__(self, root, selected=None):
         self.root = project_root(root)
@@ -211,7 +240,13 @@ class ProjectView:
         projection changes no evidence or judgment and preserves actual capture revisions.
         """
         _, _, local = locations(self.root, selected)
+        # Ordinary v4 reports carry their own prepared inventory. Cohort projection
+        # is optional historical metadata, not a prerequisite for a new acceptance.
+        if not (local / 'project-context.json').is_file():
+            return rows
         context = read(local / 'project-context.json')
+        if not context.get('continuation_config'):
+            return rows
         config = read(owned_path(local, context['continuation_config']))
         coverage = config.get('coverage', {})
         prepared = read(owned_path(local, coverage['prepared']) / 'prepared.json')
@@ -296,7 +331,7 @@ class ProjectView:
                 verification = item
         return {'path': str(workspace), 'source_revision': catalog['source_revision'],
                 'scene_count': len(cases), 'file_count': catalog['file_count'],
-                'promoted_scene_count': catalog.get('promoted_scene_count', len(cases)),
+                'promoted_scene_count': catalog.get('promoted_scene_count', 0),
                 'excluded_scene_count': catalog.get('excluded_scene_count', 0),
                 'integration_status': catalog['integration_status'],
                 'test_execution': catalog['test_execution'], 'path_verification': verification}, cases
@@ -361,9 +396,10 @@ class ProjectView:
             traces.append(trace)
             folders.append(str(path.parent.parent if path.parent.name.startswith("attempt-") else path.parent))
         # Only pass explicit request files; never recursively scan a checkout or a cache.
-        requests = files_under(roots, "request.frozen.json")
+        requests, origins = workflow_requests(roots, local)
         resolver = lambda path, name: self.resolve_evidence(path, name, selected)
-        progress = collect([], traces, request_paths=requests, artifact_resolver=resolver)
+        progress = collect([], traces, request_paths=requests, artifact_resolver=resolver,
+                           request_origins=origins)
         for row in [*progress.get("previews", []), *progress.get("case_history", [])]:
             path = Path(row["progress_folder"]) / "request.frozen.json"
             for result in row.get("case_results", []):
@@ -548,7 +584,7 @@ async function refresh(){
    (data.current_acceptance_id?'当前进行中：'+data.current_acceptance_id:'当前无进行中的验收');
   const workspace=data.workspace;
   document.querySelector('#acceptanceWorkspace').textContent=workspace?
-   '专用工作树：'+workspace.path+' · '+workspace.scene_count+' 个场景映射、'+workspace.file_count+' 个配套文件。'+(workspace.integration_status==='committed_to_pr_branch'?workspace.promoted_scene_count+' 个自动化场景用例已提交至 PR 分支。'+(workspace.excluded_scene_count?' '+workspace.excluded_scene_count+' 项历史证据审计未纳入自动回归。':''):'用例整理中，尚未提交。')+(workspace.path_verification?.status==='verified'?' 旧根临时改名核对已通过，原目录已恢复。':''):'';
+   '专用工作树：'+workspace.path+' · '+workspace.scene_count+' 个场景映射、'+workspace.file_count+' 个配套文件。'+(workspace.integration_status==='committed_to_pr_branch'?workspace.promoted_scene_count+' 个自动化场景用例已提交至 PR 分支。'+(workspace.excluded_scene_count?' '+workspace.excluded_scene_count+' 项历史证据审计未纳入自动回归。':''):workspace.integration_status==='committed_locally'?'用例已在本地提交，尚未推送或合并。':workspace.integration_status==='collected_in_acceptance_workspace_not_committed'?'用例整理中，尚未提交。':'用例交付状态：'+workspace.integration_status+'。')+(workspace.path_verification?.status==='verified'?' 旧根临时改名核对已通过，原目录已恢复。':''):'';
   document.querySelector('#acceptanceWarning').textContent=(data.warnings||[]).join(' ');
   traces=data.traces;previews=data.progress?.previews||[];stages=data.progress?.stages||[];
   coverageRows=data.coverage;projectRows=data.project_state?.traces||[];
@@ -568,6 +604,9 @@ document.querySelector('#acceptanceId').addEventListener('change',()=>{
  refreshSequence++;refreshInFlight=false;
  selectedCoverageKey='';
  document.querySelector('#acceptanceWorkspace').textContent='';
+ document.querySelector('#acceptanceScope').textContent='';
+ document.querySelector('#acceptanceWarning').textContent='';
+ document.querySelector('#updated').textContent='正在读取所选验收资料……';
  traces=[];previews=[];stages=[];coverageRows=[];projectRows=[];
  render([]);renderProgress([]);renderCoverage();refresh();
 });

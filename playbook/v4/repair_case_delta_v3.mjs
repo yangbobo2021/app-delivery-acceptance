@@ -15,6 +15,9 @@ const acceptanceKnowledge=knowledgeContext(acceptanceBinding);
 requireWorkspaceLease(catalog);
 if(resume){if(!existsSync(out))throw Error('repair output missing for resume');}
 else mkdirSync(out,{recursive:false});
+const debug=JSON.parse(execFileSync('python3',[new URL('./debug_case.py',import.meta.url).pathname,
+ 'create',resolve(catalogArg),resolve(inputArg),join(out,'debug-contract.json')],{encoding:'utf8'}));
+mkdirSync(debug.request_root,{recursive:true});
 const git=(...x)=>execFileSync('git',x,{cwd:root,encoding:'utf8'}).trim();
 const roots=(catalog.write_roots??catalog.test_roots).map(x=>x.replace(/\/$/,'')+'/');
 const changed=git('diff','--name-only','HEAD').split('\n').filter(Boolean);
@@ -31,6 +34,8 @@ const prompt=`你负责一个验收场景用例在本地调试或独立审查后
 
 覆盖率强制执行规约：
 ${coverageContract}
+
+本地调试契约：${JSON.stringify(debug)}。在request_root内写只含command/files/env及可选新output的请求，使用entry加请求路径执行；不要直接调用低层采集器或写/tmp输出。最终返回原始业务test_command。
 
 场景输入：${JSON.stringify(input)}
 具体反馈：${JSON.stringify(review)}

@@ -71,11 +71,23 @@ def prepare(spec_path, out, spec, spec_bytes):
         if not path.is_relative_to(root) or not path.is_file():
             raise ValueError("declared non-test source missing: " + item)
         source_files[item] = sha(path.read_bytes())
+    # Project-declared coverage adapters/owning fixtures, not language-specific guesses.
+    from acceptance_store import inside
+    coverage_test_files = {}
+    for name in spec.get('coverage_test_files', []):
+        file = inside(root, name)
+        if not file.is_file() or not any(file.is_relative_to(inside(root, p)) for p in spec.get('test_roots', [])):
+            raise ValueError('coverage_test_files must belong to declared test roots: ' + name)
+        if name in source_files:
+            raise ValueError('coverage fixture cannot also be product source: ' + name)
+        coverage_test_files[name] = sha(file.read_bytes())
     from coverage_registry import project_coverage
     coverage = spec.get('coverage')
     if not coverage or coverage.get('policy')!='required':
         coverage = project_coverage(root,coverage)
     if coverage and coverage.get('policy') == 'required':
+        coverage = {**coverage, 'required_test_files': coverage_test_files,
+                    'acceptance': spec['acceptance']}
         if coverage.get('provider') != 'istanbul-source-v1':
             raise ValueError('Coverage requires a registered language-specific provider')
         provider = Path(__file__).resolve().parents[2] / 'scripts/coverage-istanbul/provider.mjs'
@@ -98,7 +110,8 @@ def prepare(spec_path, out, spec, spec_bytes):
     terminal_path = out / "terminal.json"
     fingerprint = sha(json.dumps({"spec": sha(spec_bytes), "root": str(root),
                                   "revision": spec["revision"], "components": components,
-                                  "binding_files": files, "source_files": source_files}, sort_keys=True).encode())
+                                  "binding_files": files, "source_files": source_files,
+                                  "coverage_test_files": coverage_test_files}, sort_keys=True).encode())
     if catalog_path.exists() and terminal_path.exists():
         old = json.loads(catalog_path.read_text())
         terminal = json.loads(terminal_path.read_text())
@@ -134,6 +147,7 @@ def prepare(spec_path, out, spec, spec_bytes):
                "source_paths": sorted(source_files), "source_hashes": source_files,
                "test_roots": spec.get("test_roots", []),
                "source_roots": spec.get("source_roots", []),
+               "coverage_test_files": coverage_test_files,
                "runner_hints": spec.get("runner_hints", {}),
                "ready_markers": markers, "setup": setup, "capability_checks": checks}
     catalog["acceptance"] = spec["acceptance"]

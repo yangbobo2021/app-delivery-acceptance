@@ -88,6 +88,8 @@ def main():
     if coverage.get('provider'):
         coverage = {**coverage, 'scene_id': scene['id'], 'revision': revision}
     case_input["coverage"] = coverage
+    case_input['debug_environment'] = {key: template[key] for key in
+        ('fresh_env_root_key', 'fresh_env_paths', 'evidence_env_dir_keys') if key in template}
     if request["scenario_kind"] == "WHITE_BOX":
         case_input["source_evidence"] = request["source_evidence"]
         case_input["reviewed_reverse_path"] = request["reviewed_reverse_path"]

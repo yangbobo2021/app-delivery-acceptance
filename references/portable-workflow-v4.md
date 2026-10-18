@@ -19,6 +19,8 @@ node <skill>/playbook/v4/prepare_project_semantics.mjs prep-output/catalog.json 
 
 `prep-spec.json` 至少包含 `schema: portable-project-prep-v1`、`project_root`、`revision`、`test_roots`、`source_paths`（完整非测试用户代码清单，可为空但覆盖率项目分母会不可用）；按需提供 `components`、`binding_files`、`ready_markers`、`setup_commands`、`capability_checks`、`runner_hints`。命令和环境变量是数组/对象输入；不得在 SKILL 中编码项目路径。`source_checkout` 可指定作为初始来源的检出目录，缺省取 `project_root`；准备入口在验收唯一 workspace 中运行，catalog.project_root 返回该目录。场景 request 与后续 case template 使用返回目录；acceptance.project_root 保持用户项目根目录。产品修复后的新提交使用同一 workspace、新 revision 和新准备输出，禁止自动 reset 或新建场景工作树。
 
+项目若有覆盖率采集必需的框架适配/资源所有权夹具，在 spec 的 `coverage_test_files` 数组声明项目内路径。它们必须存在于 `test_roots`，不能同时列入产品 `source_paths`。准备保存其哈希，项目策略、场景执行与本地调试继承并自动加入这些文件的绑定和导入适配，不能靠 Agent 每次猜全依赖。夹具字节变化需新准备，不改旧 catalog。具体文件名、运行时版本查找与源码/测试资产分类属于项目知识，通用流程不猜测。
+
 **准备完成时的检查：**宿主在现有准备交接中核对以下内容，不另建阶段或检查报告格式：
 
 - 沿用现有检查，区分其职责：`guard` 核对验收身份、当前指针、范围和知识凭据；准备入口核对源码/组件版本与工作树。再对照 spec、`catalog.json` 和 `terminal.json`，确认 terminal 的 `state` 为 `prepared`、`fingerprint` 与 catalog 一致、`catalog_sha256` 匹配实际 catalog。`acceptance_store.py check` 只做存储结构等校验，不能单独证明准备完成。
@@ -49,6 +51,8 @@ python3 <skill>/playbook/v4/scene_pipeline.py NEW-handoff-dir/config.json
 
 用例 Agent 在一个连续过程内自行读取所需源码/测试、选择现有或新用例、实现测试并本地调试，提交测试文件、命令和真实观察。调度器验证只修改声明的测试目录，然后在新目录冻结执行原命令，保存意图、日志、退出码和文件哈希；独立 Reviewer 只读检查场景判据、用例可靠性、真实路径、证据和结果。`repair_required` 中属于测试代码/证据的明确缺口可有限次差量修复，再生成新的执行和审查凭证；场景边界或业务合同问题停在待确认，不靠修测试代码“通过”。用例 Agent 的 `passed_local` 不是最终结论；只有独立复审的 `passed` 或有可靠失败证据的 `product_bug` 才是已判定结果。
 
+用例及差量修复入口自动生成各自的 `debug-contract.json`，向 Agent 直接提供 `debug_case.py run <contract> <request>` 的绝对入口和 `request_root`。请求写在该根下，仅传原始业务 `command`、`files`、`env` 及可选的全新 `output`；不再查找 Skill 或自行组装底层采集请求。入口校验当前指针、知识/输入/目录绑定及场景互斥所有权，每次新建本 ID 下的调试尝试并沿用已准备的专用 collector。模板中的 `fresh_env_root_key`、`fresh_env_paths`、`evidence_env_dir_keys` 同时供调试与宿主执行使用，目录语义由项目声明；调试的这些输出变量不能指向其他位置。低层覆盖率执行也从激活策略继承 acceptance，省略 request.acceptance 不能绕过目录门禁。调试结果不自动成为独立判定，最终 `test_command` 仍须是原始业务命令。
+
 多个目标可用 `run_plan.py` 顺序调度。计划输入为 `schema: acceptance-v4-plan-v1`、`run_dir`、`scenario_requests` 数组、共享 `case_template` 对象，按需用 `selected_scene_ids` 限定低成本试跑。它只编排已冻结的目标请求，不自行扩张 PR 范围，也不把部分场景结果宣称为整份 PR 通过。重复启动核对输入、场景终态、交接哈希与每个单场景状态，只继续未完成阶段。
 
 ```sh
@@ -66,6 +70,8 @@ python3 <skill>/playbook/v4/run_plan.py plan.json
 `python3 <skill>/scripts/v3/serve.py <项目目录> [--acceptance-id AT-<ID>]` 可读 v4 的 `request.frozen.json`、阶段 `state.json`、冻结收据、覆盖率和审查结果；对场景显示“内部自审”，不会误标为独立场景审查。视图只读所选验收 ID 的完整项目场景清单及已有执行、复审和用户决策，可切换历史/当前 ID；不能把批次总数当项目分母或混入其他 ID 的结论。缺完整清单则不显示项目比例。旧产物目录用显式 `--legacy-assets` 只读入口，不自动迁移。
 
 统一使用[项目统计口径](project-state-statistics.md)：所有场景指标以项目全部场景数为分母；一个场景执行过任何一次用例就算已执行，版本、成败、业务链路是否完成和风险处置均不改变执行事实；按场景 ID 去重。结果取最近一次已确认结论，新版本或准备重跑不自动变成“待复验”。接受风险单列，未曾形成有效结论的已执行场景列为“待确认结论”；各互斥结果分类之和必须等于已执行数。视图/API均核对该等式。保留原始收据、复审和实际版本；同版本 PR 交付仍使用原有完成门禁，不能由项目保留结果推断新版本全部重测通过。实时视图只读，不代替原始 JSON、日志与证据。
+
+正常 v4 视图直接读取最终复审指向的执行、用例与覆盖率；需求验收也冻结 collector inventory，不要求手写 `trace.json` 或 `project-context.json`。后者只用于已有跨版本 cohort/迁移配置。v4 结果归档使用 `acceptance_store.py archive <项目> <ID> --source <本场景输出目录> --v4-result --basis <已筛选脱敏的共享依据>`：固定协议选项按 summary 的最终 review/input 自动选取 request、state、summary、实际用例 answer、review 的 answer/input/metrics/decision-gate、对应 execution 收据/日志与 coverage-report，返工后无需猜轮次或手工拼清单；缺文件或引用越出本场景目录时在复制前拒绝。额外实际观察、可共享原始计数等仍以 `--files <相对路径...>` 明确选择；不会递归打包 debug、环境或会话。缺原始计数/工具依赖时覆盖率明确不可复算，不能由归档补造。归档记录保留请求来源和原时间；同一来源的部分归档不覆盖完整本机工作流，也不会成为一次新的执行或确认时间。完整归档在原执行目录不在时仍可保留已确认结论；缺少复审绑定则保留待确认。
 
 ## 恢复边界
 

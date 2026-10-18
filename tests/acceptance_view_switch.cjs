@@ -59,6 +59,8 @@ function reply(index, data, ok = true) {
   // Both IDs are already available while the heavy result request is pending.
   assert.doesNotMatch(node('#coverageSummary').innerHTML, /30%/);
   const first=payload('AT-a', 'passed', 30);
+  first.scope.basis='Only A scope';first.warnings=['Only A warning'];
+  first.workspace={path:'/synthetic/workspace',scene_count:1,file_count:1,integration_status:'committed_locally'};
   first.coverage[0].last_capture_at='2026-10-18T05:00:00Z';
   first.coverage.push({project_id:'project',revision:'other-capture',last_capture_at:'2026-10-17T05:00:00Z',scenes_with_coverage:1,tools:[{name:'other tool',version:'2'}],scopes:{
     project:{line:{total:10,covered:8,pct:80},branch:{total:20,covered:10,pct:50}},
@@ -68,6 +70,7 @@ function reply(index, data, ok = true) {
   await flush();
   assert.equal(node('#acceptanceId').value, 'AT-a');
   assert.equal(node('#currentAcceptance').textContent, '当前进行中：AT-b');
+  assert.match(node('#acceptanceWorkspace').textContent,/本地提交.*尚未推送/);
   assert.match(node('#coverageSummary').innerHTML, /30%/);
   assert.match(node('#resultBalance').textContent, /1 通过/);
   assert.match(node('#rows').innerHTML, /class="clamp conclusion-preview"/);
@@ -92,6 +95,9 @@ function reply(index, data, ok = true) {
 
   node('#acceptanceId').value = 'AT-b';
   node('#acceptanceId').listeners.change();
+  assert.equal(node('#acceptanceScope').textContent,'');
+  assert.equal(node('#acceptanceWarning').textContent,'');
+  assert.equal(node('#acceptanceWorkspace').textContent,'');
   assert.doesNotMatch(node('#coverageSummary').innerHTML, /30%/);
   assert.match(requests[2].url, /acceptance_id=AT-b/);
   reply(2, payload('AT-b', 'accepted_risk', 60));

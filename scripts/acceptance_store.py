@@ -482,11 +482,39 @@ def guard(config, outputs=()):
     return {**binding, "knowledge_receipt": str(effective_receipt)}
 
 
-def archive(project, acceptance_id, source, files, basis):
+def v4_result_files(source):
+    """A fixed metadata profile, following the final review rather than guessed round names."""
+    source = Path(source).resolve()
+    request, summary = read(source / 'request.frozen.json'), read(source / 'summary.json')
+    if request.get('progress_schema') != 'single-agent-scene-v1' or not summary.get('review_status'):
+        raise ValueError('v4 result archive requires a completed single-scene result')
+
+    def bound(reference):
+        path = Path(reference)
+        return owned_path(source, path if path.is_absolute() else source / path)
+
+    review = bound(summary.get('review_path') or 'review/answer.json')
+    review_input = read(review.with_name('input.json'))
+    receipt = bound(review_input['frozen_execution_receipt'])
+    answer = bound(review_input.get('agent_result_path') or 'case/answer.json')
+    coverage = bound(review_input.get('coverage_result_path') or 'coverage-report.json')
+    paths = [source / name for name in ['request.frozen.json', 'state.json', 'summary.json']]
+    paths += [answer, review, review.with_name('input.json'), review.with_name('metrics.json'),
+              review.with_name('decision-gate.json'), receipt, receipt.with_name('execution.log'), coverage]
+    # Only these protocol files are implicit. Raw counts, observations, environment,
+    # debug attempts and session transcripts require an additional reviewed allowlist.
+    for path in paths:
+        if not path.is_file():
+            raise ValueError('Incomplete v4 result archive; missing ' + str(path))
+    return sorted({path.relative_to(source).as_posix() for path in paths})
+
+
+def archive(project, acceptance_id, source, files, basis, *, v4_result=False):
     """Copy only explicitly chosen, redacted publication artifacts; never scan raw evidence."""
     root, shared, local = locations(project, acceptance_id)
     state = validate(root, acceptance_id)
     source = owned_path(local / "workflows", source)
+    files = [*(files or []), *(v4_result_files(source) if v4_result else [])]
     if not files or not basis.strip():
         raise ValueError("explicit reviewed file allowlist and publication basis required")
     data = {}
@@ -506,7 +534,10 @@ def archive(project, acceptance_id, source, files, basis):
     save(target / "record.json", {"schema": "acceptance-evidence-record-v1", "acceptance_id": acceptance_id,
          "scope_sha256": state["scope"]["sha256"], "created_at": now(), "basis": basis,
          "files": {name: digest(path) for name, path in data.items()},
-         "original_paths": {str(path): name for name, path in data.items()}}, exclusive=True)
+         "original_paths": {str(path): name for name, path in data.items()},
+         "workflow_requests": {name: {"original_path": str(path),
+             "source_mtime": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat()}
+             for name, path in data.items() if path.name == 'request.frozen.json'}}, exclusive=True)
     return {"record": str(target), "files": len(data)}
 
 
@@ -528,7 +559,9 @@ def main():
             cmd.add_argument("--paths", nargs="*", default=[])
         if name == "archive":
             cmd.add_argument("--source", type=Path, required=True)
-            cmd.add_argument("--files", nargs="+", required=True)
+            cmd.add_argument("--files", nargs="+", default=[])
+            cmd.add_argument("--v4-result", action="store_true",
+                             help="select the fixed final v4 result metadata profile; extra evidence still uses --files")
             cmd.add_argument("--basis", required=True)
         if name == "catalog":
             cmd.add_argument("--input", type=Path, required=True)
@@ -545,7 +578,8 @@ def main():
     elif args.command == "read-knowledge":
         result = read_knowledge(args.project, args.acceptance_id, args.paths)
     elif args.command == "archive":
-        result = archive(args.project, args.acceptance_id, args.source, args.files, args.basis)
+        result = archive(args.project, args.acceptance_id, args.source, args.files, args.basis,
+                         v4_result=args.v4_result)
     elif args.command == "catalog":
         result = publish_catalog(args.project, args.acceptance_id, read(args.input))
     elif args.command == "start":

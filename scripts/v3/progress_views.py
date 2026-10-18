@@ -248,7 +248,7 @@ def matches_v4_scenarios(folder: Path, terminal: dict) -> bool:
             hashlib.sha256(path.read_bytes()).hexdigest())
 
 
-def collect(roots, traces, request_paths=None, artifact_resolver=None):
+def collect(roots, traces, request_paths=None, artifact_resolver=None, request_origins=None):
     paths = list(request_paths or [])
     for root in roots:
         paths.extend(root.rglob('request.frozen.json') if root.is_dir() else [])
@@ -266,6 +266,8 @@ def collect(roots, traces, request_paths=None, artifact_resolver=None):
     stages, previews = [], []
     for folder, request, kind in requests:
         metrics = read_json(folder / 'metrics.json') or {}
+        origin = (request_origins or {}).get(str(folder / 'request.frozen.json'), {})
+        source_time = origin.get('source_mtime') or stamp(folder / 'request.frozen.json')
         project = initial_project(request, identities)
         state, detail, blocker = status_for(kind, folder, request, metrics)
         target = request.get('target_requirement_id') or request.get('scene', {}).get('id') or ''
@@ -283,7 +285,7 @@ def collect(roots, traces, request_paths=None, artifact_resolver=None):
                  'finished': bool(read_json(folder / 'terminal.json') or
                                   (read_json(folder / 'summary.json') or {}).get('review_status') or
                                   metrics.get('final_state')),
-                 'started_at': metrics.get('started_at') or stamp(folder / 'request.frozen.json'),
+                 'started_at': metrics.get('started_at') or source_time,
                  'updated_at': newest(folder, update_names),
                  'attempt': int(attempt_dir.name[8:]) if attempt_dir else 0,
                  'role': active_call[0].get('role', '') if active_call else '', 'folder': str(folder)}
@@ -314,16 +316,44 @@ def collect(roots, traces, request_paths=None, artifact_resolver=None):
                 receipt_path = folder / 'execution/execution.json'
                 review_path = folder / 'review/answer.json'
                 coverage_path = folder / 'coverage-report.json'
-                for key in sorted(stage_data, reverse=True):
+                for key in sorted(stage_data, key=lambda key: stage_data[key].get('finished_at') or stage_data[key].get('started_at') or ''):
                     if key.startswith('execution-review-') and stage_data[key].get('status') == 'completed':
                         receipt_path = folder / key / 'execution.json'
                         number = key.removeprefix('execution-review-')
                         coverage_path = folder / f'coverage-review-{number}-report.json'
                     if key.startswith('review-') and stage_data[key].get('status') == 'completed':
                         review_path = folder / key / 'answer.json'
+                def artifact(reference):
+                    if not reference:
+                        return None
+                    return (artifact_resolver(folder / 'request.frozen.json', reference)
+                            if artifact_resolver else Path(reference))
+                # A completed pipeline names its final reviewer and that review's
+                # exact execution/coverage/implementation, including repair rounds.
+                final_review = artifact(summary.get('review_path'))
+                if final_review:
+                    review_path = final_review
+                    final_input = read_json(review_path.with_name('input.json')) or {}
+                    receipt_path = artifact(final_input.get('frozen_execution_receipt')) or receipt_path
+                    coverage_path = artifact(final_input.get('coverage_result_path')) or coverage_path
+                    answer_path = artifact(final_input.get('agent_result_path'))
+                    if answer_path:
+                        case_answer = read_json(answer_path) or case_answer
                 receipt = read_json(receipt_path) or {}
                 review = read_json(review_path) or {}
                 coverage = read_json(coverage_path) or {'status': 'pending'}
+                # Support existing requirement-only v4 runs without forcing a
+                # hand-authored project-context or trace. Tool verification still
+                # checks these immutable inputs before any numerical summary.
+                if not request.get('change') and coverage.get('prepared'):
+                    prepared_path = artifact(str(Path(coverage['prepared']) / 'prepared.json'))
+                    prepared = (read_json(prepared_path) if prepared_path else None) or {}
+                    inventory_path = prepared.get('spec', {}).get('inventory_path')
+                    if inventory_path and hashlib.sha256(prepared_path.read_bytes()).hexdigest() == coverage.get('prepared_sha256'):
+                        inventory_file = artifact(inventory_path)
+                        inventory = read_json(inventory_file) if inventory_file else None
+                        if inventory:
+                            request = {**request, 'change': {'inventory': inventory}}
                 bindings = [{'id': f"{scene['id']}-case", 'scenario_id': scene['id'],
                              'kind': 'automated', 'title': '冻结测试命令',
                              'test_file': ', '.join(case_answer.get('test_files', [])),
@@ -348,7 +378,11 @@ def collect(roots, traces, request_paths=None, artifact_resolver=None):
                 current_review = review if execution and matches_review(attempt / 'execution.json', review) else {}
                 judgment = {'status': current_review.get('status') or ('pending_review' if execution else 'not_run'),
                             'reason': current_review.get('reason') or detail}
-        preview_at = metrics.get('started_at') or stamp(folder / 'request.frozen.json')
+        preview_at = metrics.get('started_at') or source_time
+        if request.get('progress_schema') == 'single-agent-scene-v1':
+            times = [value.get('finished_at') or value.get('started_at') for value in stage_data.values()]
+            actual_times = [value for value in [receipt.get('end_utc'), *times] if value]
+            preview_at = max(actual_times) if actual_times else preview_at
         preview_stage = (('scenario_self_checked' if (read_json(folder / 'terminal.json') or {}).get('review_kind') == 'internal_self_check'
                           else 'scenario_approved') if state == 'done' else 'awaiting_review') if kind == 'scenario' else (
             'reviewed' if kind == 'case' and state == 'done' else
@@ -363,7 +397,8 @@ def collect(roots, traces, request_paths=None, artifact_resolver=None):
                          'attempt_number': stage['attempt'],
                          'progress_updated_at': stage['updated_at'],
                          'attempt_id': f"第 {stage['attempt']} 次尝试" if stage['attempt'] else '准备阶段',
-                         'generated_at': preview_at, 'progress_kind': kind, 'progress_state': state})
+                         'generated_at': preview_at, 'progress_kind': kind, 'progress_state': state,
+                         'workflow_origin': origin.get('original_path', str(folder / 'request.frozen.json'))})
     # A later attempt for the same stage and target is the current one. Preserve older
     # final traces separately; never make an earlier run look like the current state.
     history = [row for preview in previews if preview.get('progress_kind') == 'case'

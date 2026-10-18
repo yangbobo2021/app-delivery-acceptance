@@ -17,6 +17,30 @@ import sys
 
 HERE = Path(__file__).resolve().parent
 PROVIDER = HERE.parents[1] / 'scripts' / 'coverage-istanbul'
+sys.path.insert(0, str(HERE.parents[1] / 'scripts'))
+
+
+def execution_binding(request, active):
+    """Enforce an activated acceptance before any mkdir, tool invocation or source write."""
+    from acceptance_store import guard, inside, locations, owned_path
+    binding = active.get('acceptance') or request.get('acceptance')
+    if not binding:
+        # Standalone synthetic toolchain probes retain their non-acceptance API.
+        # An acceptance checkout may never use that API to escape its store.
+        if '.acceptance-local' in Path(request['cwd']).absolute().parts:
+            raise ValueError('Acceptance execution requires a bound catalog; prepare/rebind before running')
+        return
+    if request.get('acceptance') and request['acceptance'] != binding:
+        raise ValueError('Coverage request belongs to another acceptance')
+    config = {'acceptance': binding, 'source_checkout': request['cwd']}
+    guard(config, [request['output'], *request.get('fresh_dirs', [])])
+    _, _, local = locations(binding['project_root'], binding['id'])
+    if Path(request['cwd']).resolve() != inside(local, 'workspace'):
+        raise ValueError('Coverage must use this acceptance workspace')
+    # Explicit output env keys are project input; do not infer semantics from names.
+    for key in request.get('output_env_dir_keys', []):
+        if request.get('env', {}).get(key):
+            owned_path(local / 'workflows', request['env'][key])
 
 
 def read(path):
@@ -36,6 +60,9 @@ def run_coverage(request):
     root = Path(request['cwd']).resolve()
     out = Path(request['output']).resolve()
     prepared = Path(request['prepared']).resolve()
+    from coverage_registry import ensure_active, register, project_coverage
+    active = project_coverage(root, {'policy':'required','provider':'istanbul-source-v1','prepared':str(prepared)}) or {}
+    execution_binding(request, active)
     if (out / 'execution.json').exists() or (out / 'execution-intent.json').exists():
         raise ValueError('Existing execution; use a new explicit attempt, never silently replay')
     if not request.get('scene_id') or not request.get('command'):
@@ -44,8 +71,6 @@ def run_coverage(request):
     p = read(prepared / 'prepared.json')
     if not p['spec'].get('registry_path') or not p['spec'].get('inventory_path'):
         raise ValueError('Continuous coverage requires the prepared project registry and inventory')
-    from coverage_registry import ensure_active, register, project_coverage
-    project_coverage(root,{'policy':'required','provider':'istanbul-source-v1','prepared':str(prepared)})
     ensure_active(prepared)
     frozen_inventory=p['spec']['inventory_path']
     if request.get('inventory_path') and sha(request['inventory_path'])!=sha(frozen_inventory):
@@ -57,7 +82,16 @@ def run_coverage(request):
             raise ValueError('Original product source changed: ' + name)
     original_tests = {}
     modified_tests = {}
-    files = list(request['files'])
+    from acceptance_store import inside
+    required = active.get('required_test_files', {})
+    for name, expected in required.items():
+        file = inside(root, name)
+        if not file.is_file() or sha(file) != expected:
+            raise ValueError('Project coverage fixture changed; prepare a new catalog: ' + name)
+    files = list(dict.fromkeys([*request['files'], *required]))
+    for name in files:
+        if not inside(root, name).is_file():
+            raise ValueError('Test file missing: ' + name)
     out.mkdir(parents=True, exist_ok=True)
     raw = out / 'coverage-raw'
     raw.mkdir(exist_ok=False)

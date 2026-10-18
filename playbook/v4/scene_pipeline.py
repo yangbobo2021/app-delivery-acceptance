@@ -184,7 +184,8 @@ def collect_files(root, answer, catalog):
     untracked = git(root, "ls-files", "--others", "--exclude-standard").splitlines()
     changed = git(root, "diff", "--name-only", "HEAD").splitlines()
     roots = tuple(x.rstrip("/") + "/" for x in catalog.get("write_roots", []))
-    all_names = sorted(set(declared) | set(untracked) | set(changed))
+    all_names = sorted(set(declared) | set(untracked) | set(changed) |
+                       set(catalog.get('coverage_test_files', {})))
     for name in all_names:
         path = (root / name).resolve()
         if not path.is_relative_to(root) or not path.is_file():
@@ -271,6 +272,8 @@ def main():
     reverse_path = case_input.get("reviewed_reverse_path") or case_input.get("pr_reviewed_reverse_path")
     if reverse_path:
         preview["change"] = (load(reverse_path) or {}).get("change", {})
+    elif config.get('coverage', {}).get('inventory_path'):
+        preview['change'] = {'inventory': load(config['coverage']['inventory_path'])}
     preview_path = output / "request.frozen.json"
     if preview_path.is_file() and load(preview_path) != preview:
         raise ValueError("progress request changed; create a new run")

@@ -142,7 +142,7 @@ def coverage_inputs(traces, progress, trace_folders=None):
         if old and preview.get('attempt_number', 0) <= old[1] and (
                 not old[2] or preview.get('progress_folder') == old[2]):
             continue
-        result.append({**preview, 'generated_at': datetime.now(timezone.utc).isoformat()})
+        result.append(preview)
     return result
 
 

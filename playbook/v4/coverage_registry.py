@@ -34,6 +34,9 @@ def project_coverage(root,declared=None):
         if declared.get('policy')!='required':raise ValueError('Active project cannot downgrade required coverage; rebind the latest catalog')
         if any(declared.get(k)!=active[k] for k in ['provider','prepared']):
             raise ValueError('Scene differs from the active project coverage; rebind the latest catalog')
+        for key in ['required_test_files', 'acceptance']:
+            if key in declared and key in active and declared[key] != active[key]:
+                raise ValueError('Scene cannot replace project coverage binding: ' + key)
     return {**active,**(declared or {})}
 def paths(prepared):
     p=read(Path(prepared)/'prepared.json')
@@ -50,6 +53,18 @@ def ensure_active(prepared):
     if registry and read(registry).get('active_inventory_sha256')!=sha(p['spec']['inventory_path']):
         raise ValueError('Frozen coverage scope inventory changed')
 def activate(prepared,catalog=None):
+    bound = read(catalog) if catalog else None
+    policy = project_policy_path(read(Path(prepared)/'prepared.json')['spec']['project_root'])
+    previous = read(policy) if policy and policy.is_file() else {}
+    if not bound and previous.get('coverage', {}).get('acceptance'):
+        if previous.get('prepared_sha256') != sha(Path(prepared)/'prepared.json'):
+            raise ValueError('New acceptance coverage preparation requires its bound project catalog')
+        bound = {'acceptance': previous['coverage']['acceptance'],
+                 'coverage_test_files': previous['coverage'].get('required_test_files', {})}
+    if bound and bound.get('acceptance'):
+        sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'scripts'))
+        from acceptance_store import guard
+        guard({'acceptance':bound['acceptance'], 'source_checkout':read(Path(prepared)/'prepared.json')['spec']['project_root']}, [prepared])
     subprocess.run(['node',str(PROVIDER),'verify-preparation',str(prepared)],check=True,stdout=subprocess.PIPE)
     p,registry,view=paths(prepared)
     if not registry:return
@@ -68,6 +83,9 @@ def activate(prepared,catalog=None):
         policy=project_policy_path(p['spec']['project_root'])
         if policy:
             coverage={'policy':'required','provider':p['tools']['provider'],'prepared':str(Path(prepared).resolve()),'inventory_path':p['spec']['inventory_path']}
+            if bound:
+                coverage.update(required_test_files=bound.get('coverage_test_files', {}),
+                                acceptance=bound['acceptance'])
             save(policy,{'schema':'project-required-coverage-v1','coverage':coverage,'revision':p['spec']['revision'],
               'prepared_sha256':key,'catalog':str(Path(catalog).resolve()) if catalog else None})
 def register(report_path):
