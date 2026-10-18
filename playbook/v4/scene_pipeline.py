@@ -75,7 +75,9 @@ def stage(state_path, state, name, fn):
     if item and item["status"] == "parked":
         raise RuntimeError(f"{name}: parked failure requires inspection or a new frozen attempt")
     recovered_from = item["status"] if item and item["status"] in ("resume_ready", "retry_ready") else None
+    interruption_resumes = item.get("agent_interruption_resumes", 0) if item else 0
     state["stages"][name] = {"status": "running", "started_at": datetime.now(timezone.utc).isoformat(),
+                             **({"agent_interruption_resumes": interruption_resumes} if interruption_resumes else {}),
                              **({"recovered_from": recovered_from} if recovered_from else {})}
     save(state_path, state)
     try:
@@ -310,6 +312,10 @@ def main():
     if state.get("bindings") != bindings:
         raise ValueError("case input, guide or catalog changed; create a new run")
     save(state_path, state)
+    if (output / "catalog.json").is_file():
+        from reconcile_pipeline import recover_interrupted_agent
+        verify_frozen_workspace(config, load(output / "catalog.json"))
+        recover_interrupted_agent(config, output, state, load(output / "catalog.json"), save)
     from review_decision_correction import recover_parked_review
     recover_parked_review(config, output, state, save)
     if any(item.get("status") == "running" for item in state["stages"].values()):

@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import copy
 from datetime import datetime, timezone
 
 
@@ -44,6 +45,66 @@ def check_receipt(receipt_path, catalog):
     if head != catalog["revision"]:
         raise ValueError("current revision differs from receipt")
     return receipt
+
+
+def recover_interrupted_agent(config, output, state, catalog, save):
+    """One same-session continuation for a proved Agent transport interruption.
+
+    A concrete completed repair failure, absent session, live child or changed
+    binding remains parked. Existing reconciliation owns all source/test checks.
+    """
+    for key, item in state["stages"].items():
+        if item.get("status") != "parked" or item.get("agent_interruption_resumes", 0):
+            continue
+        if key == "case":
+            directory = Path(output) / "case"
+            prefix = "case Agent incomplete: "
+        elif key == "case_repair" or key.startswith("review-repair-"):
+            directory = Path(output) / ("case-repair" if key == "case_repair" else key)
+            prefix = "case repair incomplete: " if key == "case_repair" else "review repair Agent incomplete: "
+        elif key == "review" or (key.startswith("review-") and key[7:].isdigit()):
+            directory = Path(output) / key
+            prefix = "review Agent incomplete: "
+        else:
+            continue
+        if not item.get("error", "").startswith(prefix):
+            continue
+        metrics = read(directory / "metrics.json") or {}
+        trace = directory / "agent.jsonl"
+        if metrics.get("status") != "error" or not trace.is_file():
+            continue
+        events = [json.loads(line) for line in trace.read_text().splitlines() if line.strip()]
+        if (not events or events[-1].get("type") != "done" or
+                events[-1].get("payload", {}).get("status") != "error" or
+                not any(e.get("type") == "init" and e.get("sessionId") for e in events) or
+                any(e.get("type") == "done" and e.get("payload", {}).get("status") == "success" for e in events) or
+                not any(e.get("type") == "error" for e in events)):
+            continue
+        # An interrupted Agent can leave its locally launched test alive.
+        for intent_path in (directory / "debug").rglob("execution-intent.json"):
+            intent = read(intent_path) or {}
+            if alive(intent.get("child_pid")):
+                raise RuntimeError("interrupted Agent debug child is still alive")
+        if key == "review" or (key.startswith("review-") and key[7:].isdigit()):
+            input_name = "review-input.json" if key == "review" else "review-input-" + key[7:] + ".json"
+            review_input = read(Path(output) / input_name) or {}
+            check_receipt(review_input.get("frozen_execution_receipt", ""), catalog)
+        candidate = copy.deepcopy(state)
+        candidate["stages"][key]["status"] = "running"
+        # Reconciliation is atomic with respect to the caller's saved state.
+        event = reconcile(config, output, candidate, catalog, lambda *_: None)
+        if not event or event.get("stage") != key or event.get("action") != "resume_session":
+            raise RuntimeError("interrupted Agent did not reconcile to the same session")
+        candidate["stages"][key]["agent_interruption_resumes"] = 1
+        event.update(previous_error=item["error"], trace_sha256=sha(trace),
+                     metrics_sha256=sha(directory / "metrics.json"),
+                     interrupted_metrics=metrics,
+                     terminal_error=events[-1],
+                     reason="proved unsuccessful Agent session; one bounded same-session continuation")
+        state.clear()
+        state.update(candidate)
+        save(Path(output) / "state.json", state)
+        return event
 
 
 def reconcile(config, output, state, catalog, save):
