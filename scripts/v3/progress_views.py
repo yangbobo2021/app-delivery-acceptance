@@ -81,6 +81,107 @@ def matches_scenario_review(folder: Path, review) -> bool:
             hashlib.sha256(path.read_bytes()).hexdigest() == review['scenarios_sha256'])
 
 
+def bound_debug_receipts(folder, preview, artifact_resolver=None):
+    """Read completed v4 debug receipts without promoting a local self-assessment."""
+    request = read_json(folder / 'request.frozen.json') or {}
+    acceptance = request.get('acceptance', {})
+    keys = ('project_root', 'id', 'scope_sha256')
+    if (request.get('progress_schema') != 'single-agent-scene-v1' or not isinstance(acceptance, dict) or
+            not all(isinstance(acceptance.get(k), str) and acceptance[k] for k in keys)):
+        return {}
+    source = Path(preview.get('workflow_origin') or folder / 'request.frozen.json').parent
+    local_scope = Path(acceptance['project_root']) / '.acceptance-local' / acceptance['id'] / 'workflows'
+    if not local_scope.is_absolute() or Path(acceptance['id']).name != acceptance['id']:
+        return {}
+    root = preview['project']['root']
+    scene = request['scene']
+    if [s.get('id') for s in preview.get('scenarios', [])] != [scene['id']]:
+        return {}
+
+    def bound_file(base, reference):
+        if artifact_resolver:
+            resolved = artifact_resolver(base, reference)
+            path = Path(resolved) if resolved else None
+        else:
+            path = Path(reference)
+            if not path.is_absolute() or not path.resolve().is_relative_to(local_scope.resolve()):
+                return None
+        return path if path and path.is_file() and not path.is_symlink() else None
+
+    def same_acceptance(value):
+        binding = value.get('acceptance', {})
+        return isinstance(binding, dict) and all(binding.get(k) == acceptance[k] for k in keys)
+
+    result = {}
+    for contract_path in folder.glob('*/debug-contract.json'):
+        role = contract_path.parent.name
+        if (role not in {'case', 'case-repair'} and not
+                (role.startswith('review-repair-') and role.removeprefix('review-repair-').isdigit())):
+            continue
+        if contract_path.is_symlink() or contract_path.parent.is_symlink():
+            continue
+        try:
+            contract = read_json(contract_path) or {}
+            if not isinstance(contract, dict):
+                continue
+            logical_root = source / role / 'debug'
+            if (contract.get('schema') != 'acceptance-debug-contract-v1' or not same_acceptance(contract) or
+                    contract.get('scene_id') != scene['id'] or contract.get('project_root') != root or
+                    Path(contract.get('debug_root', '')).resolve() != logical_root.resolve()):
+                continue
+            inputs = {}
+            for key in ('catalog', 'input'):
+                path = bound_file(contract_path, contract[key + '_path'])
+                if not path or hashlib.sha256(path.read_bytes()).hexdigest() != contract[key + '_sha256']:
+                    break
+                parsed = read_json(path)
+                if not isinstance(parsed, dict):
+                    break
+                inputs[key] = parsed
+            if (len(inputs) != 2 or not all(same_acceptance(v) for v in inputs.values()) or
+                    inputs['input'].get('scene') != scene or inputs['catalog'].get('project_root') != root or
+                    inputs['catalog'].get('revision') != contract.get('revision')):
+                continue
+            debug_root = contract_path.parent / 'debug'
+            if debug_root.is_symlink():
+                continue
+            for path in debug_root.glob('**/execution/execution.json'):
+                if path.is_symlink() or any(p.is_symlink() for p in path.parents if p.is_relative_to(debug_root)):
+                    continue
+                resolved = bound_file(contract_path, str(logical_root / path.relative_to(debug_root)))
+                if not resolved or resolved.resolve() != path.resolve():
+                    continue
+                receipt = read_json(path) or {}
+                log = path.with_name('execution.log')
+                if (not isinstance(receipt, dict) or
+                        receipt.get('schema') != 'isolated-test-execution-v1' or receipt.get('cwd') != root or
+                        not all(isinstance(receipt.get(k), str) and receipt[k] for k in
+                                ('start_utc', 'end_utc', 'head_before', 'head_after')) or
+                        not receipt.get('command') or
+                        not isinstance(receipt['command'], list) or
+                        not all(isinstance(v, str) and v for v in receipt['command']) or
+                        type(receipt.get('exit_code')) is not int or
+                        not isinstance(receipt.get('test_file_sha256_before'), dict) or
+                        not receipt['test_file_sha256_before'] or
+                        not log.is_file() or log.is_symlink() or
+                        hashlib.sha256(log.read_bytes()).hexdigest() != receipt.get('log_sha256')):
+                    continue
+                if (datetime.fromisoformat(receipt['end_utc'].replace('Z', '+00:00')) <
+                        datetime.fromisoformat(receipt['start_utc'].replace('Z', '+00:00'))):
+                    continue
+                result[path] = receipt
+        except (KeyError, OSError, TypeError, ValueError):
+            # Missing/changed bindings are unknown evidence, never an invented execution.
+            continue
+    return result
+
+
+def receipt_executed(receipt):
+    return bool(receipt.get('start_utc') and receipt.get('command')) or any(
+        r.get('status') in {'passed', 'failed', 'executed', 'error', 'aborted'}
+        for r in receipt.get('case_results', []))
+
+
 def case_result_history(folder, preview, artifact_resolver=None):
     """Retain execution facts/confirmed results before selecting active attempts."""
     receipts = set(folder.glob('attempt-*/execution.json'))
@@ -109,13 +210,15 @@ def case_result_history(folder, preview, artifact_resolver=None):
         confirmed.setdefault(receipt, []).append((answer, answer.get('confirmed_at') or
                                                   metrics.get('finished_at') or stamp(path)))
     v3_review = read_json(folder / 'review.current.json') or {}
+    # Host receipts already establish the scene's execution fact. Only inspect
+    # debug metadata when there is no such receipt; do not walk every old trace.
+    debug = {} if any(receipt_executed(read_json(p) or {}) for p in receipts) else bound_debug_receipts(
+        folder, preview, artifact_resolver)
+    receipts.update(debug)
     history = []
     for path in sorted(receipts):
         receipt = read_json(path) or {}
-        actual = bool(receipt.get('start_utc') and receipt.get('command')) or any(
-            r.get('status') in {'passed', 'failed', 'executed', 'error', 'aborted'}
-            for r in receipt.get('case_results', []))
-        if not actual:
+        if not receipt_executed(receipt):
             continue
         row = deepcopy(preview)
         row['executed_scene_ids'] = [s['id'] for s in row['scenarios']]
@@ -127,8 +230,18 @@ def case_result_history(folder, preview, artifact_resolver=None):
                                     'actual': '执行退出码 ' + str(receipt.get('exit_code')),
                                     'evidence_path': str(path.with_name('execution.log'))}]
         row['judgment'] = {'status': 'pending_review', 'reason': '已有执行记录，尚无已确认结论。'}
-        records = list(confirmed.get(path, []))
-        if matches_review(path, v3_review):
+        if path in debug:
+            binding_id = row['scenarios'][0]['id'] + '-local-debug'
+            row.update(attempt_id='本地调试', stage='local_debug_executed',
+                       bindings=[{'id': binding_id, 'scenario_id': row['scenarios'][0]['id'],
+                                  'kind': 'automated', 'title': '本地调试用例', 'command': receipt['command'],
+                                  'test_file': ', '.join(receipt['test_file_sha256_before'])}],
+                       case_results=[{'binding_id': binding_id, 'status': 'executed',
+                                      'actual': f"本地调试退出码 {receipt['exit_code']}；尚待冻结执行与独立复审。",
+                                      'evidence_path': str(path.with_name('execution.log'))}])
+            row['project']['revision'] = receipt.get('head_before') or row['project'].get('revision', '')
+        records = [] if path in debug else list(confirmed.get(path, []))
+        if path not in debug and matches_review(path, v3_review):
             records.append((v3_review, v3_review.get('confirmed_at') or stamp(folder / 'review.current.json')))
         if records:
             answer, at = max(records, key=lambda pair: pair[1])

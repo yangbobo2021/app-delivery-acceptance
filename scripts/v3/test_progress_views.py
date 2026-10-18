@@ -8,6 +8,7 @@ from pathlib import Path
 from progress_views import collect
 from coverage_views import summarize
 from serve import coverage_inputs
+from project_statistics import project_state
 
 
 def save(path, value):
@@ -24,6 +25,102 @@ class ProgressViewTests(unittest.TestCase):
         self.requirement = {'id': 'REQ-1', 'text': 'Add a task'}
         self.scene = {'id': 'SC-1', 'requirement_id': 'REQ-1', 'title': 'Add task',
                       'description': 'The task is saved', 'priority': 'P0'}
+
+    def debug_fixture(self, exit_code=0):
+        """Synthetic bound receipt only; no project command is executed."""
+        folder = self.root / '.acceptance-local/AT-fixture/workflows/case'
+        binding = {'project_root': str(self.root), 'id': 'AT-fixture', 'scope_sha256': 'scope'}
+        save(folder / 'request.frozen.json', {'acceptance': binding, 'project': self.project,
+             'scene': self.scene, 'requirements': [self.requirement], 'case_catalog': [],
+             'progress_schema': 'single-agent-scene-v1'})
+        save(folder / 'state.json', {'stages': {'case': {'status': 'running'}}})
+        catalog, input_path = folder / 'catalog.json', folder / 'input.json'
+        save(catalog, {'acceptance': binding, 'project_root': str(self.root), 'revision': 'fixture-v1'})
+        save(input_path, {'acceptance': binding, 'scene': self.scene})
+        contract = folder / 'case/debug-contract.json'
+        debug = contract.parent / 'debug'
+        save(contract, {'schema': 'acceptance-debug-contract-v1', 'acceptance': binding,
+             'project_root': str(self.root), 'revision': 'fixture-v1', 'scene_id': self.scene['id'],
+             'catalog_path': str(catalog), 'catalog_sha256': hashlib.sha256(catalog.read_bytes()).hexdigest(),
+             'input_path': str(input_path), 'input_sha256': hashlib.sha256(input_path.read_bytes()).hexdigest(),
+             'debug_root': str(debug)})
+        receipt = debug / 'attempt-one/execution/execution.json'
+        receipt.parent.mkdir(parents=True, exist_ok=True)
+        log = receipt.with_name('execution.log')
+        log.write_text('Synthetic receipt fixture; no product execution.\n')
+        save(receipt, {'schema': 'isolated-test-execution-v1', 'cwd': str(self.root),
+             'head_before': 'fixture-v1', 'head_after': 'fixture-v1', 'command': ['fixture-only'],
+             'start_utc': '2026-10-17T01:00:00Z', 'end_utc': '2026-10-17T01:00:01Z',
+             'exit_code': exit_code, 'test_file_sha256_before': {'tests/fixture.py': 'fixture'},
+             'test_file_sha256_after': {'tests/fixture.py': 'fixture'},
+             'log_sha256': hashlib.sha256(log.read_bytes()).hexdigest()})
+        return folder, contract, receipt
+
+    def test_bound_local_debug_is_executed_but_never_independently_passed(self):
+        folder, _, receipt = self.debug_fixture(exit_code=1)
+        progress = collect([self.root], [])
+        state = project_state([], progress)
+        counts = state['projects'][0]
+        self.assertEqual((counts['executed_count'], counts['pending_review']), (1, 1))
+        self.assertEqual((counts['passed'], counts['product_bug']), (0, 0))
+        row = next(t for t in state['traces'] if t['scenarios'])
+        self.assertEqual(row['attempt_id'], '本地调试')
+        self.assertEqual(row['stage'], 'local_debug_executed')
+        self.assertEqual(row['bindings'][0]['command'], ['fixture-only'])
+        self.assertEqual(row['case_results'][0]['evidence_path'], str(receipt.with_name('execution.log')))
+        self.assertFalse((folder / 'execution/execution.json').exists())
+
+    def test_unbound_or_tampered_debug_is_not_an_execution_fact(self):
+        folder, contract, receipt = self.debug_fixture()
+        original = json.loads(contract.read_text())
+        invalid = [dict(original, scene_id='another-scene'),
+                   dict(original, input_sha256='changed'), dict(original, catalog_sha256='changed'),
+                   dict(original, acceptance={**original['acceptance'], 'id': 'AT-other'}),
+                   dict(original, debug_root=str(self.root / 'unbound'))]
+        for value in invalid:
+            with self.subTest(value=value):
+                save(contract, value)
+                self.assertEqual(project_state([], collect([self.root], []))['projects'][0]['executed_count'], 0)
+        save(contract, original)
+        for malformed in [['not-a-contract'], {**original, 'acceptance': ['not-a-binding']}]:
+            save(contract, malformed)
+            self.assertEqual(project_state([], collect([self.root], []))['projects'][0]['executed_count'], 0)
+        save(contract, original)
+        save(folder / 'scene.current.json', {**self.scene, 'id': 'another-scene'})
+        self.assertEqual(project_state([], collect([self.root], []))['projects'][0]['executed_count'], 0)
+        (folder / 'scene.current.json').unlink()
+        receipt.with_name('execution.log').write_text('changed log')
+        self.assertEqual(project_state([], collect([self.root], []))['projects'][0]['executed_count'], 0)
+        contract.unlink()
+        self.assertEqual(project_state([], collect([self.root], []))['projects'][0]['executed_count'], 0)
+
+    def test_debug_intent_alone_does_not_count_and_repeated_debug_counts_once(self):
+        folder, _, receipt = self.debug_fixture()
+        value = json.loads(receipt.read_text())
+        receipt.unlink()
+        save(receipt.with_name('execution-intent.json'), value)
+        self.assertEqual(project_state([], collect([self.root], []))['projects'][0]['executed_count'], 0)
+        save(receipt, value)
+        save(folder / 'execution/execution.json', {'command': ['not-started']})
+        second = receipt.parents[2] / 'attempt-two/execution/execution.json'
+        save(second, {**value, 'end_utc': '2026-10-17T01:00:02Z'})
+        second.with_name('execution.log').write_bytes(receipt.with_name('execution.log').read_bytes())
+        counts = project_state([], collect([self.root], []))['projects'][0]
+        self.assertEqual((counts['executed_count'], counts['pending_review']), (1, 1))
+
+    def test_new_debug_keeps_an_earlier_confirmed_result(self):
+        self.debug_fixture()
+        old = {'project': {**self.project, 'revision': 'older-product'},
+               'requirements': [self.requirement], 'scenarios': [self.scene],
+               'generated_at': '2026-01-01T00:00:00Z', 'executed_scene_ids': [self.scene['id']],
+               'judgment': {'status': 'passed', 'reason': 'Earlier independent judgment'},
+               'case_results': [], 'bindings': []}
+        state = project_state([old], collect([self.root], []))
+        counts = state['projects'][0]
+        self.assertEqual((counts['executed_count'], counts['passed'], counts['pending_review']), (1, 1, 0))
+        row = next(t for t in state['traces'] if t['scenarios'])
+        self.assertEqual(row['attempt_id'], '本地调试')
+        self.assertEqual(row['judgment_source']['revision'], 'older-product')
 
     def test_frozen_input_and_scenario_review_freshness(self):
         analysis = self.root / 'analysis'

@@ -86,7 +86,7 @@ function render(items){
    let bindings=t.bindings.filter(x=>x.scenario_id===s.id);
    if(!bindings.length)bindings=[{id:'',title:'尚未准备用例／操作',kind:'pending'}];
    for(const [index,b] of bindings.entries()){const r=results.get(b.id);
-    const stageLabel={prepared:'用例准备中',awaiting_review:'待独立审查',scenario_approved:'场景设计已独立审查',scenario_self_checked:'场景已内部自审',reviewed:'执行已独立审查'}[t.stage]||t.stage||'未标记';
+    const stageLabel={prepared:'用例准备中',local_debug_executed:'本地调试已执行，待冻结',awaiting_review:'待独立审查',scenario_approved:'场景设计已独立审查',scenario_self_checked:'场景已内部自审',reviewed:'执行已独立审查'}[t.stage]||t.stage||'未标记';
     const span=` rowspan="${bindings.length}"`;
     const scene=index===0?`<td${span}><span class="tag">${esc(s.priority)}</span>${s.kind==='WHITE_BOX'?'<span class="tag">白盒</span>':''}<span class="small">${esc(s.id)} · ${esc(stageLabel)}</span><div class="title">${esc(s.title)}</div>${block(s.description)}</td>`:'';
     const conclusion=index===0?`<td${span}>${status(t.judgment.status)}${block(t.judgment.reason||'')}</td><td${span}>${cover(t.coverage)}</td>`:'';

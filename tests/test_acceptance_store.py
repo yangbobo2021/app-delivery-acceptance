@@ -1,5 +1,6 @@
 """Toolchain-only checks: no product cases, services, model calls or coverage reruns."""
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -400,6 +401,53 @@ class StoreTests(unittest.TestCase):
             server.shutdown()
             server.server_close()
             thread.join()
+
+    def test_bound_debug_updates_cached_view_and_survives_explicit_archive(self):
+        self.catalog()
+        source = self.output
+        scene = {'id': 'S0', 'requirement_id': 'REQ-1', 'title': 'Fixture', 'priority': 'P1'}
+        save(source / 'request.frozen.json', {'acceptance': self.binding,
+             'progress_schema': 'single-agent-scene-v1',
+             'project': {'id': 'project', 'root': str(self.root), 'revision': 'fixture'},
+             'scene': scene, 'requirements': [{'id': 'REQ-1', 'text': 'Fixture'}], 'case_catalog': []})
+        save(source / 'state.json', {'stages': {'case': {'status': 'running'}}})
+        save(source / 'catalog.json', {'acceptance': self.binding,
+             'project_root': str(self.root), 'revision': 'fixture'})
+        save(source / 'input.json', {'acceptance': self.binding, 'scene': scene})
+        contract = source / 'case/debug-contract.json'
+        debug = contract.parent / 'debug'
+        save(contract, {'schema': 'acceptance-debug-contract-v1', 'acceptance': self.binding,
+             'project_root': str(self.root), 'revision': 'fixture', 'scene_id': 'S0',
+             'catalog_path': str(source / 'catalog.json'),
+             'catalog_sha256': hashlib.sha256((source / 'catalog.json').read_bytes()).hexdigest(),
+             'input_path': str(source / 'input.json'),
+             'input_sha256': hashlib.sha256((source / 'input.json').read_bytes()).hexdigest(),
+             'debug_root': str(debug)})
+        view = ProjectView(self.root)
+        pointer = (self.root / '.acceptance-local/current.json').read_bytes()
+        self.assertEqual(view.snapshot(self.at)['project_state']['projects'][0]['executed_count'], 0)
+        receipt = debug / 'attempt-one/execution/execution.json'
+        save(receipt, {'schema': 'isolated-test-execution-v1', 'cwd': str(self.root),
+             'start_utc': '2026-10-17T01:00:00Z', 'end_utc': '2026-10-17T01:00:01Z',
+             'command': ['fixture-only'], 'exit_code': 0, 'head_before': 'fixture', 'head_after': 'fixture',
+             'test_file_sha256_before': {'e2e/fixture.py': 'fixture'},
+             'log_sha256': hashlib.sha256(b'Synthetic debug; no product execution').hexdigest()})
+        receipt.with_name('execution.log').write_bytes(b'Synthetic debug; no product execution')
+        live = view.snapshot(self.at)
+        self.assertEqual((live['project_state']['projects'][0]['executed_count'],
+                          live['project_state']['projects'][0]['pending_review']), (1, 1))
+        archive(self.root, self.at, source,
+                [p.relative_to(source).as_posix() for p in source.rglob('*') if p.is_file()],
+                'Synthetic toolchain fixture; explicitly retain bound debug metadata')
+        import shutil
+        shutil.rmtree(source)
+        data = view.snapshot(self.at)
+        counts = data['project_state']['projects'][0]
+        self.assertEqual((counts['executed_count'], counts['pending_review'], counts['passed']), (1, 1, 0))
+        row = next(t for t in data['project_state']['traces'] if t.get('execution_known'))
+        self.assertEqual(row['attempt_id'], '本地调试')
+        self.assertIn('evidence_url', row['case_results'][0])
+        self.assertEqual((self.root / '.acceptance-local/current.json').read_bytes(), pointer)
 
     def test_worktrees_are_not_scanned_and_missing_catalog_is_explicit(self):
         source = self.trace(self.at, "passed")
