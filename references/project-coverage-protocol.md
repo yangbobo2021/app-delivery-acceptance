@@ -8,7 +8,7 @@
 
 项目准备命令自行选择，输出新的 `prepared/prepared.json`，schema 为 `project-coverage-preparation-v1`：
 
-- `entry`：项目测试树内冻结适配器的 argv；由宿主追加操作名、request JSON 路径、response JSON 路径。不使用 shell 插值。
+- `entry`：项目测试树内冻结适配器的 argv；由宿主追加操作名、request JSON 路径、response JSON 路径。不使用 shell 插值。这里须写本次 workspace 中可直接执行的绝对路径，不能保留探针命令使用的 `{workspace}`、`{runtime_root}` 占位符；探针通过后仍须用这份最终 `entry` 实测 `verify-preparation`。
 - `adapter_files`：项目相对路径到 SHA256 的映射，包含适配器、必要夹具、配置及锁文件。入口至少包含其中一个文件。路径和实际解析目录都不得逃出项目。
 - `tools`：实际验证过的 `{name, version, role}`；准备资料记录实际命令/API及官方文档依据。安装包名称或版本标签不能代替验证。
 - `spec.project_root / revision / components / source_hashes`：实际执行工作区、完整冻结版本与全部源码范围。静态资源仍在清单内。
