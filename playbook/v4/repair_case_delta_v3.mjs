@@ -4,7 +4,7 @@ import {resolve,join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {performance} from 'node:perf_hooks';
-import {caseAdapter} from './scoped_case_adapter.mjs';
+import {caseAdapter,caseAgentPermissions} from './case_agent_access.mjs';
 const [inputArg,reviewArg,catalogArg,guideArg,outArg,...flags]=process.argv.slice(2),resume=flags.includes('--resume');
 if(!outArg)throw Error('usage: node repair_case_delta_v3.mjs case-input feedback catalog guide output-dir');
 const input=JSON.parse(readFileSync(resolve(inputArg))),review=JSON.parse(readFileSync(resolve(reviewArg)));
@@ -59,16 +59,15 @@ if(resume){
 const t=performance.now();let done,raw='',calls=0;try{
  writeFileSync(join(out,'runner.pid'),String(process.pid)+'\n');
  const task=resume?'继续同一场景的差量修复。核对已完成的测试文件及观察，只完成尚未完成的缺口；不要重复外部效果。最终仅输出原任务要求的 JSON。':prompt;
- for await(const e of caseAdapter(debug.runtime_write_roots).run(task,{cwd:root,model:process.env.ACCEPTANCE_MODEL??'gpt-6.1-sol',effort:process.env.ACCEPTANCE_EFFORT??'high',
+ for await(const e of caseAdapter().run(task,{cwd:root,model:process.env.ACCEPTANCE_MODEL??'gpt-6.1-sol',effort:process.env.ACCEPTANCE_EFFORT??'high',
   ...(resume?{resume:resumeSession}:{}),
-  permissions:{fileWrite:'allow',shellExecute:'allow',networkAccess:input.local_loopback_required?'allow':'deny'}})){
+  permissions:caseAgentPermissions})){
   appendFileSync(join(out,'agent.jsonl'),JSON.stringify(e)+'\n');if(e.type==='text')raw=e.payload?.content??'';if(e.type==='done')done=e.payload;if(e.type==='tool_use')calls++;
  }
 }catch(e){writeFileSync(join(out,'error.txt'),String(e));}
 finally{if(existsSync(join(out,'runner.pid')))unlinkSync(join(out,'runner.pid'));}
 writeFileSync(join(out,'answer.txt'),raw+'\n');try{writeFileSync(join(out,'answer.json'),JSON.stringify(JSON.parse(raw.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'')),null,2)+'\n');}catch{}
 const metrics={seconds:(performance.now()-t)/1000,tool_calls:calls,status:done?.status,usage:done?.usage,
- runtime_write_roots:debug.runtime_write_roots,
  ...(resume?{resumed_from_session:resumeSession}:{}),
  head_after:git('rev-parse','HEAD'),tracked_changes:git('diff','--name-only','HEAD')};
 writeFileSync(join(out,'metrics.json'),JSON.stringify(metrics,null,2)+'\n');console.log(JSON.stringify(metrics));

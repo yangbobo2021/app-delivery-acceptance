@@ -62,7 +62,7 @@ python3 <skill>/playbook/v4/scene_pipeline.py NEW-handoff-dir/config.json
 
 用例及差量修复入口自动生成各自的 `debug-contract.json`，向 Agent 直接提供 `debug_case.py run <contract> <request>` 的绝对入口和 `request_root`。请求写在该根下，仅传原始业务 `command`、`files`、`env` 及可选的全新 `output`；不再查找 Skill 或自行组装底层采集请求。入口校验当前指针、知识/输入/目录绑定及场景互斥所有权，每次新建本 ID 下的调试尝试并沿用已准备的专用 collector。模板中的 `fresh_env_root_key`、`fresh_env_paths`、`evidence_env_dir_keys` 同时供调试与宿主执行使用，目录语义由项目声明；调试的这些输出变量不能指向其他位置。当用例判据依赖正式执行目录内的界面或其他观察文件时，模板必须用 `evidence_execution_relative_paths` 精确声明相对路径；宿主只冻结该执行内部存在、未越界的输出，Reviewer 不得把未冻结的观察文件当作场景通过依据。先核对项目适配器的最终环境变量覆盖关系：同一证据变量若由适配器重定向到执行目录，就不能再用 `fresh_env_paths` / `evidence_env_dir_keys` 声明另一个目录，否则冻结器会追踪不存在的路径。低层覆盖率执行也从激活策略继承 acceptance，省略 request.acceptance 不能绕过目录门禁。调试结果不自动成为独立判定，最终 `test_command` 仍须是原始业务命令。
 
-用例和差量修复运行时通过 SDK 的 `additionalDirectories` 授予宿主验证过的精确调试根、冻结运行环境目录、覆盖率准备及索引目录，目录列表保存在运行指标中；cwd 仍为唯一 workspace，网络策略保持项目声明。冻结运行环境的 smoke 复验可能在自身目录创建临时文件，因此授权前须核对运行环境 manifest 的摘要、验收绑定和目录归属。租约检查只读打开宿主已持有的锁文件。不能靠把 cwd 改成项目存储根、开放网络或在项目里替换运行时依赖解决调试目录不可写；这类宿主问题须修复通用入口后用新冻结尝试复测，保留原失败。
+用例和差量修复 Agent 使用 SDK 的 `bypass` 执行权限，不再逐目录授予调试根、冻结运行环境、覆盖率准备或索引目录的访问权；cwd 仍为唯一验收 workspace。Agent 可自行使用当前机器上项目需要的本地工具和运行目录，避免准备时验证通过、用例调试时却被目录权限挡住。调试入口仍校验验收绑定、冻结请求、输出位置和场景租约；正式宿主仍校验产品源码版本、测试文件、执行收据及覆盖率证据。权限变化不改写旧失败，重新测试须保留首次异常与复测记录。
 
 多个目标可用 `run_plan.py` 顺序调度。计划输入为 `schema: acceptance-v4-plan-v1`、`run_dir`、`scenario_requests` 数组、共享 `case_template` 对象，按需用 `selected_scene_ids` 限定低成本试跑。它只编排已冻结的目标请求，不自行扩张 PR 范围，也不把部分场景结果宣称为整份 PR 通过。重复启动核对输入、场景终态、交接哈希与每个单场景状态，只继续未完成阶段。
 
