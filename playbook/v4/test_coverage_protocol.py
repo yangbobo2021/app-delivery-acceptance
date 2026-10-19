@@ -128,6 +128,21 @@ class ProjectCoverageProtocolTest(unittest.TestCase):
             run_coverage(self.request("normal"))
         self.assertEqual({path: sha(path) for path in files}, original)
 
+    def test_verified_archive_summary_survives_missing_runtime_module(self):
+        from unittest.mock import patch
+        report = self.collect()
+        trace = self.trace(report)
+        live = coverage_views.summarize([trace])[0]
+        snapshot = {"tools": live["tools"], "scopes": live["scopes"]}
+        coverage_views._cache.clear()
+        with patch.object(coverage_views, "summarize_reports",
+                          side_effect=ValueError("Cannot find module 'project-tool'")), \
+             patch.object(coverage_views, "archived_summary", return_value=snapshot) as archived:
+            result = coverage_views.summarize([trace])[0]
+        self.assertEqual(result["scopes"]["project"]["status"], "measured")
+        self.assertEqual(len(result["verified_reports"]), 1)
+        archived.assert_called_once()
+
     def test_project_declared_run_metadata_is_hash_bound(self):
         report_path = self.collect()
         extra = self.base / 'collector-lifecycle.json'

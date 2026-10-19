@@ -35,6 +35,11 @@ const check = (program, args, stdout, stderr) => {
 };
 const sourceHashes = request.source_hashes;
 if (!sourceHashes || !Object.keys(sourceHashes).length) throw Error('Coverage request source inventory missing');
+const expectedMeasuredSources = request.expected_measured_sources ?? [];
+if (!Array.isArray(expectedMeasuredSources) ||
+    expectedMeasuredSources.some(name => typeof name !== 'string' || !(name in sourceHashes)) ||
+    new Set(expectedMeasuredSources).size !== expectedMeasuredSources.length)
+  throw Error('Coverage expected_measured_sources must name distinct frozen source files');
 if (!request.inventory_sha256 || hash(readFileSync(request.inventory_path)) !== request.inventory_sha256)
   throw Error('Coverage request scope inventory changed');
 const gitHead = () => {
@@ -64,13 +69,14 @@ const prompt = `你是独立的覆盖率准备 Agent。你的输入是**已经�
 运行环境 manifest：${runtimePath}，SHA256：${request.runtime_sha256}
 运行环境执行器：${JSON.stringify(runtime.executables)}
 项目覆盖率输入：${JSON.stringify(request)}
+本次项目明确预期能采集的源码：${JSON.stringify(expectedMeasuredSources)}。这是项目目标，不是所有项目的通用覆盖率配额。先检查已有适配器为什么没达到这些目标，再尝试项目适用的替代采集/映射方法；零命中、定向命中和独立读取都须证明这些文件的真实分母与命中。不能因为第一次方案失败便停止探索并把目标文件标成 unsupported。若充分尝试后仍无法证明，就如实标 unsupported、保留失败证据和具体限制，不能声称本项目目标已完成。不要改动 partial 的通用含义。
 适用项目知识：${JSON.stringify(knowledge)}
 本次候选 SKILL 的覆盖率协议（优先于机器上另一个已安装版本）：${readFileSync(protocolGuide, 'utf8')}
 本次实际调用的 SKILL 根目录：${resolve(new URL('../..', import.meta.url).pathname)}。宿主探针脚本：${script}。只按这份候选 SKILL 的协议与脚本准备；不要另找机器上同名的已安装 SKILL。
 已保留的前次失败尝试（只读检查其错误收据和项目适配器快照，不能覆盖）：${JSON.stringify(request.prior_attempts ?? [])}
 交付给宿主的 entry 必须能对本阶段新建的 project-coverage-preparation-v1 profile 执行 verify-preparation、run、finish、verify-report、summarize，尤其应读取 spec.runtime_manifest 与 spec.probe_report，不能假定旧适配器私有的 probe_comparison 等字段必然存在。宿主会在探针后立即调用 verify-preparation；探针自测通过不等于整份准备通过。
 
-写入项目测试目录内的适配器/配置/探针助手（不可写产品源码），并只使用上面运行环境的已验证执行器调用轻量**非业务**探针。adapter_paths 必须列全这些项目脚本、配置和必要夹具，且每个路径都必须位于请求声明的 test_roots 内；项目根目录的依赖清单或源码不能填入 adapter_paths，它们分别由运行环境和源码清单绑定。宿主会冻结适配器哈希及归档副本。**绝对不要修改 .acceptance/knowledge、任何 INDEX.md 或共享验收知识；只在回答中提出 knowledge_candidate，待探针与宿主核验通过后由宿主发布。**每条不同进程/测试入口路由分别准备零命中和非零命中探针。宿主在每个 collect 前已经创建 {raw_dir}，collect 只能向其中写入原生数据，不得再用 exist_ok=False 创建它。adapter/direct 必须只读 {raw_dir}，所有派生文件只能写到 {probe_dir} 的其他位置或 stdout；宿主会检查 raw 目录在两个 reader 后逐字节不变。零命中必须有非空原生数据及非零分母而 covered=0；非零命中须有 covered>0。每个探针先采集原生数据，再让项目适配器与专用工具直接从同一原生数据独立输出规范化 JSON，二者源码路径、指标、数值须一致。直接工具读取命令不得调用适配器。若某部分无法验证，标记 unsupported 并给出真实尝试依据，不能把它称为 measured。保留首次异常和重试原始资料；探针只证明采集链路，不得算业务覆盖率。
+写入项目测试目录内的适配器/配置/探针助手（不可写产品源码），并只使用上面运行环境的已验证执行器调用轻量**非业务**探针。adapter_paths 必须列全这些项目脚本、配置和必要夹具，也必须包含本阶段修改过的全部受版本控制测试文件，即便其中某个文件只是自检助手；每个路径都必须位于请求声明的 test_roots 内；项目根目录的依赖清单或源码不能填入 adapter_paths，它们分别由运行环境和源码清单绑定。宿主会冻结适配器哈希及归档副本。**绝对不要修改 .acceptance/knowledge、任何 INDEX.md 或共享验收知识；只在回答中提出 knowledge_candidate，待探针与宿主核验通过后由宿主发布。**每条不同进程/测试入口路由分别准备零命中和非零命中探针。宿主在每个 collect 前已经创建 {raw_dir}，collect 只能向其中写入原生数据，不得再用 exist_ok=False 创建它。adapter/direct 必须只读 {raw_dir}，所有派生文件只能写到 {probe_dir} 的其他位置或 stdout；宿主会检查 raw 目录在两个 reader 后逐字节不变。零命中必须有非空原生数据及非零分母而 covered=0；非零命中须有 covered>0。每个探针先采集原生数据，再让项目适配器与专用工具直接从同一原生数据独立输出规范化 JSON，二者源码路径、指标、数值须一致。直接工具读取命令不得调用适配器。若某部分无法验证，标记 unsupported 并给出真实尝试依据，不能把它称为 measured。保留首次异常和重试原始资料；探针只证明采集链路，不得算业务覆盖率。
 
 先逐条读取适用项目知识，检查已有项目测试适配器是否仍适用于本次 runtime 和源码版本；可复用时沿用并做最小修正，不重复探索已经有依据的工具路线或安装方法。你只需用一条最小命令确认适配器可启动；完整的各路由零/非零探针由宿主在你回答后统一执行并独立复核，不要在 Agent 内提前重复跑整套探针。若现有资料失效，记录具体差异，再做必要探索。
 
@@ -112,6 +118,15 @@ try {
       throw Error('Adapter resolves outside declared test roots');
     adapters[name] = hash(readFileSync(path));
   }
+  const dirty = spawnSync('git', ['diff', '--name-only', 'HEAD'],
+    {cwd: runtime.workspace, encoding: 'utf8'});
+  if (dirty.status !== 0) throw Error('Cannot inspect changed coverage test files');
+  const omitted = dirty.stdout.split('\n').filter(Boolean).filter(name =>
+    allowedRoots.some(root => {
+      const file = resolve(runtime.workspace, name);
+      return file === root || file.startsWith(root + '/');
+    }) && !(name in adapters));
+  if (omitted.length) throw Error('Coverage Agent omitted changed test files from adapter_paths: ' + omitted.join(', '));
   const plan = {...answer.probe_plan, runtime_manifest: runtimePath, runtime_sha256: request.runtime_sha256,
     workspace: runtime.workspace, revision: runtime.revision};
   const planPath = join(output, 'probe-plan.json');
@@ -129,6 +144,7 @@ try {
     join(output, 'probe-verify.stdout'), join(output, 'probe-verify.stderr'));
   const status = probe.status === 'ready' && measured.length &&
     !Object.values(dispositions).some(value => value.kind === 'unsupported') ? 'ready' : 'partial';
+  const unmetExpectedSources = expectedMeasuredSources.filter(name => dispositions[name]?.kind !== 'measured');
   const artifactAliases = {...(answer.artifact_aliases ?? {})};
   for (const [name, digest] of Object.entries({...sourceHashes, ...adapters})) {
     const original = resolve(runtime.workspace, name), frozen = resolve(output, 'frozen', name);
@@ -159,6 +175,7 @@ try {
   writeFileSync(join(output, 'handoff.json'), JSON.stringify({schema: 'project-coverage-agent-handoff-v1',
     status, runtime_manifest: runtimePath, runtime_sha256: request.runtime_sha256,
     prepared, prepared_sha256: config.prepared_sha256, probe_report: probePath,
+    expected_measured_sources: expectedMeasuredSources, unmet_expected_sources: unmetExpectedSources,
     knowledge_candidate: join(output, 'knowledge-candidate.md'), limitations: answer.limitations ?? []}, null, 2) + '\n');
   result.status = status; result.prepared = prepared; result.usage = done?.usage; result.agent_status = done?.status;
 } catch (failure) {result.status = 'blocked'; result.error = failure.message; if (error) result.agent_error = error;}

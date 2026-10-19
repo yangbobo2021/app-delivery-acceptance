@@ -130,12 +130,11 @@ def summarize(traces,evidence_root=None):
                     if key not in _cache:
                         try:
                             summary=summarize_reports(reports,inventory,mapping)
-                        except (OSError,ValueError) as error:
-                            # A retired runtime may be absent. The immutable
-                            # publication contains the project's own summary.
-                            if not isinstance(error,OSError) and not any(
-                                    marker in str(error) for marker in ('No such file or directory','ENOENT')):
-                                raise
+                        except (OSError,ValueError):
+                            # A retired runtime can fail in several ways, including
+                            # a missing project tool module. The archived summary is
+                            # usable only after the exact reports, native bytes and
+                            # preparation have passed verification above.
                             refs=[{'path':name,'sha256':sha(resolved(name,mapping))} for name in reports]
                             summary=archived_summary(evidence_root,refs,profile,tools)
                             if summary is None:raise
