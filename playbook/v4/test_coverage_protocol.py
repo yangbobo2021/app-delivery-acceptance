@@ -67,9 +67,11 @@ class ProjectCoverageProtocolTest(unittest.TestCase):
         self.inventory.write_text("{}")
         self.probe = self.base / "SYNTHETIC-probe.json"
         self.probe.write_text('{"synthetic":true,"purpose":"protocol-only tool substitute"}')
+        self.interpreter = self.base / 'retirable-python'
+        self.interpreter.symlink_to(sys.executable)
         self.profile = {
             "schema": "project-coverage-preparation-v1",
-            "entry": [sys.executable, str(self.adapter)],
+            "entry": [str(self.interpreter), str(self.adapter)],
             "adapter_files": {"tools/stub.py": sha(self.adapter)},
             "tools": [{"name": "SYNTHETIC protocol stub", "version": "fixture-1",
                        "role": "protocol regression only, not business coverage"}],
@@ -125,6 +127,18 @@ class ProjectCoverageProtocolTest(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             run_coverage(self.request("normal"))
         self.assertEqual({path: sha(path) for path in files}, original)
+
+    def test_project_declared_run_metadata_is_hash_bound(self):
+        report_path = self.collect()
+        extra = self.base / 'collector-lifecycle.json'
+        extra.write_text('{"status":"finished"}')
+        report = json.loads(report_path.read_text())
+        report['collector_lifecycle'] = {'path': str(extra), 'sha256': sha(extra)}
+        self.write(report_path, report)
+        self.assertEqual(verify_report(report_path, run_check=False)['scene_id'], 'SCENE-1')
+        extra.write_text('{"status":"changed"}')
+        with self.assertRaisesRegex(ValueError, 'bound file missing or changed'):
+            verify_report(report_path, run_check=False)
 
     def test_report_for_another_scene_is_not_registered(self):
         with self.assertRaisesRegex(ValueError, "scene/profile/source"):
@@ -459,6 +473,7 @@ class ProjectCoverageProtocolTest(unittest.TestCase):
         self.assertTrue((record / "record.json").is_file())
         (local / "project-context.json").unlink()
         source.rename(self.base / "coverage-capture-offline")
+        self.interpreter.unlink()  # Published results must outlive their runtime.
         # Frozen adapter alias must work even without the mutable project adapter.
         self.adapter.rename(self.adapter.with_suffix(".offline"))
         result = ProjectView(self.root).snapshot(acceptance_id)

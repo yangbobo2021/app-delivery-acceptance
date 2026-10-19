@@ -35,7 +35,7 @@ python3 <skill>/scripts/runtime_preparation.py verify <new-workflow-output>/runt
 - 安装命令与 smoke 的 argv、cwd、环境变量、退出码、日志路径及哈希；smoke 必须使用后续测试将采用的运行路径，能重复执行且不含业务断言。
 - `recipe-candidate.md` 及其哈希。此文件只是待发布知识候选，不能在运行环境验证前写入共享知识并使本次读取凭证失效。
 
-固定验证器 `validate_runtime(path, expected_acceptance=None, resmoke=True)` 检查当前 ID、项目 revision、依赖字节、平台、可执行文件路径/哈希/版本、全部命令收据与 smoke 再执行。返回 `runtime_manifest` 的绝对路径和 `runtime_sha256`。后续覆盖率准备只消费这个路径与哈希，并再次验证；旧 ID、另一电脑、源码/依赖/工具变化或 smoke 失效都必须产生新的准备，不准沿用旧 `ready`。smoke 再执行留下本 ID 内的验证日志，但不改写冻结清单。
+固定验证器 `validate_runtime(path, expected_acceptance=None, resmoke=True)` 检查当前 ID、项目 revision、依赖字节、平台、可执行文件路径/哈希/版本、全部命令收据与 smoke 再执行。返回 `runtime_manifest` 的绝对路径和 `runtime_sha256`。后续覆盖率准备只消费这个路径与哈希，并再次验证；旧 ID、另一电脑、源码/依赖/工具变化或 smoke 失效都必须产生新的准备，不准沿用旧 `ready`。首次准备的安装、版本和 smoke 日志保留在本 ID 内；后续只读复验捕获输出并核对，不写回冻结的 runtime 目录，调用阶段自行保存失败收据。
 
 宿主在通过验证后审查 `recipe-candidate.md`：只把跨验收可复用的依赖来源、目录约定、安装步骤、测试入口、新电脑重建方法和故障原因复制到 `.acceptance/knowledge`，更新相应分层 `INDEX.md`。不要把本机绝对路径、已安装环境、日志、探针结果或秘密写入共享知识。更新知识后重新调用 `read-knowledge`，为覆盖率 Agent 提供新读取凭证；旧运行环境清单记录原始读取凭证，不因知识更新而改写。
 

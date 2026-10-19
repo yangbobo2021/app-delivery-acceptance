@@ -199,6 +199,9 @@ def verify_report(report_path, receipt_path=None, *, run_check=True, mapping=Non
         if not any(Path(item['path']).is_relative_to(Path(base)) for base in (session['output'],report['prepared'])):
             raise ValueError('native coverage evidence is outside its execution/preparation')
         bound_file(item["path"], item["sha256"], mapping)
+    for item in report.values():
+        if isinstance(item,dict) and isinstance(item.get('path'),str) and isinstance(item.get('sha256'),str):
+            bound_file(item['path'], item['sha256'], mapping)
     if report['status']=='measured' and any(x['kind']=='unsupported' for x in profile['source_dispositions'].values()):
         raise ValueError('unsupported source scope cannot claim complete measured coverage')
     for component in report["components"]:

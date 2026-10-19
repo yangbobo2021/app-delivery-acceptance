@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from acceptance_store import initialize, read_knowledge
 from runtime_preparation import bootstrap, prepare, validate_runtime
@@ -70,6 +71,17 @@ class RuntimePreparationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "another acceptance"):
             validate_runtime(self.output / "runtime.json",
                              expected_acceptance={**self.binding, "id": "AT-other"})
+
+    def test_revalidation_does_not_write_to_prepared_runtime(self):
+        prepare(self.spec, self.output)
+        before = {path.relative_to(self.output): (path.read_bytes(), path.stat().st_mtime_ns)
+                  for path in self.output.rglob("*") if path.is_file()}
+        with patch("runtime_preparation._run", side_effect=AssertionError("revalidation wrote a log")):
+            checked = validate_runtime(self.output / "runtime.json")
+        self.assertEqual(checked["status"], "ready")
+        after = {path.relative_to(self.output): (path.read_bytes(), path.stat().st_mtime_ns)
+                 for path in self.output.rglob("*") if path.is_file()}
+        self.assertEqual(before, after)
 
     def test_agent_bootstrap_then_nested_runtime_and_receipt_integrity(self):
         request = self.root / ".acceptance-local" / self.aid / "agent-request.json"

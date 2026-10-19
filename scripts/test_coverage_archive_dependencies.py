@@ -39,13 +39,14 @@ class CoverageArchiveDependenciesTests(unittest.TestCase):
             save("scene/execution.log", "log")
             session = save("scene/coverage-session.json", {})
             report = save("scene/coverage-report.json", {})
+            collector = save("scene/coverage-run.json", {"status": "measured"})
             save("coverage/probes/route/zero/raw/unlisted.txt", "must stay local")
             profile = {"spec": {"inventory_path": str(inventory),
                 "runtime_manifest": str(runtime), "runtime_sha256": acceptance_store.digest(runtime),
                 "probe_report": str(probe), "probe_report_sha256": acceptance_store.digest(probe)},
                 "preparation_evidence": [], "adapter_files": {}, "artifact_aliases": {}}
             frozen_report = {"prepared": str(prepared.parent), "receipt_path": str(execution),
-                             "raw_evidence": []}
+                             "raw_evidence": [], "run_evidence": ref(collector)}
             with patch.object(coverage_protocol, "verify_report", return_value=frozen_report), \
                  patch.object(coverage_protocol, "preparation", return_value=profile):
                 with patch.object(acceptance_store, "read", side_effect=lambda path: {
@@ -55,6 +56,7 @@ class CoverageArchiveDependenciesTests(unittest.TestCase):
             self.assertIn("runtime/runtime.json", selected)
             self.assertIn("coverage/probes/route/zero/raw/native.db", selected)
             self.assertIn("coverage/probes/route/zero/adapter/stdout.txt", selected)
+            self.assertIn("scene/coverage-run.json", selected)
             self.assertNotIn("coverage/probes/route/zero/raw/unlisted.txt", selected)
 
 

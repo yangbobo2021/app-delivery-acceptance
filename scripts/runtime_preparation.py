@@ -64,8 +64,8 @@ def _command(item, workspace, runtime_root):
     return {"command": argv, "cwd": str(cwd), "env": env, "timeout_seconds": timeout}
 
 
-def _run(item, log_path):
-    started = time.monotonic()
+def _observe(item):
+    """Run a repeatable check without writing into the frozen runtime directory."""
     try:
         result = subprocess.run(item["command"], cwd=item["cwd"],
                                 env={**os.environ, **item["env"]},
@@ -74,6 +74,12 @@ def _run(item, log_path):
         raw, exit_code = result.stdout, result.returncode
     except subprocess.TimeoutExpired as error:
         raw, exit_code = (error.stdout or b"") + b"\nTIMEOUT\n", 124
+    return raw, exit_code
+
+
+def _run(item, log_path):
+    started = time.monotonic()
+    raw, exit_code = _observe(item)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_path.write_bytes(raw)
     return {**item, "exit_code": exit_code, "seconds": round(time.monotonic() - started, 3),
@@ -259,17 +265,16 @@ def validate_runtime(path, expected_acceptance=None, resmoke=True):
         _check_receipt(item["version_receipt"])
         if item["version_command"][0] != str(executable):
             raise ValueError("runtime version command no longer binds executable")
-        check = _run({"command": item["version_command"], "cwd": str(workspace), "env": {},
-                      "timeout_seconds": 30}, path.parent / ("verify-" + item["name"] + ".log"))
-        if check["exit_code"] != 0 or Path(check["log"]).read_text(errors="replace").strip() != item["version_output"]:
+        raw, exit_code = _observe({"command": item["version_command"], "cwd": str(workspace),
+                                   "env": {}, "timeout_seconds": 30})
+        if exit_code != 0 or raw.decode(errors="replace").strip() != item["version_output"]:
             raise ValueError("runtime executable version changed: " + item["name"])
     owned_path(path.parent, manifest["smoke"]["log"])
     _check_receipt(manifest["smoke"])
     if resmoke:
         smoke = manifest["smoke"]
-        check = _run({key: smoke[key] for key in ("command", "cwd", "env", "timeout_seconds")},
-                     path.parent / "verify-smoke.log")
-        if check["exit_code"] != 0:
+        _, exit_code = _observe({key: smoke[key] for key in ("command", "cwd", "env", "timeout_seconds")})
+        if exit_code != 0:
             raise ValueError("runtime smoke no longer passes")
     return {"status": "ready", "runtime_manifest": str(path), "runtime_sha256": digest(path),
             "workspace": str(workspace), "revision": manifest["revision"]}

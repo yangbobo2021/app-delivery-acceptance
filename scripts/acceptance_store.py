@@ -565,6 +565,16 @@ def coverage_archive_files(source, reports):
         include(Path(report['receipt_path']).with_name('execution.log'))
         include(receipt['coverage_session_path']);include(profile['spec']['inventory_path'])
         for item in [*report['raw_evidence'],*profile['preparation_evidence']]:include(item['path'])
+        # Project tools may bind additional run metadata (for example an
+        # execution request or collector lifecycle receipt). Preserve every
+        # top-level file reference with an explicit digest, regardless of its
+        # project-chosen field name.
+        for item in report.values():
+            if isinstance(item,dict) and isinstance(item.get('path'),str) and isinstance(item.get('sha256'),str):
+                extra=owned_path(source,item['path'])
+                if digest(extra)!=item['sha256']:
+                    raise ValueError('Coverage publication bound metadata changed: '+str(extra))
+                include(extra)
         coverage_spec = profile['spec']
         if coverage_spec.get('runtime_manifest') or coverage_spec.get('probe_report'):
             if not all(coverage_spec.get(key) for key in ('runtime_manifest', 'runtime_sha256',
@@ -647,6 +657,18 @@ def archive(project, acceptance_id, source, files, basis, *, v4_result=False, co
     files=[*files,*scene_files]
     coverage_reports=[*(coverage_reports or []),*scene_reports]
     coverage_files,aliases=coverage_archive_files(source,coverage_reports) if coverage_reports else ([],{})
+    coverage_snapshot=None
+    if coverage_reports:
+        from coverage_protocol import summarize_reports, verify_report, sha
+        report_paths=sorted({str(owned_path(source,source/name if not Path(name).is_absolute() else name))
+                             for name in coverage_reports})
+        checked=[verify_report(name) for name in report_paths]
+        if len({item['prepared_sha256'] for item in checked}) != 1:
+            raise ValueError('Coverage publication cannot combine incompatible preparations')
+        coverage_snapshot={"schema":"project-coverage-summary-snapshot-v1",
+                           "reports":[{"path":name,"sha256":sha(name)} for name in report_paths],
+                           "prepared_sha256":checked[0]['prepared_sha256'],
+                           "summary":summarize_reports(report_paths)}
     files=[*files,*coverage_files]
     if not files or not basis.strip():
         raise ValueError("explicit reviewed file allowlist and publication basis required")
@@ -664,11 +686,19 @@ def archive(project, acceptance_id, source, files, basis, *, v4_result=False, co
         dest = target / name
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, dest)
+    snapshot_name=None
+    if coverage_snapshot:
+        snapshot_name='coverage-summary.json'
+        if snapshot_name in data:
+            raise ValueError('Coverage snapshot name collides with selected evidence')
+        save(target/snapshot_name,coverage_snapshot,exclusive=True)
+        data[snapshot_name]=target/snapshot_name
     save(target / "record.json", {"schema": "acceptance-evidence-record-v1", "acceptance_id": acceptance_id,
          "scope_sha256": state["scope"]["sha256"], "created_at": now(), "basis": basis,
          "files": {name: digest(path) for name, path in data.items()},
          "original_paths": {str(path): name for name, path in data.items()},
          "path_aliases": aliases,
+         "coverage_summary":snapshot_name,
          "coverage_reports": [owned_path(source,source/name if not Path(name).is_absolute() else name).relative_to(source).as_posix()
                               for name in (coverage_reports or [])],
          "workflow_requests": {name: {"original_path": str(path),
