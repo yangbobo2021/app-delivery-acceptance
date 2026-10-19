@@ -46,7 +46,11 @@ def main():
     root = Path(template["source_checkout"]).resolve()
     if root != workspace_path(template):
         raise ValueError("case source_checkout must use the single acceptance workspace")
-    if root != Path(request["project_root"]).resolve():
+    scenario_root = Path(request["project_root"]).resolve()
+    acceptance_root = Path(template["acceptance"]["project_root"]).resolve()
+    if scenario_root != root and not (request["scenario_kind"] == "BLACK_BOX" and
+                                     not request.get("pr_reviewed_reverse_path") and
+                                     scenario_root == acceptance_root):
         raise ValueError("scenario and case project roots differ")
     for upstream in (request, read(template["template_catalog"])):
         if any(upstream.get("acceptance", {}).get(k) != template["acceptance"].get(k)

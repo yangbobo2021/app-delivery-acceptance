@@ -23,7 +23,7 @@ node <skill>/playbook/v4/prepare_project_semantics.mjs prep-output/catalog.json 
 
 覆盖率激活策略属于实际执行工作树的 Git 目录；同一 Git 仓库内多个验收项目各有专用工作树时，不得把策略写入共享 common-dir 以免互相替换绑定。准备目录与索引仍由各项目 spec 指定；修正策略位置后须重新激活每个项目的冻结准备，并保留此前绑定失败的原始记录。
 
-把归档提交或搬到别的检出目录后，必须在**不含旧 `.acceptance-local`** 的新检出中读结果视图；覆盖率注册路径应映射到归档中的冻结字节并复核哈希，不能借旧机器上的绝对路径读到旧运行目录。归档清单列出的文件即使命中项目 `.gitignore`（例如冻结构建目录），也须完整纳入交付归档；缺文件时视图应报证据缺失，不能静默显示成功。
+把归档提交或搬到别的检出目录后，必须在**不含旧 `.acceptance-local`** 的新检出中读结果视图；覆盖率注册路径应映射到归档中的冻结字节并复核哈希，不能借旧机器上的绝对路径读到旧运行目录。归档清单列出的文件即使命中项目 `.gitignore`，也须完整纳入交付归档；提交前用 `python3 <skill>/scripts/check_archive_checkout.py <项目>/.acceptance/<ID>` 检查归档文件均已进入 Git 索引且与工作区一致。此检查只用于准备共享 Git 检出，不要求仅本机使用的归档提交；缺文件时视图应报证据缺失，不能静默显示成功。
 
 **准备完成时的检查：**宿主在现有准备交接中核对以下内容，不另建阶段或检查报告格式：
 
@@ -36,17 +36,17 @@ node <skill>/playbook/v4/prepare_project_semantics.mjs prep-output/catalog.json 
 
 ## 单目标场景
 
-需求列表、整体目标和范围来自 v3 前置分析；PR 的白盒目标先完成 v3 `reverse/run.mjs`，其 `result.json` 必须通过自身门禁。场景请求使用 [v3 场景请求字段](playbook-inputs-v3.md#one-requirements-scenario-list)，一次指定一个 `target_requirement_id`，传完整原始需求与关联分组。白盒提供 `reviewed_reverse_path` 和 SHA-256；含需求的 PR 黑盒目标提供 `pr_reviewed_reverse_path` 和 SHA-256。v4 Agent 在同一次过程内生成并自审场景，只有确定性结构门禁；**没有独立场景 Reviewer**。结构通过仅表示列表可供后续用例实现，不证明业务覆盖绝无遗漏。待确认规则不生成场景。
+需求列表、整体目标和范围来自 v3 前置分析；PR 的白盒目标先完成 v3 `reverse/run.mjs`，其 `result.json` 必须通过自身门禁。场景请求使用 [v3 场景请求字段](playbook-inputs-v3.md#one-requirements-scenario-list)，一次指定一个 `target_requirement_id`，传完整原始需求与关联分组。白盒提供 `reviewed_reverse_path` 和 SHA-256；含需求的 PR 黑盒目标提供 `pr_reviewed_reverse_path` 和 SHA-256。v4 Agent 在同一次过程内生成并自审场景，额外留下 `selfcheck.current.json`：目标原文义务到场景 ID、每条场景的具体判据与失败影响，以及无法形成可执行判据的明确缺口；原文明确允许多种相反结果且没有共同必达行为的片段单列 `not_required_reason`，不误计为缺口。结构门禁检查片段确属目标、场景 ID 映射完整；它**不证明语义正确，也不是独立场景 Reviewer**。场景目录仍只含简洁场景五字段，目标缺口不能当作已覆盖。结构通过仅表示列表可供后续用例实现，不证明业务覆盖绝无遗漏。待确认规则不生成场景。
 
 ```sh
 node <skill>/playbook/v4/run_scenarios.mjs scenario-request.json NEW-scenario-dir
 ```
 
-中断后，确认原进程已退出、需求/范围/逆向依据未变化，再对原请求及目录加 `--resume`。完成的 `terminal.json` 绑定请求和 `scenarios.current.json` 哈希；重复调用直接复用。场景描述、等级或用户范围发生实质变化时，创建新目录，保留旧版本。
+中断后，确认原进程已退出、需求/范围/逆向依据未变化，再对原请求及目录加 `--resume`。完成的 `terminal.json` 绑定请求、`scenarios.current.json` 和 `selfcheck.current.json` 哈希，并记录未覆盖义务数；非零时不可声称该需求场景充分，即使已有其他可执行场景。重复调用直接复用。发布项目场景清单时，把每个 `gap_reason` 连同目标 ID、原文连续片段及原因写入 catalog 的 `design_gaps`；明确许可片段的 `not_required_reason` 不列入缺口。结果视图须展示该缺口，不能只显示场景数量。场景描述、等级或用户范围发生实质变化时，创建新目录，保留旧版本。
 
 ## 单场景用例、真实执行与独立复审
 
-为一个场景准备 `case-template.json`，使用 `bind_case.py` 从已完成的场景列表冻结场景、主需求/规则、相关需求、范围和证据版本。模板必需 `scenario_run_path`、`scene_id`、`source_checkout`、`template_catalog`、`guide`、`case_run_dir`；可选 `component_sources`、`allowed_test_roots`、`local_loopback_required`、证据路径配置和 `coverage`。`bind_case.py` 输出 `case-input.json` 与 `config.json`。一验收一个共用 workspace，一场景一个运行目录；绑定要求新 catalog 的 `workspace_policy: single-acceptance-v1`，source_checkout 必须指向该 workspace。准备、执行、复审持有验收级互斥锁，中断场景保留恢复归属，下一场景不能越过。各阶段复核产品版本/源码哈希，允许前面场景的测试修改保留。项目原始需求和产品源码不得由用例 Agent 改动；授权产品修复在验收阶段之间完成，随后新冻结版本并复验。
+为一个场景准备 `case-template.json`，使用 `bind_case.py` 从已完成的场景列表冻结场景、主需求/规则、相关需求、范围和证据版本。模板必需 `scenario_run_path`、`scene_id`、`source_checkout`、`template_catalog`、`guide`、`case_run_dir`；可选 `component_sources`、`allowed_test_roots`、`local_loopback_required`、证据路径配置和 `coverage`。`bind_case.py` 输出 `case-input.json` 与 `config.json`。纯需求黑盒场景可先在验收项目根目录生成，再绑定到同一验收 ID 的已准备 workspace；PR/白盒场景仍须保持冻结源码版本和工作树一致。一验收一个共用 workspace，一场景一个运行目录；绑定要求新 catalog 的 `workspace_policy: single-acceptance-v1`，source_checkout 必须指向该 workspace。准备、执行、复审持有验收级互斥锁，中断场景保留恢复归属，下一场景不能越过。各阶段复核产品版本/源码哈希，允许前面场景的测试修改保留。项目原始需求和产品源码不得由用例 Agent 改动；授权产品修复在验收阶段之间完成，随后新冻结版本并复验。
 
 ```sh
 python3 <skill>/playbook/v4/bind_case.py case-template.json NEW-handoff-dir

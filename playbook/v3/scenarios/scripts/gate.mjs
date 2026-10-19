@@ -34,13 +34,13 @@ if(stage==='draft'){
     if(updates.size!==doc.upsert.length || new Set(doc.remove_ids).size!==doc.remove_ids.length || doc.remove_ids.some(id=>!base.scenarios.some(s=>s.id===id)||updates.has(id)))errors.push('Invalid patch ids');
     const merged=base.scenarios.filter(s=>!doc.remove_ids.includes(s.id)).map(s=>updates.get(s.id)??s);
     for(const x of doc.upsert)if(!base.scenarios.some(s=>s.id===x.id))merged.push(x);
-    doc={requirement_id:target.id,kind:request.scenario_kind,scenarios:merged,change_summary:doc.change_summary};
+    doc={requirement_id:target.id,kind:request.scenario_kind,scenarios:merged,change_summary:doc.change_summary,selfcheck:doc.selfcheck};
    }
   }
   for(const s of doc.scenarios??[]){s.requirement_id??=target.id;s.kind??=request.scenario_kind;}
   doc.requirement_id??=target.id;doc.kind??=request.scenario_kind;
   if(doc.requirement_id!==target.id||doc.kind!==request.scenario_kind||!strings(doc.change_summary))errors.push('Invalid target/kind/change_summary');
-  if(!Array.isArray(doc.scenarios)||!doc.scenarios.length)errors.push('Scenarios missing');
+  if(!Array.isArray(doc.scenarios)||(!doc.scenarios.length&&request.scenario_selfcheck_protocol!=='v4-target-check-v1'))errors.push('Scenarios missing');
   const ids=new Set();
   for(const s of doc.scenarios??[]){
    if(!meaningful(s.id)||ids.has(s.id)||s.requirement_id!==target.id||s.kind!==request.scenario_kind||!meaningful(s.title))errors.push('Invalid scene identity/owner/kind');ids.add(s.id);
@@ -49,7 +49,37 @@ if(stage==='draft'){
    if(s.acceptance||s.source_basis||s.preconditions||s.actions||s.criteria||s.evidence_expected)errors.push('Legacy detailed scene fields are not part of concise contract');
    if(s.generation_unit_id||s.method_ids||s.code_sources&&s.kind==='BLACK_BOX')errors.push('Unsupported layer or source scan');
   }
-  if(!errors.length){doc.version=round;atomic('scenarios.current.json',doc);atomic(`scenarios.round-${round}.json`,doc);outcome='ready';}
+  if(request.scenario_selfcheck_protocol==='v4-target-check-v1'){
+   const check=doc.selfcheck,sceneIds=new Set((doc.scenarios??[]).map(s=>s.id));
+   if(!check||!Array.isArray(check.obligations)||!check.obligations.length||!Array.isArray(check.scene_checks)||check.scene_checks.length!==sceneIds.size)
+    errors.push('V4 target self-check missing or incomplete');
+   const checked=new Set();
+   for(const item of check?.obligations??[]){
+    if(!meaningful(item.quote)||!target.text.includes(item.quote)||!Array.isArray(item.scene_ids)||
+       new Set(item.scene_ids).size!==item.scene_ids.length||item.scene_ids.some(id=>!sceneIds.has(id))||
+       (!item.scene_ids.length?(meaningful(item.gap_reason)===meaningful(item.not_required_reason)):
+         meaningful(item.gap_reason)||meaningful(item.not_required_reason)))
+      errors.push('Invalid target obligation mapping');
+   }
+   for(const item of check?.scene_checks??[]){
+    if(!sceneIds.has(item.scene_id)||checked.has(item.scene_id)||!meaningful(item.owner_quote)||
+       !target.text.includes(item.owner_quote)||!meaningful(item.distinguishing_failure)||
+       !meaningful(item.observable_result)||!meaningful(item.failure_impact))
+      errors.push('Invalid per-scene self-check');
+    checked.add(item.scene_id);
+   }
+   if([...sceneIds].some(id=>!checked.has(id))||[...sceneIds].some(id=>!(check?.obligations??[]).some(item=>item.scene_ids?.includes(id))))
+    errors.push('V4 self-check does not cover every scene');
+   if(!sceneIds.size&&(check?.obligations??[]).some(item=>item.scene_ids?.length))
+    errors.push('Gap-only target has mapped scenes');
+  }
+  if(!errors.length){
+   if(request.scenario_selfcheck_protocol==='v4-target-check-v1'){
+    atomic('selfcheck.current.json',{schema:'v4-target-check-v1',requirement_id:target.id,...doc.selfcheck});
+    delete doc.selfcheck;
+   }
+   doc.version=round;atomic('scenarios.current.json',doc);atomic(`scenarios.round-${round}.json`,doc);outcome='ready';
+  }
  }
 }else if(stage==='review'){
  const scenes=load('scenarios.current.json');doc=load('review.candidate.json');

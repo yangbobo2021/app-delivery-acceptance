@@ -28,7 +28,7 @@ if(request.scenario_kind==='BLACK_BOX'&&request.pr_reviewed_reverse_path){
 }
 const target=(request.scenario_kind==='WHITE_BOX'?request.reverse_rules?.find(x=>x.id===request.target_requirement_id)??request.requirements.items.find(x=>x.id===request.target_requirement_id):request.requirements.items.find(x=>x.id===request.target_requirement_id));
 if(!target)throw Error('Target requirement/rule absent');
-const frozenText=JSON.stringify(request,null,2)+'\n',frozen=join(output,'request.frozen.json');
+const frozenText=JSON.stringify({...request,scenario_selfcheck_protocol:'v4-target-check-v1'},null,2)+'\n',frozen=join(output,'request.frozen.json');
 if(resume){
   if(!existsSync(frozen)||readFileSync(frozen,'utf8')!==frozenText)throw Error('Scenario resume input changed');
 }else{
@@ -39,7 +39,8 @@ const terminalPath=join(output,'terminal.json');
 if(resume&&existsSync(terminalPath)){
   const terminal=JSON.parse(readFileSync(terminalPath));
   if(terminal.final_state==='done'&&terminal.request_sha256===sha(frozen)&&
-     terminal.scenarios_sha256===sha(join(output,'scenarios.current.json'))){
+     terminal.scenarios_sha256===sha(join(output,'scenarios.current.json'))&&
+     terminal.selfcheck_sha256===sha(join(output,'selfcheck.current.json'))){
     console.log(JSON.stringify({target:target.id,state:'done',reused:true}));process.exit(0);
   }
   throw Error('Scenario terminal is not a valid completed artifact');
@@ -55,7 +56,7 @@ const input={acceptance_knowledge:acceptanceKnowledge,target_requirement:target,
 const standard=readFileSync(join(here,'scenario-standard.md'),'utf8');
 const format=readFileSync(join(v3,'scenarios/generation-format.md'),'utf8');
 const selfCheck=readFileSync(join(here,'scenario-selfcheck.md'),'utf8');
-const prompt=`这是只读场景分析；全部需求和已冻结白盒依据均在输入中，不读取项目文件、不运行测试。只给目标${request.scenario_kind==='WHITE_BOX'?'需求或逆向规则':'需求'}生成${request.scenario_kind==='WHITE_BOX'?'白盒':'黑盒'}场景，相关需求仅作上下文。内部完成生成与自审，最终只输出合法 JSON；不声称独立审查。\n${standard}\n${format}\n${selfCheck}\n输入：\n${JSON.stringify(input)}`;
+const prompt=`这是只读场景分析；全部需求和已冻结白盒依据均在输入中，不读取项目文件、不运行测试。只给目标${request.scenario_kind==='WHITE_BOX'?'需求或逆向规则':'需求'}生成${request.scenario_kind==='WHITE_BOX'?'白盒':'黑盒'}场景，相关需求仅作上下文。由同一个 Agent 完成生成与自审，不声称独立审查。最终只输出合法 JSON；沿用场景五字段格式，并额外输出顶层 selfcheck：{"obligations":[{"quote":"目标原文连续片段","scene_ids":["场景 ID"],"gap_reason":"必达义务无法形成可信可执行判据时填写","not_required_reason":"原文明确允许多种相反结果、该片段本身无单一必达行为时填写"}],"scene_checks":[{"scene_id":"场景 ID","owner_quote":"目标原文连续片段","distinguishing_failure":"本场景独有的错误实现","observable_result":"独立可观察的通过或违约结果","failure_impact":"仅此条件失败时的具体影响和等级依据"}]}。必达义务至少对应一个场景，确实无法测试的必达义务用空 scene_ids 和具体 gap_reason；明确许可但无单一必达行为的片段用空 scene_ids 和 not_required_reason，不算缺口。每个场景都要有一项 scene_check；核对记录是同一 Agent 的过程证据，不是独立认可。\n${standard}\n${format}\n${selfCheck}\n输入：\n${JSON.stringify(input)}`;
 const promptPath=join(output,'prompt.txt');
 if(resume){if(readFileSync(promptPath,'utf8')!==prompt)throw Error('Scenario prompt changed');}
 else writeFileSync(promptPath,prompt);
@@ -98,8 +99,11 @@ if(resume&&events.some(x=>x.type==='done'&&x.payload?.status==='success')){
 }
 const gate=spawnSync(process.execPath,[join(v3,'scenarios/scripts/gate.mjs'),frozen,output,'draft','1'],{encoding:'utf8'});
 if(gate.status!==0)throw Error('Scenario structure gate failed: '+(gate.stdout+gate.stderr).slice(-2000));
+const checked=JSON.parse(readFileSync(join(output,'selfcheck.current.json')));
 const terminal={final_state:'done',review_kind:'internal_self_check',semantic_review:'not_independent',
   request_sha256:sha(frozen),scenarios_sha256:sha(join(output,'scenarios.current.json')),
+  selfcheck_sha256:sha(join(output,'selfcheck.current.json')),
+  uncovered_obligations:checked.obligations.filter(item=>item.scene_ids.length===0&&item.gap_reason).length,
   finished_at:new Date().toISOString()};
 writeFileSync(terminalPath,JSON.stringify(terminal,null,2)+'\n');
-console.log(JSON.stringify({target:target.id,state:'done',scenarios:JSON.parse(readFileSync(join(output,'scenarios.current.json'))).scenarios.length}));
+console.log(JSON.stringify({target:target.id,state:'done',scenarios:JSON.parse(readFileSync(join(output,'scenarios.current.json'))).scenarios.length,uncovered_obligations:terminal.uncovered_obligations}));

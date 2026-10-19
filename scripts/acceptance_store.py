@@ -325,6 +325,17 @@ def validate_catalog(value):
     for item in value["scenarios"]:
         if not item.get("id") or item.get("requirement_id") not in owners:
             raise ValueError("scene needs an original requirement or admitted rule")
+    gaps = value.get("design_gaps", [])
+    if not isinstance(gaps, list):
+        raise ValueError("design_gaps must be a list")
+    source_text = {item["id"]: item.get("text", "") for item in value["requirements"]}
+    source_text.update({item["id"]: item.get("text", "") for item in value.get("reverse_rules", [])})
+    for gap in gaps:
+        if (not isinstance(gap, dict) or gap.get("requirement_id") not in owners or
+                not isinstance(gap.get("quote"), str) or not gap["quote"].strip() or
+                gap["quote"] not in source_text[gap["requirement_id"]] or
+                not isinstance(gap.get("reason"), str) or not gap["reason"].strip()):
+            raise ValueError("design gap needs an owner, exact source quote and reason")
 
 
 def publish_catalog(project, acceptance_id, value):

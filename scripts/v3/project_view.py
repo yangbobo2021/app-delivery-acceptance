@@ -416,7 +416,8 @@ class ProjectView:
         payload = {"schema": "acceptance-project-view-v1", "project_root": str(self.root),
                    "acceptances": rows, "acceptance_id": selected, "traces": [],
                    "progress": {"previews": [], "stages": []}, "coverage": [],
-                   "project_state": {"traces": [], "projects": []}, "warnings": []}
+                   "project_state": {"traces": [], "projects": []}, "warnings": [],
+                   "design_gaps": []}
         payload["denominator_complete"] = False
         active, current_error = self.current_status()
         payload["current_acceptance_id"] = active
@@ -491,6 +492,14 @@ class ProjectView:
         catalog = shared / "scenarios.json"
         all_traces = list(traces)
         if catalog.is_file():
+            catalog_value = read(catalog)
+            payload["design_gaps"] = catalog_value.get("design_gaps", [])
+            if payload["design_gaps"]:
+                payload["warnings"].append(
+                    f"场景设计仍有 {len(payload['design_gaps'])} 项必达义务缺口；相关需求不可宣称完整验收。")
+                payload["warnings"].extend(
+                    f"{gap['requirement_id']}：{gap['quote']}；{gap['reason']}"
+                    for gap in payload["design_gaps"])
             all_traces.append(catalog_trace(catalog, pid))
             catalog_ids = {s["id"] for s in all_traces[-1]["scenarios"]}
             observed_ids = catalog_observed_scene_ids(traces, progress)
