@@ -21,6 +21,10 @@ node <skill>/playbook/v4/prepare_project_semantics.mjs prep-output/catalog.json 
 
 项目若有覆盖率采集必需的框架适配/资源所有权夹具，在 spec 的 `coverage_test_files` 数组声明项目内路径。它们必须存在于 `test_roots`，不能同时列入产品 `source_paths`。准备保存其哈希，项目策略、场景执行与本地调试继承并自动加入这些文件的绑定和导入适配，不能靠 Agent 每次猜全依赖。夹具字节变化需新准备，不改旧 catalog。具体文件名、运行时版本查找与源码/测试资产分类属于项目知识，通用流程不猜测。
 
+覆盖率激活策略属于实际执行工作树的 Git 目录；同一 Git 仓库内多个验收项目各有专用工作树时，不得把策略写入共享 common-dir 以免互相替换绑定。准备目录与索引仍由各项目 spec 指定；修正策略位置后须重新激活每个项目的冻结准备，并保留此前绑定失败的原始记录。
+
+把归档提交或搬到别的检出目录后，必须在**不含旧 `.acceptance-local`** 的新检出中读结果视图；覆盖率注册路径应映射到归档中的冻结字节并复核哈希，不能借旧机器上的绝对路径读到旧运行目录。归档清单列出的文件即使命中项目 `.gitignore`（例如冻结构建目录），也须完整纳入交付归档；缺文件时视图应报证据缺失，不能静默显示成功。
+
 **准备完成时的检查：**宿主在现有准备交接中核对以下内容，不另建阶段或检查报告格式：
 
 - 沿用现有检查，区分其职责：`guard` 核对验收身份、当前指针、范围和知识凭据；准备入口核对源码/组件版本与工作树。再对照 spec、`catalog.json` 和 `terminal.json`，确认 terminal 的 `state` 为 `prepared`、`fingerprint` 与 catalog 一致、`catalog_sha256` 匹配实际 catalog。`acceptance_store.py check` 只做存储结构等校验，不能单独证明准备完成。
@@ -51,7 +55,9 @@ python3 <skill>/playbook/v4/scene_pipeline.py NEW-handoff-dir/config.json
 
 用例 Agent 在一个连续过程内自行读取所需源码/测试、选择现有或新用例、实现测试并本地调试，提交测试文件、命令和真实观察。调度器验证只修改声明的测试目录，然后在新目录冻结执行原命令，保存意图、日志、退出码和文件哈希；独立 Reviewer 只读检查场景判据、用例可靠性、真实路径、证据和结果。`repair_required` 中属于测试代码/证据的明确缺口可有限次差量修复，再生成新的执行和审查凭证；场景边界或业务合同问题停在待确认，不靠修测试代码“通过”。用例 Agent 的 `passed_local` 不是最终结论；只有独立复审的 `passed` 或有可靠失败证据的 `product_bug` 才是已判定结果。
 
-用例及差量修复入口自动生成各自的 `debug-contract.json`，向 Agent 直接提供 `debug_case.py run <contract> <request>` 的绝对入口和 `request_root`。请求写在该根下，仅传原始业务 `command`、`files`、`env` 及可选的全新 `output`；不再查找 Skill 或自行组装底层采集请求。入口校验当前指针、知识/输入/目录绑定及场景互斥所有权，每次新建本 ID 下的调试尝试并沿用已准备的专用 collector。模板中的 `fresh_env_root_key`、`fresh_env_paths`、`evidence_env_dir_keys` 同时供调试与宿主执行使用，目录语义由项目声明；调试的这些输出变量不能指向其他位置。低层覆盖率执行也从激活策略继承 acceptance，省略 request.acceptance 不能绕过目录门禁。调试结果不自动成为独立判定，最终 `test_command` 仍须是原始业务命令。
+原生应用在 Agent 调试环境启动受限、而项目准备已实测宿主能运行时，用例 Agent 可交付 `host_ready`：测试文件、原始业务命令、隔离方式和静态检查已就绪，同时明确哪些业务断言尚未在本地执行及环境错误。调度器仍须正式冻结执行，独立 Reviewer 只依据该次真实执行判断；`host_ready` 本身没有产品结论。若宿主也无法运行或命令未就绪，仍为 `blocked`。
+
+用例及差量修复入口自动生成各自的 `debug-contract.json`，向 Agent 直接提供 `debug_case.py run <contract> <request>` 的绝对入口和 `request_root`。请求写在该根下，仅传原始业务 `command`、`files`、`env` 及可选的全新 `output`；不再查找 Skill 或自行组装底层采集请求。入口校验当前指针、知识/输入/目录绑定及场景互斥所有权，每次新建本 ID 下的调试尝试并沿用已准备的专用 collector。模板中的 `fresh_env_root_key`、`fresh_env_paths`、`evidence_env_dir_keys` 同时供调试与宿主执行使用，目录语义由项目声明；调试的这些输出变量不能指向其他位置。若项目适配器把界面证据写在正式执行目录内，可由模板的 `evidence_execution_relative_paths` 精确声明相对目录；宿主只冻结该执行内部存在、未越界的输出。低层覆盖率执行也从激活策略继承 acceptance，省略 request.acceptance 不能绕过目录门禁。调试结果不自动成为独立判定，最终 `test_command` 仍须是原始业务命令。
 
 用例和差量修复运行时通过 SDK 的 `additionalDirectories` 授予宿主验证过的精确调试根、覆盖率准备及索引目录，目录列表保存在运行指标中；cwd 仍为唯一 workspace，网络策略保持项目声明。租约检查只读打开宿主已持有的锁文件。不能靠把 cwd 改成项目存储根、开放网络或在项目里替换运行时依赖解决调试目录不可写；这类宿主问题须修复通用入口后用新冻结尝试复测，保留原失败。
 
@@ -86,6 +92,8 @@ python3 <skill>/playbook/v4/run_plan.py plan.json
 返工 Agent 返回 `needs_contract` 时，当前冻结绑定不再可用于执行；即使回答里仍有旧 `test_command`，也直接结束本场景为 `needs_scope_or_contract`，不再启动正式执行。若原因是项目覆盖率适配器或夹具变化，先为项目新建准备与 catalog，再用同一场景原文创建新尝试；旧复审、原生数据和错误报告保持原样。历史上已因这种返工进入 `parked`、且后续执行没有创建输出或收据的场景，可在核对原配置、修复回答、工作区归属和存活进程后调用 `python3 <skill>/playbook/v4/retire_contract_rebind.py <旧场景config.json> --basis <具体核查依据>`。入口仅记录无业务结论的旧尝试退役并释放工作区，不改旧状态或补造通过；已有执行输出、仍运行的阶段或不匹配的归属会拒绝退役。
 
 若首次 `prepare` 的项目能力检查失败并停驻，先检查失败命令及其工作区副作用，修正项目内准备，再调用 `python3 <skill>/playbook/v4/retire_parked_prepare.py <旧场景config.json> --basis <具体核查依据>` 退役旧尝试。此入口只接受唯一的 `prepare: parked` 阶段、未生成场景 catalog/执行/总结且原配置、输入、工作区归属和产品源码均匹配的情形；留下无业务结论的退役收据后释放归属。若已有其他阶段、输出或无法解释的副作用，保持停驻，人工核查后按新冻结尝试处理，不复用旧输出。
+
+用例与差量修复都已返回 `blocked`、且正式执行尚未开始时，核对两份回答、工作区归属、版本和运行进程后，可调用 `retire_blocked_case.py <旧场景config.json> --basis <具体核查依据>`。已有正式执行但证据阶段 `parked` 时，先核对冻结执行收据和失败原因，再调用 `retire_parked_evidence.py <旧场景config.json> --basis <具体核查依据>`。两者只记录无业务结论的退役收据并释放工作区，原状态、日志、原生数据与错误报告保留；随后以修正后的项目准备或测试绑定创建新冻结尝试，不能把退役当作测试通过。
 
 对模型服务等原因留下的明确 Agent 错误终态，重新调用原公共计划/场景入口可有限恢复：仅当会话 trace 有错误且无成功终态、原 runner 与调试子进程已退出、输入/版本/测试目录绑定仍匹配时，沿用原会话一次；本地服务还必须声明安全恢复。恢复记录保存原错误、指标和 trace 哈希，次数跨阶段重启保留。再次中断或无法核实的错误继续 parked；已完成的测试失败、合同缺口和确认结论不按中断重试。结构补正 Agent 的错误仍按其保守边界停下，不藉此增加补正预算。
 

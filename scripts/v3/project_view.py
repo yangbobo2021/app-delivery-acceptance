@@ -47,6 +47,48 @@ def catalog_trace(path, project_id):
             "coverage": {"status": "pending"}}
 
 
+def current_progress_for_catalog(progress):
+    """Keep the newest candidate list per target for project statistics."""
+    latest = {}
+    other = []
+    for preview in progress.get('previews', []):
+        scenes = preview.get('scenarios', [])
+        if preview.get('stage') not in {'scenario_self_checked', 'scenario_approved'}:
+            other.append(preview)
+            continue
+        owners = {scene.get('requirement_id') for scene in scenes}
+        if len(owners) != 1 or None in owners:
+            other.append(preview)
+            continue
+        owner = next(iter(owners))
+        key = (preview.get('generated_at') or '', preview.get('progress_folder') or '')
+        if owner not in latest or key > latest[owner][0]:
+            latest[owner] = (key, preview)
+    return {**progress, 'previews': [*other, *(preview for _, preview in latest.values())]}
+
+
+def catalog_observed_scene_ids(traces, progress):
+    """Compare the catalog with current target lists and bound case history."""
+    current = current_progress_for_catalog(progress)
+    return {scene['id'] for trace in [*traces, *current.get('previews', []),
+                                     *current.get('case_history', [])]
+            for scene in trace.get('scenarios', [])}
+
+
+def registered_artifact_path(local, shared, mapping, name, expected=None):
+    """Resolve an immutable registered capture in this checkout's archive."""
+    from coverage_protocol import resolved
+    key = str(name)
+    item = mapping.get(key + '#' + expected) if expected else None
+    item = item or mapping.get(key)
+    if item and (expected is None or item['sha256'] == expected):
+        path = owned_path(shared, item['path'])
+        if digest(path) != item['sha256']:
+            raise ValueError('archived coverage artifact changed: ' + key)
+        return path
+    return resolved(owned_path(local, name), mapping, expected)
+
+
 def workflow_requests(roots, local):
     """An archive is the same attempt, never a newer run because it was copied."""
     selected, origins = {}, {}
@@ -210,13 +252,14 @@ class ProjectView:
             paths = [*paths, context['coverage_registry']]
         rows = []
         from coverage_views import artifact_mapping
-        from coverage_protocol import resolved
         mapping=artifact_mapping(local)
         warnings=warnings if warnings is not None else []
+        registered_artifact=lambda name,expected=None: registered_artifact_path(
+            local,shared,mapping,name,expected)
         entries={}
         for name in paths:
             try:
-                registry_path=resolved(owned_path(local,name),mapping)
+                registry_path=registered_artifact(name)
                 if not registry_path.is_file():continue  # Explicit archived captures remain discoverable below.
                 registry=read(registry_path)
                 if registry.get('schema') not in {'continuous-coverage-index-v1','project-coverage-index-v1'}:
@@ -238,19 +281,19 @@ class ProjectView:
             try:
                 if entry['scene_id'] not in known_scenes:
                     raise ValueError('coverage scene is outside the registered project catalog')
-                report_path = resolved(owned_path(local, entry['report']),mapping,entry['report_sha256'])
+                report_path = registered_artifact(entry['report'], entry['report_sha256'])
                 if digest(report_path) != entry['report_sha256']:
                     raise ValueError('registered coverage report changed')
                 report = read(report_path)
                 if report['scene_id'] != entry['scene_id'] or report['prepared_sha256'] != entry['profile']:
                     raise ValueError('registered coverage binding changed')
-                prepared = read(resolved(owned_path(local, report['prepared']) / 'prepared.json',mapping,report['prepared_sha256']))
-                receipt = read(resolved(owned_path(local, report['receipt_path']),mapping,report.get('execution_sha256')))
+                prepared = read(registered_artifact(Path(report['prepared']) / 'prepared.json',report['prepared_sha256']))
+                receipt = read(registered_artifact(report['receipt_path'],report.get('execution_sha256')))
                 if report.get('protocol')=='project-coverage-v1':
                     rows.append({'schema':'registered-coverage-capture-v1',
                         'project':{'id':read(shared/'manifest.json')['project_id'],'revision':receipt['head_after']},
                         'scenarios':[{'id':entry['scene_id']}],'generated_at':receipt['end_utc'],
-                        'change':{'inventory':read(resolved(owned_path(local,prepared['spec']['inventory_path']),mapping))},
+                        'change':{'inventory':read(registered_artifact(prepared['spec']['inventory_path'],prepared['spec'].get('inventory_sha256')))},
                         'coverage':{**report,'report_path':entry['report'],'capture_end':receipt['end_utc']}})
                     continue
                 check = report_path.parent / 'collection-check.json'
@@ -450,7 +493,7 @@ class ProjectView:
         if catalog.is_file():
             all_traces.append(catalog_trace(catalog, pid))
             catalog_ids = {s["id"] for s in all_traces[-1]["scenarios"]}
-            observed_ids = {s["id"] for t in [*traces, *progress.get("previews", []), *progress.get("case_history", [])] for s in t.get("scenarios", [])}
+            observed_ids = catalog_observed_scene_ids(traces, progress)
             payload["denominator_complete"] = observed_ids.issubset(catalog_ids)
             if not payload["denominator_complete"]:
                 payload["warnings"].append("场景清单缺少执行记录中的场景；修正清单前不显示项目场景比例。")
@@ -472,7 +515,7 @@ class ProjectView:
             payload['warnings'].append('覆盖率保持各实际版本分别展示：' + str(error))
         measured=summarize(coverage_rows,evidence_root=local)
         payload.update(traces=traces, progress=progress,
-                       project_state=project_state(all_traces, progress),
+                       project_state=project_state(all_traces, current_progress_for_catalog(progress) if catalog.is_file() else progress),
                        coverage=measured)
         # Coverage-only captures replace no business judgment. Attach each proved
         # capture only to its actual scene/revision, retaining the original time.

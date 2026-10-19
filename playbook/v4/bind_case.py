@@ -106,6 +106,7 @@ def main():
               "coverage": coverage,
               "output_dir": str(Path(template["case_run_dir"]).resolve())}
     for key in ("fresh_env_root_key", "fresh_env_paths", "evidence_env_dir_keys",
+                "evidence_execution_relative_paths",
                 "evidence_log_prefix", "evidence_relative_paths", "evidence_globs",
                 "evidence_max_bytes", "rerun_safe_after_interruption", "max_review_repairs",
                 "resume_safe_after_local_loopback", "scope_note"):
