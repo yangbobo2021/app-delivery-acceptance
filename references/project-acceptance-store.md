@@ -176,7 +176,7 @@ python3 <skill>/scripts/acceptance_store.py guard frozen-config.json --output <�
 
 ## 完整场景清单与提交证据
 
-`scenarios.json` 使用 `acceptance-catalog-v1`，包含 `project`、完整 `requirements` 数组、`reverse_rules` 数组、全部 `scenarios` 数组（包含未执行）。可用额外 `scope_scene_ids` 说明本验收选中部分，不能用它替换项目分母。每场景至少有稳定 `id`、`requirement_id`、`title`、`description`、`priority`。发布保留旧清单版本，重复 ID、无主需求/规则或待确认规则下的可执行场景被拒绝：
+`scenarios.json` 使用 `acceptance-catalog-v1`，包含 `project` 对象（例如 `{"id":"stable-project-id","label":"Project","revision":"frozen revision","root":"/absolute/source"}`，不能仅传名称字符串）、完整 `requirements` 数组、`reverse_rules` 数组、全部 `scenarios` 数组（包含未执行）。可用额外 `scope_scene_ids` 说明本验收选中部分，不能用它替换项目分母。每场景至少有稳定 `id`、`requirement_id`、`title`、`description`、`priority`。发布和读取使用同一结构校验；非法项目对象在写入目录或历史前被拒绝。发布保留旧清单版本，重复 ID、无主需求/规则或待确认规则下的可执行场景被拒绝：
 
 ```sh
 python3 <skill>/scripts/acceptance_store.py catalog <项目目录> AT-<ID> --input complete-catalog.json

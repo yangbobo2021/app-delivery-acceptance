@@ -143,7 +143,9 @@ def require_scene_lease(config):
     lease = os.environ.get('ACCEPTANCE_WORKSPACE_LEASE')
     if not lease or not owner_path.is_file() or read(owner_path).get('output_dir') != lease:
         raise ValueError('case/repair entry requires the owning scene pipeline lease')
-    with (root.parent / 'workspace.lock').open('a+') as lock:
+    # The scene host owns and creates this file. A debugging child only needs
+    # to test its held lock; it must not need write access to the ID root.
+    with (root.parent / 'workspace.lock').open('r') as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:

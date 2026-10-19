@@ -149,6 +149,21 @@ class WorkspaceTests(unittest.TestCase):
             finish_scene(self.config,self.out)
         self.assertNotIn('ACCEPTANCE_WORKSPACE_LEASE',os.environ)
 
+    def test_child_checks_read_only_lock_without_reopening_for_write(self):
+        root = self.create()
+        catalog = {**self.catalog(root), 'acceptance': self.binding}
+        lock = self.root/'.acceptance-local'/self.at/'workspace.lock'
+        original_mode = lock.stat().st_mode & 0o777
+        try:
+            with workspace_lease(self.config, self.out, scene=True):
+                lock.chmod(0o444)
+                child = subprocess.run([sys.executable, str(SKILL/'scripts/acceptance_workspace.py')],
+                    input=json.dumps(catalog), text=True, capture_output=True)
+                self.assertEqual(child.returncode, 0, child.stderr)
+                finish_scene(self.config, self.out)
+        finally:
+            lock.chmod(original_mode)
+
     def test_symlink_workspace_and_wrong_policy_rejected(self):
         root=workspace_path(self.config);root.symlink_to(self.root,target_is_directory=True)
         with self.assertRaisesRegex(ValueError,'symlink'):

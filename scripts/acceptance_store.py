@@ -247,8 +247,8 @@ def validate(project, acceptance_id, check_knowledge=True):
             manifest.get("acceptance_id") != acceptance_id or not manifest.get("owner") or
             not manifest.get("project_id")):
         raise ValueError("invalid acceptance identity manifest")
-    if not re.search(r"^/\.acceptance-local/\s*$", (root / ".gitignore").read_text(), re.M):
-        raise ValueError(".gitignore must contain /.acceptance-local/")
+    if not re.search(r"^/?\.acceptance-local/\s*$", (root / ".gitignore").read_text(), re.M):
+        raise ValueError(".gitignore must contain a root .acceptance-local/ directory rule")
     git_root = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=root, capture_output=True, text=True)
     if git_root.returncode == 0:
         ignored = subprocess.run(["git", "check-ignore", "--no-index", "--", str(local / "acceptance-guard-probe")], cwd=root, capture_output=True)
@@ -311,9 +311,12 @@ def validate(project, acceptance_id, check_knowledge=True):
 
 
 def validate_catalog(value):
-    if (value.get("schema") != "acceptance-catalog-v1" or not value.get("project") or
+    if (not isinstance(value, dict) or value.get("schema") != "acceptance-catalog-v1" or
             not isinstance(value.get("requirements"), list) or not isinstance(value.get("scenarios"), list)):
         raise ValueError("complete project scenario catalog required")
+    project = value.get("project")
+    if not isinstance(project, dict) or not project:
+        raise ValueError("catalog project must be an object, for example {id, label, revision, root}")
     scene_ids = [item["id"] for item in value["scenarios"]]
     if len(scene_ids) != len(set(scene_ids)):
         raise ValueError("duplicate stable scene IDs")
@@ -358,7 +361,7 @@ def _initialize(project, acceptance_id, title, owner, scope, basis):
         (knowledge / "INDEX.md").write_text(INDEX)
     gitignore = root / ".gitignore"
     text = gitignore.read_text() if gitignore.exists() else ""
-    if not re.search(r"^/\.acceptance-local/\s*$", text, re.M):
+    if not re.search(r"^/?\.acceptance-local/\s*$", text, re.M):
         gitignore.write_text(text + ("\n" if text and not text.endswith("\n") else "") + "/.acceptance-local/\n")
     save(shared / "manifest.json", {"schema": "acceptance-manifest-v1", "acceptance_id": acceptance_id,
          "project_id": root.name, "title": title, "owner": owner, "created_at": now()}, exclusive=True)
@@ -509,6 +512,31 @@ def v4_result_files(source):
     return sorted({path.relative_to(source).as_posix() for path in paths})
 
 
+def frozen_artifact_alias(profile, original, alias):
+    """Validate one offline alias against its frozen bytes and project inventory."""
+    bound_digest=None
+    if isinstance(alias,dict):
+        frozen=alias.get('path')
+        bound_digest=alias.get('sha256')
+        if not isinstance(frozen,str) or not isinstance(bound_digest,str) or digest(frozen)!=bound_digest:
+            raise ValueError('Coverage publication alias descriptor is unbound or changed')
+    elif isinstance(alias,str):
+        frozen=alias
+    else:
+        raise ValueError('Coverage publication alias must name a frozen file')
+    project_root=Path(profile['spec']['project_root']).resolve()
+    if '..' in Path(original).parts:
+        raise ValueError('Coverage publication alias escapes project')
+    relative=Path(original).resolve().relative_to(project_root)
+    inside(project_root,relative)
+    expected=profile['adapter_files'].get(str(relative)) or profile['spec']['source_hashes'].get(str(relative))
+    if expected and digest(frozen)!=expected:
+        raise ValueError('Coverage publication alias differs from frozen source or adapter')
+    if not expected and not bound_digest:
+        raise ValueError('Coverage publication alias lacks a frozen artifact digest')
+    return frozen
+
+
 def coverage_archive_files(source, reports):
     """Explicit protocol publication profile, without scanning runtime folders."""
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'playbook/v4'))
@@ -526,10 +554,8 @@ def coverage_archive_files(source, reports):
         include(Path(report['receipt_path']).with_name('execution.log'))
         include(receipt['coverage_session_path']);include(profile['spec']['inventory_path'])
         for item in [*report['raw_evidence'],*profile['preparation_evidence']]:include(item['path'])
-        for original,frozen in profile.get('artifact_aliases',{}).items():
-            relative=Path(original).relative_to(Path(profile['spec']['project_root']))
-            expected=profile['adapter_files'].get(str(relative)) or profile['spec']['source_hashes'].get(str(relative))
-            if not expected or digest(frozen)!=expected:raise ValueError('Coverage publication alias lacks frozen source binding')
+        for original,alias in profile.get('artifact_aliases',{}).items():
+            frozen=frozen_artifact_alias(profile,original,alias)
             aliases[original]=include(frozen)
         for name,expected in profile['adapter_files'].items():
             original=str(Path(profile['spec']['project_root'])/name)

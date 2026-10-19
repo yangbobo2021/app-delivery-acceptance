@@ -30,7 +30,15 @@ def create(catalog_path, input_path, contract_path):
             raise ValueError('Debug contract changed; preserve it and create a new bound attempt')
     else:
         save(contract_path, value, exclusive=True)
+    runtime_roots = [Path(value['debug_root'])]
+    if value['coverage'].get('policy') == 'required':
+        from coverage_registry import paths
+        _, registry, view = paths(value['coverage']['prepared'])
+        runtime_roots += [registry.parent, view.parent, Path(value['coverage']['prepared'])]
+    runtime_roots = sorted({str(path.resolve()) for path in runtime_roots})
+    guard(catalog, runtime_roots)
     return {'entry': [sys.executable, str(HERE / 'debug_case.py'), 'run', str(contract_path)],
+            'runtime_write_roots': runtime_roots,
             'request_root': value['debug_root'], 'required_test_files': value['coverage'].get('required_test_files', {})}
 
 

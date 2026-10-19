@@ -13,7 +13,7 @@ import time
 from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from acceptance_store import locations, inside, owned_path, read, read_current, validate, validate_knowledge, digest, project_root
+from acceptance_store import locations, inside, owned_path, read, read_current, validate, validate_knowledge, validate_catalog, digest, project_root
 from progress_views import collect
 from project_statistics import project_state
 from coverage_views import summarize
@@ -38,11 +38,7 @@ def files_under(roots, name):
 
 def catalog_trace(path, project_id):
     value = read(path)
-    if value.get("schema") != "acceptance-catalog-v1" or not isinstance(value.get("scenarios"), list):
-        raise ValueError("invalid complete scenario catalog")
-    ids = [s["id"] for s in value["scenarios"]]
-    if len(ids) != len(set(ids)):
-        raise ValueError("duplicate stable scene IDs in catalog")
+    validate_catalog(value)
     return {"schema": "delivery-trace-v1", "generated_at": value.get("updated_at", ""),
             "project": {**value.get("project", {}), "id": project_id},
             "requirements": value.get("requirements", []), "reverse_rules": value.get("reverse_rules", []),
@@ -462,10 +458,14 @@ class ProjectView:
             payload["warnings"].append("缺少项目完整场景清单；当前仅显示已发现记录，不能作为项目整体覆盖或完整验收结论。")
         coverage_rows = coverage_inputs(traces, progress, folders)
         coverage_rows.extend(t for t in all_traces if t.get('attempt_id')=='catalog')
-        try:
-            coverage_rows.extend(self.registered_coverage(selected,payload['warnings']))
-        except (ValueError, OSError, KeyError) as error:
-            payload['warnings'].append('新增覆盖率索引核对失败；原确认结论保持不变：' + str(error))
+        # Supplemental coverage-only captures require the complete catalog for
+        # scene membership checks. Partial v4 scene traces already carry their
+        # same-run coverage, so do not report a false index failure here.
+        if catalog.is_file():
+            try:
+                coverage_rows.extend(self.registered_coverage(selected,payload['warnings']))
+            except (ValueError, OSError, KeyError) as error:
+                payload['warnings'].append('新增覆盖率索引核对失败；原确认结论保持不变：' + str(error))
         try:
             coverage_rows = self.coverage_cohort_rows(selected, coverage_rows)
         except (ValueError, OSError, KeyError) as error:
@@ -601,7 +601,8 @@ function renderCoverage(){
  if(!x){document.querySelector('#coverageSummary').innerHTML='<span class="muted">暂无可计算的执行数据</span>';return;}
  const m=x.scopes?.[scope]||{},tools=(x.tools||[]).map(t=>`${t.name} ${t.version||'版本未记录'}`).join('；');
  const metric=(label,v)=>{const ready=v&&typeof v.total==='number'&&typeof v.covered==='number';return `<div class="metric"><span>${esc(label)}</span><strong>${ready?(v.total?esc(toolPct(v)):'不适用'):'暂不可计算'}</strong><div class="small">${ready?`${v.covered} / ${v.total}`:''}</div><div class="small">${esc(v?.status==='incomplete'||m.status==='incomplete'?'已测范围，数据尚不完整':v?.reason||m.reason||'')}</div></div>`;};
- const values=m.components?.length?m.components.map(c=>`<h3>${esc(c.label||c.id)}</h3><div class="coverage-pair">${metric('行覆盖率',c.line)}${metric('分支覆盖率',c.branch)}</div>`).join(''):`<div class="coverage-pair">${metric('行覆盖率',m.line)}${metric('分支覆盖率',m.branch)}</div>`;
+ const native=c=>Object.entries(c).filter(([name,v])=>!['id','label','source_paths','line','branch'].includes(name)&&v&&typeof v==='object'&&typeof v.tool_output==='string').map(([name,v])=>`<details><summary>${esc(v.label||name)} · ${esc(v.status||'原生统计')}</summary><pre>${esc(v.tool_output.slice(0,4000))}</pre></details>`).join('');
+ const values=m.components?.length?m.components.map(c=>`<h3>${esc(c.label||c.id)}</h3><div class="coverage-pair">${metric('行覆盖率',c.line)}${metric('分支覆盖率',c.branch)}</div>${native(c)}`).join(''):`<div class="coverage-pair">${metric('行覆盖率',m.line)}${metric('分支覆盖率',m.branch)}</div>`;
  document.querySelector('#coverageSummary').innerHTML=`<div class="small coverage-meta">实际采集版本：${esc(x.revision)} · ${esc(x.scenes_with_coverage??0)} / ${esc(x.scenes??0)} 个场景有采集 · 最近采集：${esc(when(x))}</div>${values}<div class="small coverage-meta">${esc(m.reason||m.basis||'')} ${esc(tools?'工具：'+tools:'工具信息未记录')}</div><div class="small">${esc(x.collection_note||'')}</div>`+(rows.length>1?'<div class="small">按最近采集时间从新到旧排列；不同版本或准备不混算，也不代表当前交付版本已重新采集。</div>':'');
 }
 document.querySelector('#coverageVersion').addEventListener('change',()=>{selectedCoverageKey=document.querySelector('#coverageVersion').value;renderCoverage();});
