@@ -9,13 +9,15 @@ GATE = Path(__file__).resolve().parents[1] / 'v3' / 'scenarios' / 'scripts' / 'g
 
 
 class ScenarioSelfcheckGateTests(unittest.TestCase):
-    def run_gate(self, candidate, required=True):
+    def run_gate(self, candidate, required=True, ui_protocol=False):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             request = {'scenario_kind': 'BLACK_BOX', 'target_requirement_id': 'REQ-1',
                        'requirements': {'items': [{'id': 'REQ-1', 'text': '输入合法时保存。输入为空时拒绝并显示错误。'}]}}
             if required:
                 request['scenario_selfcheck_protocol'] = 'v4-target-check-v1'
+            if ui_protocol:
+                request['scenario_ui_protocol'] = 'v4-ui-acceptance-v1'
             source = root / 'request.json'
             source.write_text(json.dumps(request, ensure_ascii=False))
             (root / 'draft.candidate.json').write_text(json.dumps(candidate, ensure_ascii=False))
@@ -85,6 +87,24 @@ class ScenarioSelfcheckGateTests(unittest.TestCase):
         code, files = self.run_gate(candidate)
         self.assertNotEqual(code, 0)
         self.assertIn('Invalid target obligation mapping', files['draft-gate.json']['errors'])
+
+    def test_ui_target_requires_visual_expectation_in_every_scene(self):
+        candidate = self.candidate()
+        candidate['selfcheck']['ui_requirement'] = {'required': True, 'reason': '保存通过界面操作'}
+        candidate['selfcheck']['scene_checks'][0]['ui_visual_expectation'] = '错误反馈可读且无遮挡'
+        code, files = self.run_gate(candidate, ui_protocol=True)
+        self.assertNotEqual(code, 0)
+        self.assertIn('V4 UI scene check missing or unbound', files['draft-gate.json']['errors'])
+        candidate['scenarios'][0]['description'] += '错误反馈可读且无遮挡。'
+        code, files = self.run_gate(candidate, ui_protocol=True)
+        self.assertEqual(code, 0, files['draft-gate.json'])
+
+    def test_non_ui_target_records_explicit_exclusion(self):
+        candidate = self.candidate()
+        candidate['selfcheck']['ui_requirement'] = {'required': False, 'reason': '仅 CLI 标准输出'}
+        candidate['selfcheck']['scene_checks'][0]['ui_visual_expectation'] = ''
+        code, files = self.run_gate(candidate, ui_protocol=True)
+        self.assertEqual(code, 0, files['draft-gate.json'])
 
 
 if __name__ == '__main__':

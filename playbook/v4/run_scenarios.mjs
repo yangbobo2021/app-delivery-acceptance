@@ -28,7 +28,7 @@ if(request.scenario_kind==='BLACK_BOX'&&request.pr_reviewed_reverse_path){
 }
 const target=(request.scenario_kind==='WHITE_BOX'?request.reverse_rules?.find(x=>x.id===request.target_requirement_id)??request.requirements.items.find(x=>x.id===request.target_requirement_id):request.requirements.items.find(x=>x.id===request.target_requirement_id));
 if(!target)throw Error('Target requirement/rule absent');
-const frozenText=JSON.stringify({...request,scenario_selfcheck_protocol:'v4-target-check-v1'},null,2)+'\n',frozen=join(output,'request.frozen.json');
+const frozenText=JSON.stringify({...request,scenario_selfcheck_protocol:'v4-target-check-v1',scenario_ui_protocol:'v4-ui-acceptance-v1'},null,2)+'\n',frozen=join(output,'request.frozen.json');
 if(resume){
   if(!existsSync(frozen)||readFileSync(frozen,'utf8')!==frozenText)throw Error('Scenario resume input changed');
 }else{
@@ -50,13 +50,15 @@ const related=[...new Set(groups.flatMap(g=>g.requirement_ids))].filter(id=>id!=
 const input={acceptance_knowledge:acceptanceKnowledge,target_requirement:target,business_goal:request.analysis.business_goal,
   confirmed_scope:request.analysis.confirmed_scope,relevant_groups:groups,
   related_requirement_ids:related,all_requirements:request.requirements.items,
+  prior_scenarios:request.prior_scenarios??[],
   shared_constraints:request.requirements.shared_constraints,
   genuine_user_constraints:request.user_constraints??[],scenario_kind:request.scenario_kind,
   source_evidence:request.scenario_kind==='WHITE_BOX'?request.source_evidence:undefined};
 const standard=readFileSync(join(here,'scenario-standard.md'),'utf8');
 const format=readFileSync(join(v3,'scenarios/generation-format.md'),'utf8');
 const selfCheck=readFileSync(join(here,'scenario-selfcheck.md'),'utf8');
-const prompt=`这是只读场景分析；全部需求和已冻结白盒依据均在输入中，不读取项目文件、不运行测试。只给目标${request.scenario_kind==='WHITE_BOX'?'需求或逆向规则':'需求'}生成${request.scenario_kind==='WHITE_BOX'?'白盒':'黑盒'}场景，相关需求仅作上下文。由同一个 Agent 完成生成与自审，不声称独立审查。最终只输出合法 JSON；沿用场景五字段格式，并额外输出顶层 selfcheck：{"obligations":[{"quote":"目标原文连续片段","scene_ids":["场景 ID"],"gap_reason":"必达义务无法形成可信可执行判据时填写","not_required_reason":"原文明确允许多种相反结果、该片段本身无单一必达行为时填写"}],"scene_checks":[{"scene_id":"场景 ID","owner_quote":"目标原文连续片段","distinguishing_failure":"本场景独有的错误实现","observable_result":"独立可观察的通过或违约结果","failure_impact":"仅此条件失败时的具体影响和等级依据"}]}。必达义务至少对应一个场景，确实无法测试的必达义务用空 scene_ids 和具体 gap_reason；明确许可但无单一必达行为的片段用空 scene_ids 和 not_required_reason，不算缺口。每个场景都要有一项 scene_check；核对记录是同一 Agent 的过程证据，不是独立认可。\n${standard}\n${format}\n${selfCheck}\n输入：\n${JSON.stringify(input)}`;
+const uiRule='新增 UI 自审核对字段：顶层 selfcheck.ui_requirement={"required":true或false,"reason":"目标是否涉及可见界面或交互的具体依据"}；每条 scene_check 加 ui_visual_expectation，UI 目标填写与场景 description 中完全相同的视觉判据，非 UI 目标填空字符串。若目标涉及 UI，所有场景都须在同一简洁描述中检查业务任务完成及关键状态下的内容/控件可见可读、无遮挡或裁切、布局合理且符合项目已有风格；不要为截图另建重复场景，不凭空指定品牌规范。项目准备阶段再确定窗口尺寸、设计参照与截图工具。';
+const prompt=`这是只读场景分析；全部需求和已冻结白盒依据均在输入中，不读取项目文件、不运行测试。只给目标${request.scenario_kind==='WHITE_BOX'?'需求或逆向规则':'需求'}生成${request.scenario_kind==='WHITE_BOX'?'白盒':'黑盒'}场景，相关需求仅作上下文。由同一个 Agent 完成生成与自审，不声称独立审查。最终只输出合法 JSON；沿用场景五字段格式，并额外输出顶层 selfcheck：{"obligations":[{"quote":"目标原文连续片段","scene_ids":["场景 ID"],"gap_reason":"必达义务无法形成可信可执行判据时填写","not_required_reason":"原文明确允许多种相反结果、该片段本身无单一必达行为时填写"}],"scene_checks":[{"scene_id":"场景 ID","owner_quote":"目标原文连续片段","distinguishing_failure":"本场景独有的错误实现","observable_result":"独立可观察的通过或违约结果","failure_impact":"仅此条件失败时的具体影响和等级依据"}]}。必达义务至少对应一个场景，确实无法测试的必达义务用空 scene_ids 和具体 gap_reason；明确许可但无单一必达行为的片段用空 scene_ids 和 not_required_reason，不算缺口。每个场景都要有一项 scene_check；核对记录是同一 Agent 的过程证据，不是独立认可。\n${standard}\n${format}\n${selfCheck}\n${uiRule}\n输入：\n${JSON.stringify(input)}`;
 const promptPath=join(output,'prompt.txt');
 if(resume){if(readFileSync(promptPath,'utf8')!==prompt)throw Error('Scenario prompt changed');}
 else writeFileSync(promptPath,prompt);

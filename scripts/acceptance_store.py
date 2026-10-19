@@ -515,6 +515,20 @@ def v4_result_files(source):
     paths = [source / name for name in ['request.frozen.json', 'state.json', 'summary.json']]
     paths += [answer, review, review.with_name('input.json'), review.with_name('metrics.json'),
               review.with_name('decision-gate.json'), receipt, receipt.with_name('execution.log'), coverage]
+    if review_input.get('ui_acceptance', {}).get('required'):
+        manifest_path = bound(review_input['frozen_evidence_manifest'])
+        manifest = read(manifest_path)
+        reviewed = read(review)
+        referenced = reviewed.get('ui_review', {}).get('screenshot_paths', [])
+        frozen = {item['path']: item['sha256'] for item in manifest.get('files', [])}
+        if reviewed.get('ui_review', {}).get('status') in {'passed', 'failed'} and not referenced:
+            raise ValueError('reviewed UI conclusion has no frozen screenshot')
+        paths.append(manifest_path)
+        for name in referenced:
+            image = bound(name)
+            if image.suffix.lower() not in {'.png', '.jpg', '.jpeg', '.webp'} or frozen.get(name) != digest(image):
+                raise ValueError('reviewed UI screenshot differs from frozen manifest')
+            paths.append(image)
     # Only these protocol files are implicit. Raw counts, observations, environment,
     # debug attempts and session transcripts require an additional reviewed allowlist.
     for path in paths:

@@ -236,7 +236,7 @@ def _run_review_attempt(root, input_path, review_dir, log_path):
     if first["exit_code"] or not metrics or not answer or metrics.get("status") != "success":
         raise RuntimeError("review Agent incomplete: " + first["output_tail"])
     from decision_gate import validate
-    verdict = validate(answer, load(input_path))
+    verdict = validate(answer, load(input_path), metrics)
     save(review_dir / "decision-gate.json", verdict)
     return {"answer": str(review_dir / "answer.json"),
             "metrics": str(review_dir / "metrics.json"),

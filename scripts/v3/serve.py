@@ -95,7 +95,9 @@ function render(items){
     const stageLabel={prepared:'用例准备中',local_debug_executed:'本地调试已执行，待冻结',awaiting_review:'待独立审查',scenario_approved:'场景设计已独立审查',scenario_self_checked:'场景已内部自审',reviewed:'执行已独立审查'}[t.stage]||t.stage||'未标记';
     const span=` rowspan="${bindings.length}"`;
     const scene=index===0?`<td${span}><span class="tag">${esc(s.priority)}</span>${s.kind==='WHITE_BOX'?'<span class="tag">白盒</span>':''}<span class="small">${esc(s.id)} · ${esc(stageLabel)}</span><div class="title">${esc(s.title)}</div>${block(s.description)}</td>`:'';
-    const conclusion=index===0?`<td${span}>${status(t.judgment.status)}${block(t.judgment.reason||'')}</td><td${span}>${cover(t.coverage)}</td>`:'';
+    const ui=t.judgment.ui_review;
+    const uiBlock=ui?`<div class="small">UI：${esc({passed:'视觉通过',failed:'视觉缺陷',unverified:'未验证',not_applicable:'不适用'}[ui.status]||ui.status)} · ${esc(ui.reason||'')}${(ui.screenshots||[]).map(x=>`<div><a href="${esc(x.url)}" target="_blank" rel="noopener">查看冻结截图：${esc(x.label)}</a></div>`).join('')}</div>`:'';
+    const conclusion=index===0?`<td${span}>${status(t.judgment.status)}${block(t.judgment.reason||'')}${uiBlock}</td><td${span}>${cover(t.coverage)}</td>`:'';
     html+=`<tr>${first?source:''}${scene}<td><span class="small">${esc(b.origin||'')} · ${esc(b.kind||'')}</span><div class="title">${esc(b.title)}</div>${b.test_file?`<div class="small">${esc(b.test_file)}</div>`:''}${b.procedure?block(b.procedure):''}</td><td>${status(executed({trace:t,scenario:s})?'executed':r?.status||'not_run')}${r?.evidence_url?`<div><a href="${esc(r.evidence_url)}" target="_blank" rel="noopener">查看原始日志</a></div>`:''}<div class="small">${esc(t.attempt_id)}</div></td>${conclusion}</tr>`;
     first=false;
    }

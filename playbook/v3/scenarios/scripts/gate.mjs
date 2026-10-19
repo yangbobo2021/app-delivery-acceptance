@@ -68,6 +68,16 @@ if(stage==='draft'){
       errors.push('Invalid per-scene self-check');
     checked.add(item.scene_id);
    }
+   if(request.scenario_ui_protocol==='v4-ui-acceptance-v1'){
+    const ui=check?.ui_requirement;
+    if(typeof ui?.required!=='boolean'||!meaningful(ui.reason))errors.push('V4 UI relevance self-check missing');
+    for(const item of check?.scene_checks??[]){
+     const scene=(doc.scenarios??[]).find(s=>s.id===item.scene_id);
+     if(typeof item.ui_visual_expectation!=='string'||
+        (ui?.required? !meaningful(item.ui_visual_expectation)||!scene?.description?.includes(item.ui_visual_expectation):
+          item.ui_visual_expectation!==''))errors.push('V4 UI scene check missing or unbound');
+    }
+   }
    if([...sceneIds].some(id=>!checked.has(id))||[...sceneIds].some(id=>!(check?.obligations??[]).some(item=>item.scene_ids?.includes(id))))
     errors.push('V4 self-check does not cover every scene');
    if(!sceneIds.size&&(check?.obligations??[]).some(item=>item.scene_ids?.length))

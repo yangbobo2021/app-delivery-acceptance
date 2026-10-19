@@ -210,6 +210,31 @@ class FollowupTests(unittest.TestCase):
         self.assertEqual(case['generated_at'],'2026-01-01T00:00:02Z')
         self.assertIn('inventory',case['change'])
 
+    def test_ui_archive_keeps_reviewed_screenshot_and_view_status(self):
+        source = self.frozen_scene()
+        image = source/'frozen-evidence/2/state.png'
+        image.parent.mkdir(parents=True)
+        image.write_bytes(b'fixed-ui-image')
+        image_hash = hashlib.sha256(image.read_bytes()).hexdigest()
+        manifest = source/'frozen-evidence.json'
+        save(manifest, {'files':[{'path':str(image),'sha256':image_hash}]})
+        save(source/'review/input.json', {'frozen_execution_receipt':str(source/'execution/execution.json'),
+             'frozen_evidence_manifest':str(manifest),'ui_acceptance':{'required':True}})
+        save(source/'review/answer.json', {'status':'passed','summary':'Visual and functional review passed',
+             'ui_review':{'status':'passed','screenshot_paths':[str(image)],'reason':'Controls readable'}})
+        archive(self.root,'AT-tools',source,[], 'Synthetic UI review with frozen screenshot', v4_result=True)
+        shutil.rmtree(source)
+        with patch('project_view.summarize',return_value=[]):
+            data = ProjectView(self.root).snapshot('AT-tools')
+        case = next(r for r in data['progress']['previews'] if r['progress_kind']=='case')
+        ui = case['judgment']['ui_review']
+        self.assertEqual(ui['status'], 'passed')
+        self.assertEqual(len(ui['screenshots']), 1)
+        self.assertIn('/api/ui-evidence?', ui['screenshots'][0]['url'])
+        confirmed = next(r for r in data['progress']['case_history'] if r.get('judgment_confirmed'))
+        self.assertEqual(confirmed['judgment']['ui_review']['status'], 'passed')
+        self.assertEqual(len(confirmed['judgment']['ui_review']['screenshots']), 1)
+
     def test_v4_archive_profile_rejects_incomplete_or_external_review_before_copy(self):
         source = self.frozen_scene()
         before = list((self.root/'.acceptance/AT-tools/records').iterdir())

@@ -88,6 +88,27 @@ def main():
                   "scenario_source_sha256": sha(scenes_path),
                   "scenario_self_check": "internal",
                   "local_loopback_required": bool(template.get("local_loopback_required", False))}
+    if request.get("scenario_ui_protocol") == "v4-ui-acceptance-v1":
+        selfcheck_path = scene_dir / "selfcheck.current.json"
+        if terminal.get("selfcheck_sha256") != sha(selfcheck_path):
+            raise ValueError("UI self-check changed after scenario generation")
+        selfcheck = read(selfcheck_path)
+        ui = selfcheck.get("ui_requirement", {})
+        check = next((item for item in selfcheck.get("scene_checks", [])
+                      if item.get("scene_id") == scene["id"]), None)
+        if not check or not isinstance(ui.get("required"), bool):
+            raise ValueError("UI scene binding missing")
+        case_input["ui_acceptance"] = {"required": ui["required"],
+                                        "visual_expectation": check.get("ui_visual_expectation", ""),
+                                        "source_sha256": sha(selfcheck_path)}
+        if ui["required"]:
+            declared = template.get("evidence_execution_relative_paths", [])
+            env_keys = template.get("evidence_env_dir_keys", [])
+            if (not isinstance(declared, list) or not isinstance(env_keys, list) or
+                    not declared and not env_keys):
+                raise ValueError("UI case template must declare frozen screenshot output binding")
+            case_input["ui_acceptance"]["evidence_execution_relative_paths"] = declared
+            case_input["ui_acceptance"]["evidence_env_dir_keys"] = env_keys
     coverage = template.get("coverage", catalog.get("coverage", {"policy": "unavailable",
                                         "reason": "No project coverage collector was supplied"}))
     if catalog.get('coverage', {}).get('policy') == 'required':

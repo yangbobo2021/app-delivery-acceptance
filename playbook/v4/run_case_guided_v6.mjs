@@ -50,7 +50,8 @@ if(resume){
  writeFileSync(join(output,'catalog-binding.json'),bindingText);
 }
 const coverageContract=readFileSync(new URL('../../references/coverage-tool-contract.md',import.meta.url),'utf8');
-const prompt=`你负责一个验收场景的“用例实现与本地调试”，在同一个连续 Agent 过程中完成。工作目录是本验收共用的专用工作树，当前场景持有独占执行权；前面场景的测试修改需要保留，运行状态与输出须为本次新建。允许修改项目常规测试目录，禁止修改产品源码、需求、流程框架文件、真实外部数据或部署。全部验收信息在本任务输入中；无需查阅项目外的测试 SKILL 或 Playbook。
+const uiInstruction=input.ui_acceptance?.required?`本场景另有 UI 可用性判据：${input.ui_acceptance.visual_expectation}。在项目准备确定的实际窗口/视口中，通过真实界面完成业务操作；对操作前、关键交互、成功或错误反馈等与判据相关的状态保存真实截图，并记录窗口尺寸与状态说明。将正式执行截图写入项目声明且由宿主冻结的输出绑定：执行相对路径 ${JSON.stringify(input.ui_acceptance.evidence_execution_relative_paths)}，或运行时环境变量目录 ${JSON.stringify(input.ui_acceptance.evidence_env_dir_keys)}。调试截图不算正式证据。不要用 DOM、坐标或程序判断代替截图的人工视觉审查。若截图无法由正式命令生成，报告限制，不能自称 UI 通过。`:'本场景未声明 UI 视觉验收；不要为非 UI 目标虚构截图要求。';
+const prompt=`你负责一个验收场景的“用例实现与本地调试”，在同一个连续 Agent 过程中完成。工作目录是本验收共用的专用工作树，当前场景持有独占执行权；前面场景的测试修改需要保留，运行状态与输出须为本次新建。允许修改项目常规测试目录，禁止修改产品源码、需求、流程框架文件、真实外部数据或部署。全部验收信息在本任务输入中；无需查阅项目外的测试 SKILL 或 Playbook。${uiInstruction}
 
 项目公共准备已完成。复用测试工具、依赖和环境能力，不重新安装或重新发现整个项目。目录与指南仅是操作路标，不是业务预期证据。你可自主读取项目代码与测试；先用 rg 定位，再读所需短片段。日志只看失败摘要与相关上下文，避免整仓读取或重复贴大日志。
 

@@ -10,6 +10,7 @@ import sys
 import copy
 import threading
 import time
+import mimetypes
 from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -484,6 +485,14 @@ class ProjectView:
                     result["evidence_url"] = self.evidence_url(selected, path, result, file)
                 elif result.get("evidence_path"):
                     payload["warnings"].append("部分原始证据仅保存在原机器或外部存储，当前无法读取。")
+            ui = row.get('judgment', {}).get('ui_review') or {}
+            ui['screenshots'] = []
+            for name in ui.get('screenshot_paths', []):
+                file = resolver(path, name)
+                if file and file.suffix.lower() in {'.png', '.jpg', '.jpeg', '.webp'}:
+                    from urllib.parse import urlencode
+                    ui['screenshots'].append({'label': file.name, 'url': '/api/ui-evidence?' + urlencode({
+                        'acceptance_id': selected, 'trace': self.key(path), 'sha256': digest(file)})})
         pid = state["manifest"]["project_id"]
         for trace in [*traces, *progress.get("previews", []), *progress.get("case_history", [])]:
             trace["project"]["id"] = pid
@@ -756,6 +765,28 @@ def make_server(project, port=0, selected=None):
                         raise ValueError('artifact is not available in this checkout')
                     raw, mime = file.read_bytes(), item.get('mime', 'application/octet-stream')
                     if mime in {'text/html', 'application/javascript'}:mime='text/plain; charset=utf-8'
+                elif parsed.path == '/api/ui-evidence':
+                    selected_id, _ = view.selection(args.get('acceptance_id', [None])[0])
+                    candidates = files_under(view.roots(selected_id), 'request.frozen.json')
+                    source = next(path for path in candidates if view.key(path) == args['trace'][0])
+                    summary = read(source.parent / 'summary.json')
+                    review_path = view.resolve_evidence(source, summary['review_path'], selected_id)
+                    review = read(review_path)
+                    review_input = read(review_path.with_name('input.json'))
+                    manifest_path = view.resolve_evidence(source, review_input['frozen_evidence_manifest'], selected_id)
+                    manifest = read(manifest_path)
+                    allowed = {item['path']: item['sha256'] for item in manifest.get('files', [])}
+                    file = None
+                    for name in review.get('ui_review', {}).get('screenshot_paths', []):
+                        if allowed.get(name) != args['sha256'][0]:
+                            continue
+                        candidate = view.resolve_evidence(source, name, selected_id)
+                        if candidate and candidate.suffix.lower() in {'.png', '.jpg', '.jpeg', '.webp'} and digest(candidate) == args['sha256'][0]:
+                            file = candidate
+                            break
+                    if not file:
+                        raise ValueError('reviewed UI screenshot is unavailable or changed')
+                    raw, mime = file.read_bytes(), mimetypes.guess_type(file.name)[0] or 'application/octet-stream'
                 elif parsed.path == "/api/evidence":
                     selected_id, _ = view.selection(args.get("acceptance_id", [None])[0])
                     view.validated_state(selected_id)

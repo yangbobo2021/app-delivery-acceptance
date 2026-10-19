@@ -230,6 +230,8 @@ def case_result_history(folder, preview, artifact_resolver=None):
                                     'actual': '执行退出码 ' + str(receipt.get('exit_code')),
                                     'evidence_path': str(path.with_name('execution.log'))}]
         row['judgment'] = {'status': 'pending_review', 'reason': '已有执行记录，尚无已确认结论。'}
+        if preview.get('judgment', {}).get('ui_review', {}).get('status') == 'unverified':
+            row['judgment']['ui_review'] = deepcopy(preview['judgment']['ui_review'])
         if path in debug:
             binding_id = row['scenarios'][0]['id'] + '-local-debug'
             row.update(attempt_id='本地调试', stage='local_debug_executed',
@@ -245,7 +247,10 @@ def case_result_history(folder, preview, artifact_resolver=None):
             records.append((v3_review, v3_review.get('confirmed_at') or stamp(folder / 'review.current.json')))
         if records:
             answer, at = max(records, key=lambda pair: pair[1])
-            row.update(judgment={'status': answer['status'], 'reason': answer.get('summary') or answer.get('reason', '')},
+            judgment = {'status': answer['status'], 'reason': answer.get('summary') or answer.get('reason', '')}
+            if isinstance(answer.get('ui_review'), dict):
+                judgment['ui_review'] = answer['ui_review']
+            row.update(judgment=judgment,
                        judgment_confirmed=True, judgment_confirmed_at=at)
         history.append(row)
     return history
@@ -479,6 +484,11 @@ def collect(roots, traces, request_paths=None, artifact_resolver=None, request_o
                 verdict = summary.get('review_status') if summary and review else None
                 judgment = {'status': verdict or ('pending_review' if receipt else 'not_run'),
                             'reason': (review.get('summary') if verdict else detail) or detail}
+                if isinstance(review.get('ui_review'), dict):
+                    judgment['ui_review'] = review['ui_review']
+                elif request.get('ui_acceptance', {}).get('required'):
+                    judgment['ui_review'] = {'status': 'unverified', 'reason': '尚无独立视觉审查',
+                                             'screenshot_paths': []}
             else:
                 plan = read_json(folder / 'plan.current.json') or {}
                 catalog = {c['id']: c for c in request['case_catalog']}

@@ -4,7 +4,7 @@
 
 ## 项目验收存储前置门禁
 
-先遵守[目录、稳定验收 ID 与 knowledge 规约](project-acceptance-store.md)。启动/恢复先读取 `.acceptance-local/current.json`；配置中的 `acceptance.id` 必须与之相同。没有指针不能从旧配置自动激活；整项验收结束由宿主 `finish` 清除指针，单场景/批次终态不清除。视图切换只读，不绑定对话。准备 spec、场景 request、case template 和计划均携带 `read-knowledge` 输出的 `acceptance` 对象；所有新阶段输出在 `.acceptance-local/<同一ID>/workflows/` 内。`prepare_project.py`、`bind_case.py`、`run_plan.py`、`run_scenarios.mjs`、用例及修复入口强制校验，单场景编排在阶段交接再次校验。目录/知识问题不执行项目命令、不改场景结论；范围变化追加记录并创建受影响的新尝试，不换验收 ID。正式用例融合项目测试/回归体系，未融合的工作树用例须如实标成候选。
+先遵守[目录、稳定验收 ID 与 knowledge 规约](project-acceptance-store.md)。启动/恢复先读取 `.acceptance-local/current.json`；配置中的 `acceptance.id` 必须与之相同。没有指针不能从旧配置自动激活；整项验收结束由宿主 `finish` 清除指针，单场景/批次终态不清除。视图切换只读，不绑定对话。准备 spec、场景 request、case template 和计划均携带 `read-knowledge` 输出的 `acceptance` 对象；所有新阶段输出在 `.acceptance-local/<同一ID>/workflows/` 内。`prepare_project.py`、`bind_case.py`、`run_plan.py`、`run_scenarios.mjs`、用例及修复入口强制校验，单场景编排在阶段交接再次校验。目录/知识问题不执行项目命令、不改场景结论；范围变化追加记录并创建受影响的新尝试，不换验收 ID。若旧 catalog 的知识收据在 Case Agent 启动前失效，且状态严格停在该知识门禁，可用 `retire_pre_agent_case.py <config.json> --knowledge-receipt <本次新收据> --basis <检查依据>` 终止无副作用的旧尝试，再用新 catalog 绑定；不能覆盖旧目录或把该停机当作产品结论。正式用例融合项目测试/回归体系，未融合的工作树用例须如实标成候选。
 
 ## 项目只准备一次
 
@@ -84,7 +84,9 @@ python3 <skill>/playbook/v4/run_plan.py plan.json
 
 正常 v4 视图直接读取最终复审指向的执行、用例与覆盖率；需求验收也冻结 collector inventory，不要求手写 `trace.json`。`project-context.json` 仅在仅补采索引、跨版本 cohort 或迁移需要时使用。启用 `project-coverage-v1` 时，默认归档入口是 `acceptance_store.py archive <项目> <ID> --source <含准备与场景的共同workflows父目录> --v4-scene <场景相对目录> --basis <已筛选脱敏依据>`，自动跟随 summary 的最终 review/input 选择当前实际执行、独立复审及同次原生覆盖率，返工后无需猜轮次。独立补采使用 `--coverage-report`；详见[公开归档配置](project-coverage-protocol.md#归档与展示验证)。无覆盖率或只需固定元数据时仍可使用 `--source <本场景目录> --v4-result`，它只选择 request、state、summary、实际 case answer、review answer/input/metrics/decision-gate、对应 execution 收据/日志与 coverage wrapper。额外实际观察用 `--files <相对路径...>` 选择；所有模式都在复制前检查完整性与目录，不递归打包 debug、业务状态、环境或会话。缺原生依赖时明确不可复算，不补造。归档保留请求来源、原时间及版本，同一来源的部分归档不覆盖完整本机工作流，不成为新的执行时间；原目录不在时，完整归档仍保留已确认结论及经过哈希核验的项目工具统计快照。
 
-复审结论须与冻结执行一致：成功命令仍有断言缺口时返回 `repair_required`，保留产品观察，补齐测试后再冻结执行；`product_bug` 必须有失败执行及产品证据。结构门禁拒绝已完成复审时，宿主最多创建一次新的只读补正审查，保留原回答、门禁和绑定输入，不替 Reviewer 改判、不重跑产品命令。补正仍无效则停下；补正中断仅恢复同一尝试，已完成的补正可验证后采用。历史上因此 parked 的 review 也仅在输入、会话原答、执行日志与测试字节仍匹配且未用过补正预算时恢复；其他 parked 不自动重试。
+复审结论须与冻结执行一致：成功命令仍有断言缺口时返回 `repair_required`，保留产品观察，补齐测试后再冻结执行；`product_bug` 需要失败执行及产品证据，或经独立审查的冻结截图直接证明 UI 缺陷。结构门禁拒绝已完成复审时，宿主最多创建一次新的只读补正审查，保留原回答、门禁和绑定输入，不替 Reviewer 改判、不重跑产品命令。补正仍无效则停下；补正中断仅恢复同一尝试，已完成的补正可验证后采用。历史上因此 parked 的 review 也仅在输入、会话原答、执行日志与测试字节仍匹配且未用过补正预算时恢复；其他 parked 不自动重试。
+
+UI 目标的场景生成在同一目标自审中记录 `ui_requirement` 与每条场景的 `ui_visual_expectation`；场景本身仍保持简洁五字段。视觉判据涵盖关键状态的无遮挡/裁切、可读性、合理布局和项目风格，同时保留原功能判据。项目内 case template 必须声明正式执行生成截图的 `evidence_execution_relative_paths` 或 `evidence_env_dir_keys`，项目自行选择截图工具、窗口/视口和设计参照。用例必须在同次正式执行保存关键状态截图及窗口上下文；宿主冻结图片，并将图片像素作为多模态输入交给独立 Reviewer。路径、DOM 描述或图片文件存在本身不能证明看过画面；门禁核对 `ui_review` 引用的图片与该次 Reviewer 实际输入的路径和哈希。没有图片或无法查看时只能标记 `unverified`，不得宣布场景通过。`passed`/`failed` 的视觉结论必须列出冻结 manifest 中的图片路径；即使业务命令退出 0，截图明确证明的视觉缺陷也可判产品 BUG。v4 归档跟随最终复审自动选取所引用的图片与 manifest，结果视图单列 UI 结论及截图链接；旧的功能判断不被追溯改写。
 
 ## 恢复边界
 
