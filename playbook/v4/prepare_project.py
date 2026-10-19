@@ -53,6 +53,21 @@ def prepare(spec_path, out, spec, spec_bytes):
         raise ValueError("project root missing")
     if git(root, "rev-parse", "HEAD") != spec["revision"]:
         raise ValueError("project revision changed")
+    runtime = spec.get("runtime")
+    if spec.get("preparation_protocol") == "two-agent-v1" and not runtime:
+        raise ValueError("two-agent project preparation requires a verified runtime Agent result")
+    if spec.get("preparation_protocol") == "two-agent-v1" and spec.get("setup_commands"):
+        raise ValueError("runtime setup belongs to the independent runtime Agent stage")
+    if runtime:
+        if not isinstance(runtime, dict) or not all(runtime.get(key) for key in ("manifest", "sha256")):
+            raise ValueError("runtime binding needs manifest and sha256")
+        from runtime_preparation import validate_runtime
+        checked = validate_runtime(runtime["manifest"], expected_acceptance=spec["acceptance"], resmoke=True)
+        if checked["runtime_sha256"] != runtime["sha256"]:
+            raise ValueError("runtime manifest changed since Agent verification")
+        if checked["workspace"] != str(root) or checked["revision"] != spec["revision"]:
+            raise ValueError("runtime Agent verified another workspace/revision")
+        runtime = {"manifest": checked["runtime_manifest"], "sha256": checked["runtime_sha256"]}
     components = []
     for item in spec.get("components", []):
         path = (root / item["path"]).resolve()
@@ -90,6 +105,9 @@ def prepare(spec_path, out, spec, spec_bytes):
                     'acceptance': spec['acceptance']}
         from coverage_protocol import preparation
         prepared = preparation(coverage)
+        if runtime and (prepared["spec"].get("runtime_manifest") != runtime["manifest"] or
+                        prepared["spec"].get("runtime_sha256") != runtime["sha256"]):
+            raise ValueError("coverage Agent did not use the verified runtime Agent result")
         if prepared['spec']['revision']!=spec['revision'] or prepared['spec'].get('components',{})!={item['path']:item['revision'] for item in components}:
             raise ValueError('Coverage preparation binds another product/component revision')
         if not prepared['spec'].get('registry_path') or not prepared['spec'].get('inventory_path'):
@@ -111,6 +129,8 @@ def prepare(spec_path, out, spec, spec_bytes):
                                   "revision": spec["revision"], "components": components,
                                   "binding_files": files, "source_files": source_files,
                                   "coverage_test_files": coverage_test_files}, sort_keys=True).encode())
+    if runtime:
+        fingerprint = sha(json.dumps({"base": fingerprint, "runtime": runtime}, sort_keys=True).encode())
     if catalog_path.exists() and terminal_path.exists():
         old = json.loads(catalog_path.read_text())
         terminal = json.loads(terminal_path.read_text())
@@ -149,6 +169,9 @@ def prepare(spec_path, out, spec, spec_bytes):
                "coverage_test_files": coverage_test_files,
                "runner_hints": spec.get("runner_hints", {}),
                "ready_markers": markers, "setup": setup, "capability_checks": checks}
+    if runtime:
+        catalog["runtime"] = runtime
+        catalog["preparation_protocol"] = spec.get("preparation_protocol", "two-agent-v1")
     catalog["acceptance"] = spec["acceptance"]
     catalog["workspace_policy"] = POLICY
     verify_frozen_workspace(spec, catalog)

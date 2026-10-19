@@ -1,0 +1,165 @@
+/** Independent coverage-preparation Agent; project choices are checked by Python gates. */
+import {readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync, realpathSync, copyFileSync} from 'node:fs';
+import {resolve, join, relative, isAbsolute, dirname} from 'node:path';
+import {createHash} from 'node:crypto';
+import {spawnSync} from 'node:child_process';
+import {performance} from 'node:perf_hooks';
+import {cligent} from '../v3/runtime-path.mjs';
+import {acceptanceGuard, knowledgeContext} from '../acceptance-guard.mjs';
+
+const [requestArg, outputArg] = process.argv.slice(2);
+if (!requestArg || !outputArg) throw Error('usage: node run_coverage_preparation.mjs request.json new-output-dir');
+const requestPath = resolve(requestArg), output = resolve(outputArg);
+const request = JSON.parse(readFileSync(requestPath));
+if (request.schema !== 'project-coverage-agent-request-v1') throw Error('Invalid coverage Agent request');
+if (existsSync(output)) throw Error('Coverage output already exists; use a new workflow attempt');
+const runtimePath = resolve(request.runtime_manifest);
+const runtimeBytes = readFileSync(runtimePath);
+const hash = value => createHash('sha256').update(value).digest('hex');
+if (hash(runtimeBytes) !== request.runtime_sha256) throw Error('Runtime manifest changed');
+const runtime = JSON.parse(runtimeBytes);
+if (!request.acceptance) throw Error('Coverage Agent needs a fresh read-knowledge acceptance binding');
+for (const key of ['project_root', 'id', 'scope_sha256']) {
+  if (request.acceptance[key] !== runtime.acceptance[key]) throw Error('Coverage runtime belongs to another acceptance/scope');
+}
+const binding = acceptanceGuard({acceptance: request.acceptance, source_checkout: runtime.workspace,
+  test_roots: request.test_roots}, [output]);
+const script = resolve(new URL('coverage_preparation.py', import.meta.url).pathname);
+const runtimeCheck = resolve(new URL('../../scripts/runtime_preparation.py', import.meta.url).pathname);
+const protocolGuide = resolve(new URL('../../references/project-coverage-protocol.md', import.meta.url).pathname);
+const check = (program, args, stdout, stderr) => {
+  const child = spawnSync(program, args, {encoding: 'utf8', maxBuffer: 8 * 1024 * 1024});
+  writeFileSync(stdout, child.stdout ?? ''); writeFileSync(stderr, child.stderr ?? '');
+  if (child.status !== 0) throw Error(`Coverage stage gate failed (${child.status}): ${(child.stderr ?? '').slice(-1600)}`);
+  return child;
+};
+const sourceHashes = request.source_hashes;
+if (!sourceHashes || !Object.keys(sourceHashes).length) throw Error('Coverage request source inventory missing');
+if (!request.inventory_sha256 || hash(readFileSync(request.inventory_path)) !== request.inventory_sha256)
+  throw Error('Coverage request scope inventory changed');
+const gitHead = () => {
+  const result = spawnSync('git', ['rev-parse', 'HEAD'], {cwd: runtime.workspace, encoding: 'utf8'});
+  if (result.status !== 0) throw Error('Cannot read coverage project revision');
+  return result.stdout.trim();
+};
+const verifyProduct = () => {
+  if (gitHead() !== runtime.revision) throw Error('Coverage Agent changed product revision');
+  if (hash(readFileSync(request.inventory_path)) !== request.inventory_sha256) throw Error('Coverage Agent changed scope inventory');
+  for (const [name, digest] of Object.entries(sourceHashes)) {
+    if (isAbsolute(name) || name.split('/').includes('..')) throw Error('Source path escapes project');
+    const path = resolve(runtime.workspace, name);
+    if (!relative(runtime.workspace, path) || relative(runtime.workspace, path).startsWith('..') || hash(readFileSync(path)) !== digest)
+      throw Error('Coverage Agent changed frozen product source: ' + name);
+  }
+};
+mkdirSync(output, {recursive: false});
+check('python3', [runtimeCheck, 'verify', runtimePath], join(output, 'runtime-verify.stdout'), join(output, 'runtime-verify.stderr'));
+if (request.workspace && resolve(request.workspace) !== resolve(runtime.workspace)) throw Error('Coverage request workspace differs from runtime');
+if (request.revision && request.revision !== runtime.revision) throw Error('Coverage request revision differs from runtime');
+verifyProduct();
+const knowledge = knowledgeContext(binding);
+const prompt = `你是独立的覆盖率准备 Agent。你的输入是**已经验证的本次验收运行环境**。只负责使后续测试用例可以复用可靠覆盖率采集；不要生成或执行任何业务验收场景，不要修改产品逻辑或制造覆盖率数字。先读取项目既有测试入口、现有测试文件、依赖清单、进程/构建路径和项目验收知识，再选择成熟的项目适用工具。覆盖率可选时此 Agent 才会运行。
+
+项目工作区：${runtime.workspace}
+运行环境 manifest：${runtimePath}，SHA256：${request.runtime_sha256}
+运行环境执行器：${JSON.stringify(runtime.executables)}
+项目覆盖率输入：${JSON.stringify(request)}
+适用项目知识：${JSON.stringify(knowledge)}
+本次候选 SKILL 的覆盖率协议（优先于机器上另一个已安装版本）：${readFileSync(protocolGuide, 'utf8')}
+已保留的前次失败尝试（只读检查其错误收据和项目适配器快照，不能覆盖）：${JSON.stringify(request.prior_attempts ?? [])}
+交付给宿主的 entry 必须能对本阶段新建的 project-coverage-preparation-v1 profile 执行 verify-preparation、run、finish、verify-report、summarize，尤其应读取 spec.runtime_manifest 与 spec.probe_report，不能假定旧适配器私有的 probe_comparison 等字段必然存在。宿主会在探针后立即调用 verify-preparation；探针自测通过不等于整份准备通过。
+
+写入项目测试目录内的适配器/配置/探针助手（不可写产品源码），并只使用上面运行环境的已验证执行器调用轻量**非业务**探针。adapter_paths 必须列全这些项目脚本、配置和必要夹具，宿主会冻结哈希及归档副本。**绝对不要修改 .acceptance/knowledge、任何 INDEX.md 或共享验收知识；只在回答中提出 knowledge_candidate，待探针与宿主核验通过后由宿主发布。**每条不同进程/测试入口路由分别准备零命中和非零命中探针。宿主在每个 collect 前已经创建 {raw_dir}，collect 只能向其中写入原生数据，不得再用 exist_ok=False 创建它。adapter/direct 必须只读 {raw_dir}，所有派生文件只能写到 {probe_dir} 的其他位置或 stdout；宿主会检查 raw 目录在两个 reader 后逐字节不变。零命中必须有非空原生数据及非零分母而 covered=0；非零命中须有 covered>0。每个探针先采集原生数据，再让项目适配器与专用工具直接从同一原生数据独立输出规范化 JSON，二者源码路径、指标、数值须一致。直接工具读取命令不得调用适配器。若某部分无法验证，标记 unsupported 并给出真实尝试依据，不能把它称为 measured。保留首次异常和重试原始资料；探针只证明采集链路，不得算业务覆盖率。
+
+最后只输出 JSON 对象，形如：{"adapter_paths":["项目相对路径"],"entry":["执行器","项目适配器"],"tools":[{"name":"...","version":"...","role":"..."}],"source_dispositions":{"项目相对源码":{"kind":"measured|unsupported|non_executable","reason":"..."}},"probe_plan":{"schema":"project-coverage-probe-plan-v1","routes":[{"id":"route-id","source_paths":["项目相对源码"],"zero":{"collect":["执行器","脚本","{raw_dir}"],"adapter":["执行器","适配器脚本","{raw_dir}"],"direct":["执行器","直接工具脚本","{raw_dir}"]},"nonzero":{...}}]},"limitations":["..."],"knowledge_candidate":"跨验收可复用的步骤、失败排查与新电脑重建方法；不能包含本机路径/秘密/探针通过结论"}。三个 probe 命令均为 argv，首项必须是本次 runtime.json 验证的可执行文件绝对路径；可用 {raw_dir}、{probe_dir}、{workspace} 占位。adapter/direct 向 stdout 输出 coverage-probe-normalized-v1 JSON：{"schema":"coverage-probe-normalized-v1","components":[{"id":"...","source_paths":["..."],"metrics":{"line":{"status":"measured","covered":0,"total":1},"branch":{"status":"unavailable","reason":"..."}}}]}。不要把空原生数据在 source-map 转换后意外出现的 100% 当作零命中通过。`;
+writeFileSync(join(output, 'prompt.txt'), prompt);
+const result = {schema: 'project-coverage-agent-run-v1', model: process.env.ACCEPTANCE_MODEL ?? 'gpt-6.1-sol',
+  effort: 'medium', started_at: new Date().toISOString(), runtime_sha256: request.runtime_sha256};
+const start = performance.now(); let done, error, tools = 0; const texts = [];
+try {
+  for await (const event of new cligent.CodexAdapter().run(prompt, {cwd: resolve(runtime.workspace),
+    model: result.model, effort: result.effort,
+    permissions: {fileWrite: 'allow', shellExecute: 'allow', networkAccess: 'allow'}})) {
+    appendFileSync(join(output, 'agent.jsonl'), JSON.stringify(event) + '\n');
+    if (event.type === 'text' && typeof event.payload?.content === 'string') texts.push(event.payload.content);
+    if (event.type === 'tool_use') tools++;
+    if (event.type === 'done') done = event.payload;
+    if (event.type === 'error') error = event.payload?.message;
+  }
+  if (done?.status !== 'success') throw Error(error ?? 'Coverage Agent did not complete');
+  verifyProduct();
+  acceptanceGuard({acceptance: request.acceptance, source_checkout: runtime.workspace,
+    test_roots: request.test_roots}, [output]);
+  const raw = (texts.at(-1) ?? '').trim();
+  writeFileSync(join(output, 'answer.txt'), raw + '\n');
+  const answer = JSON.parse(raw.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, ''));
+  if (typeof answer.knowledge_candidate !== 'string') throw Error('Coverage Agent omitted knowledge candidate');
+  writeFileSync(join(output, 'knowledge-candidate.md'), answer.knowledge_candidate + '\n');
+  if (!Array.isArray(answer.adapter_paths) || !answer.adapter_paths.length) throw Error('Agent omitted project adapters');
+  const adapters = {};
+  if (!Array.isArray(request.test_roots) || !request.test_roots.length) throw Error('Coverage test roots missing');
+  const allowedRoots = request.test_roots.map(name => resolve(runtime.workspace, name));
+  for (const name of answer.adapter_paths) {
+    if (typeof name !== 'string' || isAbsolute(name) || name.split('/').includes('..')) throw Error('Adapter path escapes workspace');
+    if (name in sourceHashes) throw Error('Coverage adapter cannot be frozen product source');
+    const path = resolve(runtime.workspace, name);
+    if (relative(runtime.workspace, path).startsWith('..')) throw Error('Adapter path escapes workspace');
+    if (!allowedRoots.some(root => path === root || path.startsWith(root + '/'))) throw Error('Adapter path is outside declared test roots');
+    if (!allowedRoots.some(root => realpathSync(path).startsWith(realpathSync(root) + '/')))
+      throw Error('Adapter resolves outside declared test roots');
+    adapters[name] = hash(readFileSync(path));
+  }
+  const plan = {...answer.probe_plan, runtime_manifest: runtimePath, runtime_sha256: request.runtime_sha256,
+    workspace: runtime.workspace, revision: runtime.revision};
+  const planPath = join(output, 'probe-plan.json');
+  writeFileSync(planPath, JSON.stringify(plan, null, 2) + '\n');
+  check('python3', [script, 'run', planPath, join(output, 'probes')],
+    join(output, 'probe-gate.stdout'), join(output, 'probe-gate.stderr'));
+  verifyProduct();
+  const probePath = join(output, 'probes', 'coverage-probes.json');
+  const probe = JSON.parse(readFileSync(probePath));
+  const dispositions = answer.source_dispositions;
+  if (Object.keys(dispositions ?? {}).sort().join('\0') !== Object.keys(sourceHashes).sort().join('\0'))
+    throw Error('Agent omitted source disposition');
+  const measured = Object.entries(dispositions).filter(([, value]) => value.kind === 'measured').map(([name]) => name);
+  check('python3', [script, 'verify', probePath, runtimePath, request.runtime_sha256, ...measured],
+    join(output, 'probe-verify.stdout'), join(output, 'probe-verify.stderr'));
+  const status = probe.status === 'ready' && measured.length &&
+    !Object.values(dispositions).some(value => value.kind === 'unsupported') ? 'ready' : 'partial';
+  const artifactAliases = {...(answer.artifact_aliases ?? {})};
+  for (const [name, digest] of Object.entries({...sourceHashes, ...adapters})) {
+    const original = resolve(runtime.workspace, name), frozen = resolve(output, 'frozen', name);
+    mkdirSync(dirname(frozen), {recursive: true});
+    copyFileSync(original, frozen);
+    if (hash(readFileSync(frozen)) !== digest) throw Error('Frozen archive copy changed: ' + name);
+    artifactAliases[original] = {path: frozen, sha256: digest};
+  }
+  const profile = {schema: 'project-coverage-preparation-v1', entry: answer.entry,
+    adapter_files: adapters, tools: answer.tools, source_dispositions: dispositions,
+    preparation_status: status,
+    spec: {project_root: runtime.workspace, revision: runtime.revision,
+      components: request.components ?? {}, source_hashes: sourceHashes,
+      inventory_path: request.inventory_path, inventory_sha256: hash(readFileSync(request.inventory_path)),
+      registry_path: request.registry_path, runtime_manifest: runtimePath,
+      runtime_sha256: request.runtime_sha256, probe_report: probePath, probe_report_sha256: hash(readFileSync(probePath))},
+    preparation_evidence: [{path: planPath, sha256: hash(readFileSync(planPath))},
+      {path: probePath, sha256: hash(readFileSync(probePath))}],
+    artifact_aliases: artifactAliases};
+  const prepared = join(output, 'prepared'); mkdirSync(prepared);
+  writeFileSync(join(prepared, 'prepared.json'), JSON.stringify(profile, null, 2) + '\n');
+  const config = {policy: 'required', protocol: 'project-coverage-v1', prepared,
+    prepared_sha256: hash(readFileSync(join(prepared, 'prepared.json'))), inventory_path: request.inventory_path};
+  const configPath = join(output, 'coverage-config.json'); writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+  check('python3', ['-c', `import sys;sys.path.insert(0,${JSON.stringify(resolve(new URL('.', import.meta.url).pathname))});from coverage_protocol import preparation;preparation(__import__('json').load(open(sys.argv[1])))`, configPath],
+    join(output, 'preparation-gate.stdout'), join(output, 'preparation-gate.stderr'));
+  verifyProduct();
+  writeFileSync(join(output, 'handoff.json'), JSON.stringify({schema: 'project-coverage-agent-handoff-v1',
+    status, runtime_manifest: runtimePath, runtime_sha256: request.runtime_sha256,
+    prepared, prepared_sha256: config.prepared_sha256, probe_report: probePath,
+    knowledge_candidate: join(output, 'knowledge-candidate.md'), limitations: answer.limitations ?? []}, null, 2) + '\n');
+  result.status = status; result.prepared = prepared; result.usage = done?.usage; result.agent_status = done?.status;
+} catch (failure) {result.status = 'blocked'; result.error = failure.message; if (error) result.agent_error = error;}
+result.seconds = (performance.now() - start) / 1000; result.tool_calls = tools; result.finished_at = new Date().toISOString();
+writeFileSync(join(output, 'metrics.json'), JSON.stringify(result, null, 2) + '\n');
+console.log(JSON.stringify(result));
+if (result.status === 'blocked') process.exitCode = 2;

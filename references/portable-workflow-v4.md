@@ -10,14 +10,17 @@
 
 准备时必须执行[覆盖率专用工具规约](coverage-tool-contract.md)：按项目语言/运行时确定专用采集、转换、源码映射及合并统计模块，记录真实版本、调用和指标能力。禁止让用例 Agent 自行实现分支识别、AST 分母或转译还原算法。
 
-先冻结目标 Git revision、项目拥有的非测试源文件、测试目录、组件版本及已有依赖的就绪标记。`prepare_project.py` 只执行项目输入中声明的 setup/能力检查命令，不猜语言或框架；同一 revision 的场景复用产出的 catalog。可用 `prepare_project_semantics.mjs` 在一个只读 Agent 过程中补充测试命令、夹具隔离和环境变量路标；其 `guide.json` 不是业务预期依据。每个验收只在 `.acceptance-local/<ID>/workspace` 建立一个专用工作树并准备依赖，各场景串行复用；每次执行另建业务状态和输出，不能沿用上一场景的账户、数据库或页面状态。
+先冻结目标 Git revision、项目拥有的非测试源文件、测试目录及组件版本，并为本 ID 建立唯一 workspace。项目环境与覆盖率是两个**顺序执行、会话独立**的 Agent 职责：先运行[项目运行环境准备](project-runtime-preparation.md)，宿主检查实际环境、测试入口与冻结记录；只有覆盖率策略为 required 时才运行[项目覆盖率准备](project-coverage-protocol.md)，它只能消费前一步已核验的环境记录，不能另建一套未绑定的测试运行时。后一个 Agent 结束后，宿主检查源码/进程范围、适配器、零命中和轻量非零命中探针，再建立最终 catalog。两个 Agent 都不执行业务场景，彼此不靠会话记忆交接。新准备的 `prepare_project.py` 只验证 Agent 交接与项目能力检查，不再次执行安装；同一 revision 的场景复用最终 catalog。可用 `prepare_project_semantics.mjs` 补充只读操作路标；其 `guide.json` 不是业务预期依据。每次场景执行另建业务状态和输出，不能沿用上一场景的账户、数据库或页面状态。
 
 ```sh
+node <skill>/playbook/v4/run_runtime_preparation.mjs runtime-agent-request.json <project>/.acceptance-local/<ID>/workflows/<runtime-attempt>
+# 需要覆盖率时，先检查 runtime/runtime.json，再执行独立覆盖率 Agent：
+node <skill>/playbook/v4/run_coverage_preparation.mjs coverage-agent-request.json <project>/.acceptance-local/<ID>/workflows/<coverage-attempt>
 python3 <skill>/playbook/v4/prepare_project.py prep-spec.json prep-output
 node <skill>/playbook/v4/prepare_project_semantics.mjs prep-output/catalog.json prep-guide-output
 ```
 
-`prep-spec.json` 至少包含 `schema: portable-project-prep-v1`、`project_root`、`revision`、`test_roots`、`source_paths`（完整非测试用户代码清单，可为空但覆盖率项目分母会不可用）；按需提供 `components`、`binding_files`、`ready_markers`、`setup_commands`、`capability_checks`、`runner_hints`。命令和环境变量是数组/对象输入；不得在 SKILL 中编码项目路径。`source_checkout` 可指定作为初始来源的检出目录，缺省取 `project_root`；准备入口在验收唯一 workspace 中运行，catalog.project_root 返回该目录。场景 request 与后续 case template 使用返回目录；acceptance.project_root 保持用户项目根目录。产品修复后的新提交使用同一 workspace、新 revision 和新准备输出，禁止自动 reset 或新建场景工作树。
+`prep-spec.json` 至少包含 `schema: portable-project-prep-v1`、`preparation_protocol: two-agent-v1`、`runtime: {manifest, sha256}`、`project_root`、`revision`、`test_roots`、`source_paths`（完整非测试用户代码清单，可为空但覆盖率项目分母会不可用）；按需提供 `components`、`binding_files`、`ready_markers`、`capability_checks`、`runner_hints` 和覆盖率 Agent 冻结配置 `coverage`。运行时安装命令属于独立运行环境 Agent，不能再填入此 spec 的 `setup_commands`。命令和环境变量是数组/对象输入；不得在 SKILL 中编码项目路径。`source_checkout` 可指定作为初始来源的检出目录，缺省取 `project_root`；准备入口在验收唯一 workspace 中运行，catalog.project_root 返回该目录。场景 request 与后续 case template 使用返回目录；acceptance.project_root 保持用户项目根目录。产品修复后的新提交使用同一 workspace、新 revision 和新准备输出，禁止自动 reset 或新建场景工作树。
 
 项目若有覆盖率采集必需的框架适配/资源所有权夹具，在 spec 的 `coverage_test_files` 数组声明项目内路径。它们必须存在于 `test_roots`，不能同时列入产品 `source_paths`。准备保存其哈希，项目策略、场景执行与本地调试继承并自动加入这些文件的绑定和导入适配，不能靠 Agent 每次猜全依赖。夹具字节变化需新准备，不改旧 catalog。具体文件名、运行时版本查找与源码/测试资产分类属于项目知识，通用流程不猜测。
 

@@ -565,6 +565,42 @@ def coverage_archive_files(source, reports):
         include(Path(report['receipt_path']).with_name('execution.log'))
         include(receipt['coverage_session_path']);include(profile['spec']['inventory_path'])
         for item in [*report['raw_evidence'],*profile['preparation_evidence']]:include(item['path'])
+        coverage_spec = profile['spec']
+        if coverage_spec.get('runtime_manifest') or coverage_spec.get('probe_report'):
+            if not all(coverage_spec.get(key) for key in ('runtime_manifest', 'runtime_sha256',
+                                                          'probe_report', 'probe_report_sha256')):
+                raise ValueError('Coverage publication has incomplete runtime/probe binding')
+            runtime_path = owned_path(source, coverage_spec['runtime_manifest'])
+            probe_path = owned_path(source, coverage_spec['probe_report'])
+            if digest(runtime_path) != coverage_spec['runtime_sha256'] or digest(probe_path) != coverage_spec['probe_report_sha256']:
+                raise ValueError('Coverage publication runtime/probe bytes changed')
+            include(runtime_path);include(probe_path)
+            probe = read(probe_path)
+            plan = owned_path(source, probe['plan'])
+            if digest(plan) != probe['plan_sha256']:
+                raise ValueError('Coverage publication probe plan changed')
+            include(plan)
+            for route in probe.get('routes', []):
+                for attempt in route.get('probes', {}).values():
+                    if attempt.get('status') != 'passed':
+                        continue
+                    for reference in attempt.get('receipts', {}).values():
+                        path = owned_path(source, reference['path'])
+                        if digest(path) != reference['sha256']:
+                            raise ValueError('Coverage publication probe receipt changed')
+                        include(path)
+                        command_receipt = read(path)
+                        for stream in ('stdout', 'stderr'):
+                            asset = command_receipt[stream]
+                            asset_path = owned_path(source, asset['path'])
+                            if digest(asset_path) != asset['sha256']:
+                                raise ValueError('Coverage publication probe stream changed')
+                            include(asset_path)
+                    for reference in attempt.get('native', []):
+                        path = owned_path(source, reference['path'])
+                        if digest(path) != reference['sha256']:
+                            raise ValueError('Coverage publication probe native data changed')
+                        include(path)
         for original,alias in profile.get('artifact_aliases',{}).items():
             frozen=frozen_artifact_alias(profile,original,alias)
             aliases[original]=include(frozen)

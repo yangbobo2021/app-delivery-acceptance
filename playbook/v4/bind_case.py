@@ -62,6 +62,11 @@ def main():
         raise ValueError("prepare a new single-workspace catalog before binding cases")
     if catalog.get("revision") != revision:
         raise ValueError("catalog and project revision differ")
+    if catalog.get("preparation_protocol") == "two-agent-v1" and not catalog.get("runtime"):
+        raise ValueError("catalog lost its runtime Agent result")
+    if catalog.get("runtime"):
+        from acceptance_workspace import verify_frozen_workspace
+        verify_frozen_workspace(template, catalog)
     if request["scenario_kind"] == "WHITE_BOX" and request["source_evidence"]["revision"] != revision:
         raise ValueError("white-box source binding differs from case revision")
     target = next((item for item in request["requirements"]["items"]
@@ -92,6 +97,8 @@ def main():
     if coverage.get('policy')=='required':
         coverage = {**coverage, 'scene_id': scene['id'], 'revision': revision}
     case_input["coverage"] = coverage
+    if catalog.get("runtime"):
+        case_input["runtime"] = catalog["runtime"]
     case_input['debug_environment'] = {key: template[key] for key in
         ('fresh_env_root_key', 'fresh_env_paths', 'evidence_env_dir_keys') if key in template}
     if request["scenario_kind"] == "WHITE_BOX":
@@ -109,6 +116,8 @@ def main():
               "allowed_test_roots": template.get("allowed_test_roots", catalog.get("test_roots", [])),
               "coverage": coverage,
               "output_dir": str(Path(template["case_run_dir"]).resolve())}
+    if catalog.get("runtime"):
+        config["runtime"] = catalog["runtime"]
     for key in ("fresh_env_root_key", "fresh_env_paths", "evidence_env_dir_keys",
                 "evidence_execution_relative_paths",
                 "evidence_log_prefix", "evidence_relative_paths", "evidence_globs",

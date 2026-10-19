@@ -232,6 +232,40 @@ class ProjectCoverageProtocolTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "source version"):
             verify_report(modified)
 
+    def test_new_runtime_bound_profile_rejects_stale_runtime_without_breaking_legacy(self):
+        # Legacy profile above remains valid; only a new runtime-bound profile
+        # requires this per-acceptance handoff and its exact bytes.
+        runtime = self.base / "runtime.json"
+        self.write(runtime, {"schema": "project-runtime-preparation-v1", "status": "ready",
+                             "workspace": str(self.root), "revision": self.revision,
+                             "acceptance": {"project_root": str(self.root), "id": "SYNTHETIC-ID",
+                                            "scope_sha256": "synthetic"}})
+        plan = self.base / "probe-plan.json"
+        self.write(plan, {"synthetic": True})
+        probe = self.base / "probe-report.json"
+        ref = {"path": str(self.probe), "sha256": sha(self.probe)}
+        self.write(probe, {"schema": "project-coverage-probe-report-v1", "status": "ready",
+                           "runtime_sha256": sha(runtime), "workspace": str(self.root),
+                           "revision": self.revision, "plan": str(plan), "plan_sha256": sha(plan),
+                           "routes": [{"id": "synthetic", "source_paths": ["src/example.unknownlang"],
+                                       "probes": {mode: {"status": "passed", "receipts": {"collect": ref},
+                                                         "native": [ref]} for mode in ("zero", "nonzero")}}]})
+        self.profile["spec"].update(runtime_manifest=str(runtime), runtime_sha256=sha(runtime),
+                                     probe_report=str(probe), probe_report_sha256=sha(probe))
+        self.profile["preparation_status"] = "ready"
+        self.write(self.prepared / "prepared.json", self.profile)
+        self.config["prepared_sha256"] = sha(self.prepared / "prepared.json")
+        from unittest.mock import patch
+        with patch('coverage_preparation.verify_report', return_value={"status": "ready"}):
+            self.assertEqual(preparation(self.config, run_check=False)["preparation_status"], "ready")
+            with patch('runtime_preparation.validate_runtime', side_effect=ValueError('stale runtime environment')):
+                with self.assertRaisesRegex(ValueError, 'stale runtime environment'):
+                    preparation(self.config, run_check=True)
+        runtime.write_bytes(runtime.read_bytes() + b" ")
+        with patch('coverage_preparation.verify_report', return_value={"status": "ready"}):
+            with self.assertRaisesRegex(ValueError, "bound file missing or changed"):
+                preparation(self.config, run_check=False)
+
     def test_archived_mapping_keeps_view_usable_after_original_paths_disappear(self):
         report = self.collect()
         trace = self.trace(report)
