@@ -12,6 +12,19 @@ from acceptance_store import guard, owned_path, inside, digest, read, save
 from acceptance_workspace import require_scene_lease
 
 
+def verified_runtime_root(catalog):
+    """Grant the frozen runtime's smoke directory, not an Agent-supplied path."""
+    runtime = catalog.get('runtime')
+    if not runtime:
+        return None
+    manifest_path = Path(runtime['manifest']).resolve()
+    if digest(manifest_path) != runtime['sha256']:
+        raise ValueError('Runtime manifest binding changed')
+    from runtime_preparation import validate_runtime
+    validate_runtime(manifest_path, expected_acceptance=catalog['acceptance'], resmoke=False)
+    return Path(read(manifest_path)['runtime_root'])
+
+
 def create(catalog_path, input_path, contract_path):
     catalog, scene = read(catalog_path), read(input_path)
     contract_path = Path(contract_path).resolve()
@@ -31,6 +44,9 @@ def create(catalog_path, input_path, contract_path):
     else:
         save(contract_path, value, exclusive=True)
     runtime_roots = [Path(value['debug_root'])]
+    runtime_root = verified_runtime_root(catalog)
+    if runtime_root is not None:
+        runtime_roots.append(runtime_root)
     if value['coverage'].get('policy') == 'required':
         from coverage_registry import paths
         _, registry, view = paths(value['coverage']['prepared'])
