@@ -4,7 +4,7 @@
 
 ## 项目验收存储前置门禁
 
-先遵守[目录、稳定验收 ID 与 knowledge 规约](project-acceptance-store.md)。启动/恢复先读取 `.acceptance-local/current.json`；配置中的 `acceptance.id` 必须与之相同。没有指针不能从旧配置自动激活；整项验收结束由宿主 `finish` 清除指针，单场景/批次终态不清除。视图切换只读，不绑定对话。准备 spec、场景 request、case template 和计划均携带 `read-knowledge` 输出的 `acceptance` 对象；所有新阶段输出在 `.acceptance-local/<同一ID>/workflows/` 内。`prepare_project.py`、`bind_case.py`、`run_plan.py`、`run_scenarios.mjs`、用例及修复入口强制校验，单场景编排在阶段交接再次校验。目录/知识问题不执行项目命令、不改场景结论；范围变化追加记录并创建受影响的新尝试，不换验收 ID。若旧 catalog 的知识收据在 Case Agent 启动前失效，且状态严格停在该知识门禁，可用 `retire_pre_agent_case.py <config.json> --knowledge-receipt <本次新收据> --basis <检查依据>` 终止无副作用的旧尝试，再用新 catalog 绑定；不能覆盖旧目录或把该停机当作产品结论。正式用例融合项目测试/回归体系，未融合的工作树用例须如实标成候选。
+先遵守[目录、稳定验收 ID 与 knowledge 规约](project-acceptance-store.md)。启动/恢复先读取 `.acceptance-local/current.json`；配置中的 `acceptance.id` 必须与之相同。没有指针不能从旧配置自动激活；整项验收结束由宿主 `finish` 清除指针，单场景/批次终态不清除。视图切换只读，不绑定对话。准备 spec、场景 request、case template 和计划均携带 `read-knowledge` 输出的 `acceptance` 对象；所有新阶段输出在 `.acceptance-local/<同一ID>/workflows/` 内。`prepare_project.py`、`bind_case.py`、`run_plan.py`、`run_scenarios.mjs`、用例及修复入口强制校验，单场景编排在阶段交接再次校验。目录/知识问题不执行项目命令、不改场景结论；范围变化追加记录并创建受影响的新尝试，不换验收 ID。若旧 catalog 的知识收据失效，或调试授权目录在 Case Agent 启动前被宿主门禁拒绝，且核对场景输出只有准备记录与未启动的调试契约、没有模型会话或测试副作用，可用 `retire_pre_agent_case.py <config.json> --knowledge-receipt <本次新收据> --basis <检查依据>` 终止无副作用的旧尝试，再用新 catalog 绑定；不能覆盖旧目录或把该停机当作产品结论。正式用例融合项目测试/回归体系，未融合的工作树用例须如实标成候选。
 
 ## 项目只准备一次
 

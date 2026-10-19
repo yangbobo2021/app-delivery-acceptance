@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Retire a parked case whose model never started after a knowledge handoff failure."""
+"""Retire a parked case whose model never started and had no test effects."""
 import json
 from pathlib import Path
 import sys
@@ -46,12 +46,22 @@ def retire(config_path, current_knowledge_receipt, basis):
             raise ValueError('frozen scene bindings changed')
         stages = state.get('stages', {})
         if (set(stages) != {'prepare', 'case'} or stages['prepare'].get('status') != 'completed' or
-                stages['case'].get('status') != 'parked' or
-                'knowledge changed or was not read' not in stages['case'].get('error', '')):
-            raise ValueError('only a knowledge-blocked, pre-Agent case can retire here')
-        allowed = {'request.frozen.json', 'catalog.json', 'state.json', 'case-stage.log'}
+                stages['case'].get('status') != 'parked'):
+            raise ValueError('only a parked, pre-Agent case can retire here')
+        allowed = {'request.frozen.json', 'catalog.json', 'state.json', 'case-stage.log', 'case'}
         if {item.name for item in output.iterdir()} - allowed:
             raise ValueError('case output has other effects; reconcile first')
+        case_dir = output / 'case'
+        if case_dir.exists():
+            if not case_dir.is_dir() or {item.name for item in case_dir.iterdir()} - {'debug-contract.json'}:
+                raise ValueError('case Agent may have started; reconcile effects first')
+            contract = load(case_dir / 'debug-contract.json')
+            if contract and (contract.get('catalog_path') != str(output / 'catalog.json') or
+                             contract.get('catalog_sha256') != digest(output / 'catalog.json') or
+                             contract.get('input_sha256') != digest(config['case_input'])):
+                raise ValueError('pre-Agent debug contract changed')
+        if not (output / 'case-stage.log').is_file():
+            raise ValueError('pre-Agent failure log missing')
         catalog = load(output / 'catalog.json')
         if not catalog:
             raise ValueError('prepared catalog missing')

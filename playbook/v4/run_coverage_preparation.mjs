@@ -23,7 +23,7 @@ for (const key of ['project_root', 'id', 'scope_sha256']) {
   if (request.acceptance[key] !== runtime.acceptance[key]) throw Error('Coverage runtime belongs to another acceptance/scope');
 }
 const binding = acceptanceGuard({acceptance: request.acceptance, source_checkout: runtime.workspace,
-  test_roots: request.test_roots}, [output]);
+  test_roots: request.test_roots}, [output, dirname(resolve(request.registry_path))]);
 const script = resolve(new URL('coverage_preparation.py', import.meta.url).pathname);
 const runtimeCheck = resolve(new URL('../../scripts/runtime_preparation.py', import.meta.url).pathname);
 const protocolGuide = resolve(new URL('../../references/project-coverage-protocol.md', import.meta.url).pathname);
@@ -69,7 +69,7 @@ const prompt = `你是独立的覆盖率准备 Agent。你的输入是**已经�
 运行环境 manifest：${runtimePath}，SHA256：${request.runtime_sha256}
 运行环境执行器：${JSON.stringify(runtime.executables)}
 项目覆盖率输入：${JSON.stringify(request)}
-本次项目明确预期能采集的源码：${JSON.stringify(expectedMeasuredSources)}。这是项目目标，不是所有项目的通用覆盖率配额。先检查已有适配器为什么没达到这些目标，再尝试项目适用的替代采集/映射方法；零命中、定向命中和独立读取都须证明这些文件的真实分母与命中。不能因为第一次方案失败便停止探索并把目标文件标成 unsupported。若充分尝试后仍无法证明，就如实标 unsupported、保留失败证据和具体限制，不能声称本项目目标已完成。不要改动 partial 的通用含义。
+本次项目明确预期能采集的源码：${JSON.stringify(expectedMeasuredSources)}。这是项目目标，不是所有项目的通用覆盖率配额。先检查已有适配器为什么没达到这些目标，再尝试项目适用的替代采集/映射方法；零命中、定向命中和独立读取都须证明这些文件的真实分母与命中。还须轻量验证采集未发生时的状态传播：没有实际原生快照的来源不得把零基线标为实测 0%，收尾失败不能冒充完整采集；记录失败路径证据。不能因为第一次方案失败便停止探索并把目标文件标成 unsupported。若充分尝试后仍无法证明，就如实标 unsupported、保留失败证据和具体限制，不能声称本项目目标已完成。不要改动 partial 的通用含义。
 适用项目知识：${JSON.stringify(knowledge)}
 本次候选 SKILL 的覆盖率协议（优先于机器上另一个已安装版本）：${readFileSync(protocolGuide, 'utf8')}
 本次实际调用的 SKILL 根目录：${resolve(new URL('../..', import.meta.url).pathname)}。宿主探针脚本：${script}。只按这份候选 SKILL 的协议与脚本准备；不要另找机器上同名的已安装 SKILL。

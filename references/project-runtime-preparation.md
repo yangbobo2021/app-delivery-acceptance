@@ -14,7 +14,7 @@ node <skill>/playbook/v4/run_runtime_preparation.mjs \
   <project>/.acceptance-local/<ID>/workflows/<new-attempt>
 ```
 
-`run_runtime_preparation.mjs` 启动独立 `CodexAdapter` 会话，在冻结工作树内只读检查项目，并向 Agent 提供实际读取的知识上下文。它保存 `prompt.txt`、`agent.jsonl`、`answer.txt`、`draft.json`、`metrics.json`。Agent 仅返回声明式计划：`dependency_files`、`knowledge_used`、`setup_commands`、`executables`、`smoke`、`recipe_candidate`；用户或宿主不需要在通用 Skill 中编写项目命令。宿主注入可信的验收绑定、来源和 revision，保存 `agent-spec.json`，再调用 `runtime_preparation.py prepare` 执行安装与轻量 smoke。Agent 阶段不得安装或修改文件；原项目可跟踪文件有变动则阻断。项目命令使用 argv 数组，不使用 shell 字符串或隐式环境变量展开；仅 `{workspace}` 与 `{runtime_root}` 是宿主支持的路径占位符。
+`run_runtime_preparation.mjs` 启动独立 `CodexAdapter` 会话，在冻结工作树内只读检查项目，并向 Agent 提供实际读取的知识上下文。它保存 `prompt.txt`、`agent.jsonl`、`answer.txt`、`draft.json`、`metrics.json`。Agent 仅返回声明式计划：`dependency_files`、`knowledge_used`、`setup_commands`、`executables`、`smoke`、非空 Markdown 字符串 `recipe_candidate`；用户或宿主不需要在通用 Skill 中编写项目命令。宿主注入可信的验收绑定、来源和 revision，保存 `agent-spec.json`，再调用 `runtime_preparation.py prepare` 执行安装与轻量 smoke。Agent 阶段不得安装或修改文件；原项目可跟踪文件有变动则阻断。项目命令使用 argv 数组，不使用 shell 字符串或隐式环境变量展开；仅 `{workspace}` 与 `{runtime_root}` 是宿主支持的路径占位符。
 
 如需人工构造或复测已冻结的 Agent 计划，低层入口是：
 

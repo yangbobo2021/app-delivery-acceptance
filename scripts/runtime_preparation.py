@@ -273,9 +273,10 @@ def validate_runtime(path, expected_acceptance=None, resmoke=True):
     _check_receipt(manifest["smoke"])
     if resmoke:
         smoke = manifest["smoke"]
-        _, exit_code = _observe({key: smoke[key] for key in ("command", "cwd", "env", "timeout_seconds")})
+        raw, exit_code = _observe({key: smoke[key] for key in ("command", "cwd", "env", "timeout_seconds")})
         if exit_code != 0:
-            raise ValueError("runtime smoke no longer passes")
+            raise ValueError(f"runtime smoke no longer passes (exit {exit_code}): " +
+                             raw.decode(errors="replace")[-2000:])
     return {"status": "ready", "runtime_manifest": str(path), "runtime_sha256": digest(path),
             "workspace": str(workspace), "revision": manifest["revision"]}
 
