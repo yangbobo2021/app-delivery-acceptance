@@ -130,6 +130,18 @@ class WorkspaceTests(unittest.TestCase):
             supersede(path, 'Fixture inspection')
         self.assertTrue((root.parent / 'workspace-owner.json').exists())
 
+    def test_completed_repair_submission_can_still_be_blocked(self):
+        from supersede_scene import supersede
+        path, root = self.failed_attempt()
+        answer = self.out / 'review-repair-1/answer.json'
+        save(answer, {'status': 'blocked', 'reason': 'new preparation required'})
+        state = read(self.out / 'state.json')
+        state['stages'] = {'review-repair-1': {'status': 'completed',
+            'result': {'answer': str(answer)}}}
+        save(self.out / 'state.json', state)
+        supersede(path, 'Actual blocked repair inspected; prepare a new version')
+        self.assertFalse((root.parent / 'workspace-owner.json').exists())
+
     def test_wrong_location_and_foreign_existing_checkout_rejected(self):
         with self.assertRaisesRegex(ValueError,'workspace must'):
             workspace_path({**self.config,'workspace':str(self.out/'checkout')})

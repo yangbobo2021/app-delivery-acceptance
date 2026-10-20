@@ -32,7 +32,15 @@ def supersede(config_path, basis):
         if not stages or any(x.get('status') == 'running' for x in stages.values()):
             raise ValueError('running/uncertain stage must be reconciled first')
         blocked = any(x.get('status') == 'parked' for x in stages.values())
-        for path in [output / 'case/answer.json', output / 'case-repair/answer.json']:
+        answer_paths = [output / 'case/answer.json', output / 'case-repair/answer.json']
+        for stage in stages.values():
+            answer = stage.get('result', {}).get('answer')
+            if answer:
+                path = Path(answer).resolve()
+                if not path.is_relative_to(output):
+                    raise ValueError('stage answer escapes its attempt')
+                answer_paths.append(path)
+        for path in answer_paths:
             if path.is_file() and read(path).get('status') in {'blocked', 'needs_contract'}:
                 blocked = True
         if not blocked:
