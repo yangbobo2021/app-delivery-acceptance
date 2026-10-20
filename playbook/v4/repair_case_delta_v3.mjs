@@ -26,7 +26,7 @@ const brief={acceptance_knowledge:acceptanceKnowledge,revision:catalog.revision,
  guide_summary:guide.summary,fixture_isolation:guide.fixture_isolation,
  environment_contract:(guide.environment_contract??[]).filter(x=>x.must_match&&x.must_match!=='无')};
 const coverageContract=readFileSync(new URL('../../references/coverage-tool-contract.md',import.meta.url),'utf8');
-const prompt=`你负责一个验收场景用例在本地调试或独立审查后的差量修复，在同一个连续 Agent 过程中修改测试代码、运行并本地调试。工作目录为本验收共用的专用工作树，当前场景持有独占执行权；保留前面场景的用例修改，运行状态与输出为本次新建。只处理反馈指出的具体缺口；保留已有有效测试和证据，不重新设计全部需求或场景。先读现有测试文件、失败摘要与相关片段；仅在需要时读取更多源码。勿读取项目外测试 SKILL、整仓扫描或重新安装依赖。
+const prompt=`你负责一个验收场景用例在本地调试或独立审查后的差量修复，在同一个连续 Agent 过程中修改测试代码、运行并本地调试。工具初始目录为用户项目根目录 ${acceptanceBinding.project_root}，用于访问本验收执行资料；实际源码和测试的唯一工作目录为 ${root}，所有项目命令先切换到这个绝对目录，文件编辑使用该目录内的绝对路径，不修改初始目录中的另一份源码或 SPEC。当前场景持有独占执行权；保留前面场景的用例修改，运行状态与输出为本次新建。只处理反馈指出的具体缺口；保留已有有效测试和证据，不重新设计全部需求或场景。先读现有测试文件、失败摘要与相关片段；仅在需要时读取更多源码。勿读取项目外测试 SKILL、整仓扫描或重新安装依赖。
 
 依照场景判据构造能区分正确与错误实现的输入，说明独立于产品返回值的观察方法。新增或修正的断言要在实际执行中验证；若发现产品问题，保存原始响应与状态，不能删断言、跳过或 mock 产品响应来制造通过。涉及自然语言说明的语义判断，保留完整原文交给独立复审，不用关键词伪造充分性。只修复测试自身缺口，禁止修改产品源码、需求和审查结论。
 
@@ -59,9 +59,10 @@ if(resume){
 const t=performance.now();let done,raw='',calls=0;try{
  writeFileSync(join(out,'runner.pid'),String(process.pid)+'\n');
  const task=resume?'继续同一场景的差量修复。核对已完成的测试文件及观察，只完成尚未完成的缺口；不要重复外部效果。最终仅输出原任务要求的 JSON。':prompt;
- for await(const e of new cligent.CodexAdapter().run(task,{cwd:root,model:process.env.ACCEPTANCE_MODEL??'gpt-6.1-sol',effort:process.env.ACCEPTANCE_EFFORT??'high',
+ for await(const e of new cligent.CodexAdapter().run(task,{cwd:acceptanceBinding.project_root,model:process.env.ACCEPTANCE_MODEL??'gpt-6.1-sol',effort:process.env.ACCEPTANCE_EFFORT??'high',
   ...(resume?{resume:resumeSession}:{}),
-  permissions:{fileWrite:'allow',shellExecute:'allow',networkAccess:input.local_loopback_required?'allow':'deny'}})){
+  permissions:{fileWrite:'allow',shellExecute:'allow',networkAccess:input.local_loopback_required?'allow':'deny',
+   writablePaths:[`.acceptance-local/${acceptanceBinding.id}`]}})){
   appendFileSync(join(out,'agent.jsonl'),JSON.stringify(e)+'\n');if(e.type==='text')raw=e.payload?.content??'';if(e.type==='done')done=e.payload;if(e.type==='tool_use')calls++;
  }
 }catch(e){writeFileSync(join(out,'error.txt'),String(e));}

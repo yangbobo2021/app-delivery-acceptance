@@ -600,6 +600,8 @@ def locked_main():
     acceptance_guard(config, [config["output_dir"]])
     ACTIVE_ACCEPTANCE_CONFIG = config
     output = Path(config["output_dir"]).resolve()
+    if (output / 'superseded.json').exists():
+        raise ValueError('attempt was superseded after inspection; use a new frozen attempt')
     if config.get("workspace_policy") != POLICY:
         raise ValueError("legacy per-scene config is read-only; bind a new single-workspace attempt")
     # Completed results remain readable even when another scene owns the workspace.

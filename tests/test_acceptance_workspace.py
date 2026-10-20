@@ -77,6 +77,59 @@ class WorkspaceTests(unittest.TestCase):
             finish_scene(self.config,self.out)
         with workspace_lease(self.config,second,scene=True):finish_scene(self.config,second)
 
+    def failed_attempt(self):
+        from acceptance_store import digest
+        root = self.create()
+        self.out.mkdir(parents=True)
+        config = {**self.config, 'output_dir': str(self.out)}
+        path = self.out / 'config.json'
+        save(path, config)
+        save(self.out / 'catalog.json', self.catalog(root))
+        save(self.out / 'state.json', {'config_sha256': digest(path),
+             'stages': {'evidence': {'status': 'parked', 'error': 'fixture infrastructure gap'}}})
+        with workspace_lease(config, self.out, scene=True):
+            pass
+        return path, root
+
+    def test_inspected_failure_closes_owner_without_rewriting_facts(self):
+        from supersede_scene import supersede
+        from acceptance_store import digest
+        path, root = self.failed_attempt()
+        old = digest(self.out / 'state.json')
+        record = supersede(path, 'Inspected fixture gap corrected; new frozen attempt will follow')
+        self.assertEqual(record['state_sha256'], old)
+        self.assertEqual(digest(self.out / 'state.json'), old)
+        self.assertFalse((root.parent / 'workspace-owner.json').exists())
+        next_out = self.out.with_name('scene-new-attempt')
+        with workspace_lease(self.config, next_out, scene=True):
+            finish_scene(self.config, next_out)
+
+    def test_superseding_live_or_changed_source_keeps_owner(self):
+        from supersede_scene import supersede
+        path, root = self.failed_attempt()
+        save(self.out / 'execution-intent.json', {'child_pid': os.getpid()})
+        with self.assertRaisesRegex(ValueError, 'child still alive'):
+            supersede(path, 'Fixture inspection')
+        (self.out / 'execution-intent.json').unlink()
+        (root / 'src/app.txt').write_text('changed')
+        with self.assertRaisesRegex(ValueError, 'frozen product source'):
+            supersede(path, 'Fixture inspection')
+        self.assertTrue((root.parent / 'workspace-owner.json').exists())
+        self.assertFalse((self.out / 'superseded.json').exists())
+
+    def test_running_or_judged_attempt_cannot_be_superseded(self):
+        from supersede_scene import supersede
+        path, root = self.failed_attempt()
+        state = read(self.out / 'state.json')
+        state['stages']['evidence']['status'] = 'running'
+        save(self.out / 'state.json', state)
+        with self.assertRaisesRegex(ValueError, 'running/uncertain'):
+            supersede(path, 'Fixture inspection')
+        save(self.out / 'summary.json', {'review_status': 'passed'})
+        with self.assertRaisesRegex(ValueError, 'completed judgment'):
+            supersede(path, 'Fixture inspection')
+        self.assertTrue((root.parent / 'workspace-owner.json').exists())
+
     def test_wrong_location_and_foreign_existing_checkout_rejected(self):
         with self.assertRaisesRegex(ValueError,'workspace must'):
             workspace_path({**self.config,'workspace':str(self.out/'checkout')})

@@ -55,7 +55,7 @@ if(resume){
  writeFileSync(join(output,'catalog-binding.json'),bindingText);
 }
 const coverageContract=readFileSync(new URL('../../references/coverage-tool-contract.md',import.meta.url),'utf8');
-const prompt=`你负责一个验收场景的“用例实现与本地调试”，在同一个连续 Agent 过程中完成。工作目录是本验收共用的专用工作树，当前场景持有独占执行权；前面场景的测试修改需要保留，运行状态与输出须为本次新建。允许修改项目常规测试目录，禁止修改产品源码、需求、流程框架文件、真实外部数据或部署。全部验收信息在本任务输入中；无需查阅项目外的测试 SKILL 或 Playbook。
+const prompt=`你负责一个验收场景的“用例实现与本地调试”，在同一个连续 Agent 过程中完成。工具初始目录为用户项目根目录 ${acceptanceBinding.project_root}，用于合法访问该验收的执行资料。实际源码和测试的唯一工作目录是 ${root}；所有项目命令必须先切换到这个绝对目录，文件编辑使用该目录内的绝对路径，不能修改初始目录中的另一份源码或 SPEC。当前场景持有独占执行权；前面场景的测试修改需要保留，运行状态与输出须为本次新建。允许修改项目常规测试目录，以及按调试契约写入请求和真实运行数据；禁止修改产品源码、需求、流程框架文件、真实外部数据或部署。全部验收信息在本任务输入中；无需查阅项目外的测试 SKILL 或 Playbook。
 
 项目公共准备已完成。复用测试工具、依赖和环境能力，不重新安装或重新发现整个项目。目录与指南仅是操作路标，不是业务预期证据。你可自主读取项目代码与测试；先用 rg 定位，再读所需短片段。日志只看失败摘要与相关上下文，避免整仓读取或重复贴大日志。
 
@@ -90,9 +90,10 @@ const t=performance.now(),texts=[];let done,error,tools=0;
 try{
  writeFileSync(join(output,'runner.pid'),String(process.pid)+'\n');
  const task=resume?'继续同一场景用例实现与本地调试。先核对当前测试文件和已执行观察，只完成尚未做完的工作；不要重复已确认的外部效果。最终仅输出原任务要求的 JSON。':prompt;
- for await(const event of new cligent.CodexAdapter().run(task,{cwd:root,model:result.model,effort:result.effort,
+ for await(const event of new cligent.CodexAdapter().run(task,{cwd:acceptanceBinding.project_root,model:result.model,effort:result.effort,
   ...(resume?{resume:resumeSession}:{}),
-  permissions:{fileWrite:'allow',shellExecute:'allow',networkAccess:input.local_loopback_required?'allow':'deny'}})){
+  permissions:{fileWrite:'allow',shellExecute:'allow',networkAccess:input.local_loopback_required?'allow':'deny',
+   writablePaths:[`.acceptance-local/${acceptanceBinding.id}`]}})){
   appendFileSync(join(output,'agent.jsonl'),JSON.stringify(event)+'\n');
   if(event.type==='text'&&typeof event.payload?.content==='string')texts.push(event.payload.content);
   if(event.type==='tool_use')tools++;
