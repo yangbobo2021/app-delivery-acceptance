@@ -40,6 +40,8 @@ def project_state(traces, progress):
     Callers must supply the project's complete scenario catalog and history.
     """
     items = [*progress.get('case_history', []), *progress.get('previews', []), *traces]
+    catalogs = {t['project']['id']: t for t in sorted(items, key=lambda t: timestamp(t.get('generated_at')))
+                if t.get('definition_catalog')}
     groups, requirements, rules, bases = {}, {}, {}, {}
     for order, trace in enumerate(items):
         project_id = trace['project']['id']
@@ -47,7 +49,12 @@ def project_state(traces, progress):
         requirements.setdefault(project_id, {}).update({r['id']: r for r in trace.get('requirements', [])})
         rules.setdefault(project_id, {}).update({r['id']: r for r in trace.get('reverse_rules', [])})
         for scene in trace.get('scenarios', []):
+            if project_id in catalogs and scene['id'] not in catalogs[project_id]['definition_bindings']:
+                continue  # Retired scenes remain in raw history, outside this baseline's denominator.
             groups.setdefault((project_id, scene['id']), []).append((trace, scene, order))
+    for pid, catalog in catalogs.items():
+        requirements[pid] = {r['id']: r for r in catalog.get('requirements', [])}
+        rules[pid] = {r['id']: r for r in catalog.get('reverse_rules', [])}
     projected, totals = [], {}
     for (project_id, scene_id), candidates in groups.items():
         by_execution = [c for c in candidates if execution_happened(c[0], scene_id)]
@@ -62,6 +69,11 @@ def project_state(traces, progress):
         trace, scene, _ = displayed
         row = deepcopy(trace)
         row['scenarios'] = [deepcopy(max(candidates, key=key)[1])]
+        if project_id in catalogs:
+            current = catalogs[project_id]
+            row['scenarios'] = [deepcopy(next(s for s in current['scenarios'] if s['id'] == scene_id))]
+            row['requirements'] = deepcopy(current['requirements'])
+            row['reverse_rules'] = deepcopy(current['reverse_rules'])
         row['execution_known'] = bool(by_execution)
         row['provisional'] = False
         row['judgment'] = deepcopy(chosen[0]['judgment']) if chosen else {
@@ -76,6 +88,13 @@ def project_state(traces, progress):
             if source.get('judgment_source'):
                 row['judgment_source'] = deepcopy(source['judgment_source'])
             row['current_links'] = deepcopy(source.get('current_links', {}))
+        if project_id in catalogs:
+            actual = chosen[0].get('definition_binding_sha256') if chosen else None
+            expected = catalogs[project_id]['definition_bindings'][scene_id]
+            row['definition_applicability'] = ('matches_current' if actual == expected else
+                                               'equivalent_by_assessment' if actual in catalogs[project_id].get('definition_equivalences', {}).get(scene_id, []) else
+                                               'needs_revalidation' if actual else 'unknown')
+            row['current_definition_sha256'] = expected
         state = row['judgment']['status']
         category = (state if state in {'passed', 'product_bug', 'accepted_risk'} else
                     'needs_attention' if state in {'repair_required', 'blocked', 'inconclusive'} else

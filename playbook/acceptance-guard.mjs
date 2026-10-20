@@ -8,6 +8,10 @@ export function acceptanceGuard(config,outputs=[]){
   return JSON.parse(execFileSync('python3',[script,'guard','-',...outputs.flatMap(p=>['--output',resolve(p)])],
     {input:JSON.stringify(config),encoding:'utf8'}));
 }
+export function verifyDefinitionsStage(requestPath){
+  execFileSync('python3',[resolve(dirname(script),'acceptance_definitions.py'),'verify-stage',resolve(requestPath)],
+    {encoding:'utf8'});
+}
 export function knowledgeContext(binding){
   const receipt=JSON.parse(readFileSync(binding.knowledge_receipt,'utf8'));
   const base=join(binding.project_root,'.acceptance/knowledge');

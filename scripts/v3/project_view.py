@@ -38,16 +38,20 @@ def files_under(roots, name):
 
 def catalog_trace(path, project_id):
     value = read(path)
-    if value.get("schema") != "acceptance-catalog-v1" or not isinstance(value.get("scenarios"), list):
+    if value.get("schema") not in {"acceptance-catalog-v1", "acceptance-catalog-v2"} or not isinstance(value.get("scenarios"), list):
         raise ValueError("invalid complete scenario catalog")
     ids = [s["id"] for s in value["scenarios"]]
     if len(ids) != len(set(ids)):
         raise ValueError("duplicate stable scene IDs in catalog")
+    from acceptance_definitions import scene_fingerprint
     return {"schema": "delivery-trace-v1", "generated_at": value.get("updated_at", ""),
+            **({'definition_bindings': {s['id']: scene_fingerprint(value, s['id']) for s in value['scenarios']},
+                'definition_equivalences': value.get('change', {}).get('equivalent_bindings', {}),
+                'definition_catalog': value} if value.get('schema') == 'acceptance-catalog-v2' else {}),
             "project": {**value.get("project", {}), "id": project_id},
             "requirements": value.get("requirements", []), "reverse_rules": value.get("reverse_rules", []),
             "scenarios": value["scenarios"], "bindings": [], "case_results": [], "attempt_id": "catalog",
-            "stage": "scenario_self_checked", "judgment": {"status": "not_run"},
+            "stage": "frozen_definitions" if value.get('schema') == 'acceptance-catalog-v2' else "scenario_self_checked", "judgment": {"status": "not_run"},
             "coverage": {"status": "pending"}}
 
 
@@ -455,7 +459,9 @@ class ProjectView:
             all_traces.append(catalog_trace(catalog, pid))
             catalog_ids = {s["id"] for s in all_traces[-1]["scenarios"]}
             observed_ids = {s["id"] for t in [*traces, *progress.get("previews", []), *progress.get("case_history", [])] for s in t.get("scenarios", [])}
-            payload["denominator_complete"] = observed_ids.issubset(catalog_ids)
+            payload["denominator_complete"] = bool(all_traces[-1].get("definition_catalog")) or observed_ids.issubset(catalog_ids)
+            if all_traces[-1].get("definition_catalog"):
+                payload["definitions"] = all_traces[-1]["definition_catalog"]
             if not payload["denominator_complete"]:
                 payload["warnings"].append("场景清单缺少执行记录中的场景；修正清单前不显示项目场景比例。")
         else:
@@ -564,6 +570,7 @@ def project_html():
     html = html.replace('</style>', 'th:nth-child(1){width:18%}th:nth-child(2){width:22%}th:nth-child(3){width:26%}th:nth-child(4){width:14%}th:nth-child(5){width:20%}.conclusion-preview.clamp{display:block;max-height:4.5em}.conclusion-preview.clamp.open{max-height:none}</style>', 1)
     html = html.replace('<p id="acceptanceWarning" class="small"></p>',
         '<p id="acceptanceWarning" class="small">正在读取已保存的验收资料……</p>')
+    html = html.replace("场景指标统一以项目全部场景数为分母。", "场景指标以所选交付测试的完整冻结场景集合为分母。")
     html = html.replace('<script>', '''<script>
 window.addEventListener('error',event=>{
  const warning=document.querySelector('#acceptanceWarning');
@@ -579,7 +586,8 @@ window.addEventListener('unhandledrejection',event=>{
     html = html[:cover_start] + r'''function conclusionBlock(t,s){
  const key=JSON.stringify(['conclusion',document.querySelector('#acceptanceId').value,t.project.id,s.id]),open=expanded.has(key);
  const links=Object.entries(t.current_links||{}).map(([label,url])=>`<div><a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a></div>`).join('');
- return `${status(t.judgment.status)}<div class="clamp conclusion-preview${open?' open':''}"><div>${esc(t.judgment.reason||'')}</div>${links}</div><button type="button" data-expand="${esc(key)}" data-more="展开查看更多" aria-expanded="${open}" onclick="toggleBlock(this)">${open?'收起':'展开查看更多'}</button>`;
+ const applicability={matches_current:'与当前定义一致；产品版本仍按实际记录',equivalent_by_assessment:'经 Agent 对照判定定义等价；保留原执行版本',needs_revalidation:'当前定义已变，需复验',unknown:'尚无可核对的当前定义结论'}[t.definition_applicability]||'';
+ return `${status(t.judgment.status)}<div class="small">${esc(applicability)}</div><div class="clamp conclusion-preview${open?' open':''}"><div>${esc(t.judgment.reason||'')}</div>${links}</div><button type="button" data-expand="${esc(key)}" data-more="展开查看更多" aria-expanded="${open}" onclick="toggleBlock(this)">${open?'收起':'展开查看更多'}</button>`;
 }
 ''' + html[cover_end:]
     html = html.replace("${status(t.judgment.status)}${block(t.judgment.reason||'')}</td><td${span}>${cover(t.coverage)}</td>", '${conclusionBlock(t,s)}</td>')

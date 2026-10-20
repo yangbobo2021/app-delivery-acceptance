@@ -301,7 +301,20 @@ def validate(project, acceptance_id, check_knowledge=True):
     if (shared / "scenarios.json").exists():
         current_catalog = read(shared / "scenarios.json")
         validate_catalog(current_catalog)
-        histories = [read(path) for path in (shared / "records").glob("catalog-*.json")]
+        history_paths = list((shared / "records").glob("catalog-*.json"))
+        histories = [read(path) for path in history_paths]
+        by_digest = {digest(path): item for path, item in zip(history_paths, histories)}
+        for path, item in zip(history_paths, histories):
+            if item.get('schema') == 'acceptance-catalog-v2':
+                validate_catalog(item)
+                if item.get('definition_record') != path.relative_to(shared).as_posix():
+                    raise ValueError('definition record identity changed')
+                parent_hash = item.get('previous_catalog_sha256')
+                if parent_hash and parent_hash not in by_digest:
+                    raise ValueError('frozen definition history changed or missing')
+                parent = by_digest.get(parent_hash, {})
+                if item.get('definition_version') != parent.get('definition_version', 0) + 1:
+                    raise ValueError('invalid frozen definition version chain')
         if (current_catalog.get("acceptance_id") != acceptance_id or not histories or
                 current_catalog != max(histories, key=lambda item: item.get("updated_at", ""))):
             raise ValueError("scenario catalog does not match its latest frozen history")
@@ -311,6 +324,10 @@ def validate(project, acceptance_id, check_knowledge=True):
 
 
 def validate_catalog(value):
+    if value.get('schema') == 'acceptance-catalog-v2':
+        from acceptance_definitions import validate_definitions
+        validate_definitions(value)
+        return
     if (value.get("schema") != "acceptance-catalog-v1" or not value.get("project") or
             not isinstance(value.get("requirements"), list) or not isinstance(value.get("scenarios"), list)):
         raise ValueError("complete project scenario catalog required")
@@ -324,15 +341,46 @@ def validate_catalog(value):
             raise ValueError("scene needs an original requirement or admitted rule")
 
 
-def publish_catalog(project, acceptance_id, value):
+def publish_catalog(project, acceptance_id, value, *, assessment=None):
+    with current_lock(project):
+        if value.get('schema') == 'acceptance-catalog-v2':
+            require_current(project, acceptance_id)
+            _, _, local = locations(project, acceptance_id)
+            with inside(local, 'workspace.lock').open('a+') as lock:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError as error:
+                    raise ValueError('workspace stage is running; freeze new definitions at a safe boundary') from error
+                return _publish_catalog(project, acceptance_id, value, assessment=assessment)
+        return _publish_catalog(project, acceptance_id, value, assessment=assessment)
+
+
+def _publish_catalog(project, acceptance_id, value, *, assessment=None):
     _, shared, _ = locations(project, acceptance_id)
     state = validate(project, acceptance_id)
+    path = shared / "records" / ("catalog-" + uuid4().hex + ".json")
+    if value.get('schema') == 'acceptance-catalog-v2':
+        from acceptance_definitions import versioned, compare
+        require_current(project, acceptance_id)
+        if not isinstance(value.get('basis'), str) or not value['basis'].strip():
+            raise ValueError('freezing definitions needs the actual adoption/change decision basis')
+        old_path = shared / 'scenarios.json'
+        previous = read(old_path) if old_path.exists() else None
+        value = versioned(value, previous)
+        change = compare(previous, value, assessment)
+        value = {**value, 'definition_record': path.relative_to(shared).as_posix(),
+                 'definition_version': (previous or {}).get('definition_version', 0) + 1,
+                 'previous_catalog_sha256': digest(old_path) if previous else None,
+                 'change': {**change, 'decision': 'adopted', 'basis': value['basis']}}
+    elif (shared / 'scenarios.json').exists() and read(shared / 'scenarios.json').get('schema') == 'acceptance-catalog-v2':
+        raise ValueError('cannot replace complete frozen definitions with a legacy catalog')
     validate_catalog(value)
     value = {**value, "acceptance_id": acceptance_id, "scope_sha256": state["scope"]["sha256"], "updated_at": now()}
-    path = shared / "records" / ("catalog-" + uuid4().hex + ".json")
     save(path, value, exclusive=True)
     save(shared / "scenarios.json", value)
-    return {"catalog": str(shared / "scenarios.json"), "history": str(path), "sha256": digest(path)}
+    return {"catalog": str(shared / "scenarios.json"), "history": str(path), "sha256": digest(path),
+            **({'definitions': {'path': str(path), 'sha256': digest(path)}, 'change': value['change']}
+               if value.get('schema') == 'acceptance-catalog-v2' else {})}
 
 
 def initialize(project, acceptance_id, title, owner, scope, basis):
@@ -433,6 +481,9 @@ def guard(config, outputs=()):
     state = validate(root, binding["id"])
     if binding.get("scope_sha256") != state["scope"]["sha256"]:
         raise ValueError("scope changed: keep acceptance ID, create new dependent frozen attempts")
+    if config.get('definitions'):
+        from acceptance_definitions import load_binding
+        load_binding(config)
     path = Path(os.environ.get("ACCEPTANCE_KNOWLEDGE_RECEIPT") or binding["knowledge_receipt"])
     if not path.is_absolute():
         raise ValueError("knowledge receipt belongs to another acceptance")

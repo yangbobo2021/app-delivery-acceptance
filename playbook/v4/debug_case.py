@@ -14,6 +14,8 @@ from acceptance_workspace import require_scene_lease
 
 def create(catalog_path, input_path, contract_path):
     catalog, scene = read(catalog_path), read(input_path)
+    from acceptance_definitions import verify_case
+    verify_case(scene)
     contract_path = Path(contract_path).resolve()
     guard(catalog, [contract_path])
     require_scene_lease(catalog)
@@ -25,6 +27,8 @@ def create(catalog_path, input_path, contract_path):
              'debug_root': str(contract_path.parent / 'debug'),
              'coverage': catalog.get('coverage', scene.get('coverage', {})),
              'environment': scene.get('debug_environment', {})}
+    if scene.get('definitions'):
+        value['definitions'] = scene['definitions']
     if contract_path.exists():
         if read(contract_path) != value:
             raise ValueError('Debug contract changed; preserve it and create a new bound attempt')

@@ -1,4 +1,4 @@
-import {acceptanceGuard,knowledgeContext} from '../../acceptance-guard.mjs';
+import {acceptanceGuard,knowledgeContext,verifyDefinitionsStage} from '../../acceptance-guard.mjs';
 import {readFileSync,writeFileSync,appendFileSync,mkdirSync,existsSync,copyFileSync} from 'node:fs';
 import {resolve,join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -17,6 +17,7 @@ const request=JSON.parse(readFileSync(requestPath,'utf8'));
 if(request.mode!==mode)throw Error('Request mode differs from command');
 const folder=resolve(process.argv[4]);
 const acceptanceBinding=acceptanceGuard(request,[folder]);
+verifyDefinitionsStage(requestPath);
 const acceptanceKnowledge=knowledgeContext(acceptanceBinding);
 if(existsSync(folder))throw Error('Run folder exists: preserve it and select a separate isolated trial');
 mkdirSync(folder,{recursive:true});

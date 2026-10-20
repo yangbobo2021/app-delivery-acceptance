@@ -127,6 +127,8 @@ def prepare(config, output):
     if Path(template["project_root"]).resolve() != root or template.get("workspace_policy") != POLICY:
         raise ValueError("prepare a new catalog in the single acceptance workspace; preserve old records")
     catalog = dict(template)
+    if config.get('definitions'):
+        catalog['definitions'] = config['definitions']
     if coverage.get('policy')=='required':catalog['coverage']=coverage
     catalog["project_root"] = str(root)
     catalog["write_roots"] = config.get("allowed_test_roots", template.get("test_roots", []))
@@ -257,8 +259,10 @@ def main():
     if not config or config.get("schema") != "isolated-scene-pipeline-v1":
         raise ValueError("invalid pipeline config")
     case_input = load(config["case_input"])
-    if not case_input or case_input.get("scene", {}).get("requirement_id") != case_input.get("requirement", {}).get("id"):
-        raise ValueError("case input has no bound scene owner")
+    from acceptance_definitions import verify_case, load_binding
+    verify_case(case_input or {})
+    if case_input.get('definitions') != config.get('definitions'):
+        raise ValueError('pipeline and case definitions differ')
     source = case_input.get("scenario_source_path")
     if source and (not Path(source).is_file() or digest(source) != case_input.get("scenario_source_sha256")):
         raise ValueError("scenario source changed; create a new case run")
@@ -274,19 +278,23 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     catalog_template = load(config["template_catalog"]) or {}
     scenario_request = (load(Path(source).with_name("request.frozen.json")) if source else None) or {}
-    originals = scenario_request.get("requirements", {}).get("items", [case_input["requirement"]])
+    definitions = load_binding(case_input)
+    originals = definitions['requirements'] if definitions else scenario_request.get("requirements", {}).get("items", [case_input["requirement"]])
     preview = {"acceptance": config["acceptance"],"progress_schema": "single-agent-scene-v1",
                "project": {"id": catalog_template.get("project_id") or Path(config["source_checkout"]).name,
                            "label": catalog_template.get("project_label") or Path(config["source_checkout"]).name,
                            "root": str(Path(config["source_checkout"]).resolve()),
                            "revision": config["revision"], "sources": catalog_template.get("source_paths", [])},
                "requirements": originals,
-               "reverse_rules": ([case_input["requirement"]] if case_input["scene"].get("kind") == "WHITE_BOX"
+               "reverse_rules": (definitions['reverse_rules'] if definitions else [case_input["requirement"]] if case_input["scene"].get("kind") == "WHITE_BOX"
                                  and case_input["requirement"]["id"] not in
                                  {x["id"] for x in originals} else []),
                "scene": case_input["scene"], "case_catalog": [],
                "case_input_path": str(Path(config["case_input"]).resolve()),
                "config_path": str(config_path)}
+    if definitions:
+        preview['definition_binding_sha256'] = case_input['definition_binding_sha256']
+        preview['definitions'] = config['definitions']
     reverse_path = case_input.get("reviewed_reverse_path") or case_input.get("pr_reviewed_reverse_path")
     if reverse_path:
         preview["change"] = (load(reverse_path) or {}).get("change", {})
@@ -572,6 +580,8 @@ def main():
                "total_seconds": sum(data["result"].get("seconds", 0)
                                     for data in state["stages"].values()
                                     if data["status"] == "completed")}
+    if config.get('definitions'):
+        summary.update(definitions=config['definitions'], definition_binding_sha256=original['definition_binding_sha256'])
     save(output / "summary.json", summary)
     finish_scene(config, output)
     print(json.dumps({"scene_id": summary["scene_id"],

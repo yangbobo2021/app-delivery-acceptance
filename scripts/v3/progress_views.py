@@ -506,6 +506,8 @@ def collect(roots, traces, request_paths=None, artifact_resolver=None, request_o
             # number does not mean the recorded execution is still preparation.
             attempt_label = '冻结执行'
         previews.append({'schema': 'delivery-trace-v1', 'provisional': True, 'project': project,
+                         **({'definition_binding_sha256': request['definition_binding_sha256']}
+                            if request.get('definition_binding_sha256') else {}),
                          'requirements': requirements, 'reverse_rules': reverse_rules,
                          'change': request.get('change') or {}, 'scenarios': scenes,
                          'bindings': bindings, 'case_results': case_results,

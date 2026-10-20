@@ -65,8 +65,8 @@ function render(items){
  }
  const grouped=new Map([...reqs.keys()].map(key=>[key,[]]));
  for(const entry of scenes.values()){
-  const {trace:t,scenario:s}=entry,key=t.project.id+':'+s.requirement_id;
-  if(!reqs.has(key)){reqs.set(key,{project:t.project,requirement:{id:s.requirement_id,text:'需求或规则文本缺失'},kind:'original'});grouped.set(key,[])}
+  const {trace:t,scenario:s}=entry,key=t.project.id+':'+(s.requirement_id||('scenario:'+s.id));
+  if(!reqs.has(key)){reqs.set(key,{project:t.project,requirement:{id:s.requirement_id||s.id,text:s.requirement_id?'需求或规则文本缺失':'采用场景本身的冻结约定；没有单独上层需求。'},kind:s.requirement_id?'original':'scenario'});grouped.set(key,[])}
   grouped.get(key).push(entry);
  }
  const executed=({trace:t,scenario:s})=>t.execution_known??Boolean(t.execution_records_by_scene?.[s.id]?.length||t.case_results.some(r=>t.bindings.some(b=>b.id===r.binding_id&&b.scenario_id===s.id)&&['passed','failed','executed','error','aborted'].includes(r.status)));
@@ -84,7 +84,7 @@ function render(items){
   const entries=grouped.get(key)||[],done=entries.filter(executed).length;
   const rows=entries.reduce((sum,{trace:t,scenario:s})=>sum+Math.max(1,t.bindings.filter(x=>x.scenario_id===s.id).length),0)||1;
   const progress=entries.length?`已执行 ${done}/${entries.length} 个场景`:'未执行 · 尚无场景';
-  const source=`<td rowspan="${rows}"><span class="small">${esc(project.label||project.id)}</span><div>${sourceKind==='reverse'?'<span class="tag">白盒逆向 · '+esc(req.status||'')+'</span>':'<span class="tag">原始需求</span>'}</div><div class="title">${esc(req.id)}</div><span class="tag ${done===0?'pending':''}">${progress}</span>${block(req.text||'需求或规则文本缺失')}${sourceKind==='reverse'?`<div class="small">${block('独立依据：'+(req.contract_source||req.basis_kind||''))}</div><div class="small">提交：${esc((change?.base_revision||'').slice(0,8))} → ${esc((change?.head_revision||'').slice(0,8))}</div>`:`<div class="small">${esc(req.source||'')}</div>`}</td>`;
+  const source=`<td rowspan="${rows}"><span class="small">${esc(project.label||project.id)}</span><div>${sourceKind==='reverse'?'<span class="tag">白盒逆向 · '+esc(req.status||'')+'</span>':sourceKind==='scenario'?'<span class="tag">直接场景</span>':'<span class="tag">原始需求</span>'}</div><div class="title">${esc(req.id)}</div><span class="tag ${done===0?'pending':''}">${progress}</span>${block(req.text||'需求或规则文本缺失')}${req.origin?`<div class="small">来源：${esc(req.origin.reference)} · 定义版本 ${esc(req.version||'历史未登记')}</div>${(req.external_refs||[]).map(x=>`<div class="small">外部引用：${esc(x.locator)} @ ${esc(x.revision)}</div>`).join('')}`:''}${sourceKind==='reverse'?`<div class="small">${block('独立依据：'+(req.contract_source||req.basis_kind||''))}</div><div class="small">提交：${esc((change?.base_revision||'').slice(0,8))} → ${esc((change?.head_revision||'').slice(0,8))}</div>`:`<div class="small">${esc(req.source||'')}</div>`}</td>`;
   if(!entries.length){html+=`<tr>${source}<td class="muted">尚无测试场景</td><td colspan="4" class="muted">尚未执行</td></tr>`;continue}
   let first=true;
   for(const {trace:t,scenario:s} of entries){
@@ -92,7 +92,7 @@ function render(items){
    let bindings=t.bindings.filter(x=>x.scenario_id===s.id);
    if(!bindings.length)bindings=[{id:'',title:'尚未准备用例／操作',kind:'pending'}];
    for(const [index,b] of bindings.entries()){const r=results.get(b.id);
-    const stageLabel={prepared:'用例准备中',local_debug_executed:'本地调试已执行，待冻结',awaiting_review:'待独立审查',scenario_approved:'场景设计已独立审查',scenario_self_checked:'场景已内部自审',reviewed:'执行已独立审查'}[t.stage]||t.stage||'未标记';
+    const stageLabel={frozen_definitions:'冻结场景定义',prepared:'用例准备中',local_debug_executed:'本地调试已执行，待冻结',awaiting_review:'待独立审查',scenario_approved:'场景设计已独立审查',scenario_self_checked:'场景已内部自审',reviewed:'执行已独立审查'}[t.stage]||t.stage||'未标记';
     const span=` rowspan="${bindings.length}"`;
     const scene=index===0?`<td${span}><span class="tag">${esc(s.priority)}</span>${s.kind==='WHITE_BOX'?'<span class="tag">白盒</span>':''}<span class="small">${esc(s.id)} · ${esc(stageLabel)}</span><div class="title">${esc(s.title)}</div>${block(s.description)}</td>`:'';
     const conclusion=index===0?`<td${span}>${status(t.judgment.status)}${block(t.judgment.reason||'')}</td><td${span}>${cover(t.coverage)}</td>`:'';

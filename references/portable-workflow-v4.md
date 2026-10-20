@@ -2,6 +2,10 @@
 
 此路径适用于有冻结 Git 版本、可建立隔离工作树并能在本地自动执行测试的项目。语言、应用类型、测试框架、业务预期和覆盖率工具由项目输入决定。无源码的黑盒目标、必须人工操作的场景和无法建立隔离工作树的项目继续走 [v3 可移植执行路径](portable-workflow-v3.md)，不能伪造自动测试结果。全量需求分析和提交/PR 白盒逆向继续使用 v3 已验证入口；v4 更换其后的单目标场景生成和单场景用例执行过程。
 
+## 完整定义与已有场景
+
+新验收或定义变更遵守[冻结定义契约](frozen-definitions.md)。Agent 理解来源并提供完整冻结集合，Skill 不管理具体 SPEC 格式。已有场景可直接采用，只有覆盖缺口才运行下述单目标生成；v2 模板携带 definitions 和 scene_id，无需 scenario_run_path。无独立上层需求时不编造需求，待确认逆向规则仍不可执行。变更对比、整体影响检查及新的 v2 执行计划见该契约；以下 v1 生成产物/计划入口继续用于兼容。
+
 ## 项目验收存储前置门禁
 
 先遵守[目录、稳定验收 ID 与 knowledge 规约](project-acceptance-store.md)。启动/恢复先读取 `.acceptance-local/current.json`；配置中的 `acceptance.id` 必须与之相同。没有指针不能从旧配置自动激活；整项验收结束由宿主 `finish` 清除指针，单场景/批次终态不清除。视图切换只读，不绑定对话。准备 spec、场景 request、case template 和计划均携带 `read-knowledge` 输出的 `acceptance` 对象；所有新阶段输出在 `.acceptance-local/<同一ID>/workflows/` 内。`prepare_project.py`、`bind_case.py`、`run_plan.py`、`run_scenarios.mjs`、用例及修复入口强制校验，单场景编排在阶段交接再次校验。目录/知识问题不执行项目命令、不改场景结论；范围变化追加记录并创建受影响的新尝试，不换验收 ID。正式用例融合项目测试/回归体系，未融合的工作树用例须如实标成候选。

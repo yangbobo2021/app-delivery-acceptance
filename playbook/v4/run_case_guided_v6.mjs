@@ -12,11 +12,16 @@ const input=JSON.parse(readFileSync(resolve(inputArg),'utf8'));
 const catalogPath=resolve(catalogArg),catalogBytes=readFileSync(catalogPath),catalog=JSON.parse(catalogBytes);
 const root=resolve(catalog.project_root),output=resolve(outputArg);
 const acceptanceBinding=acceptanceGuard(catalog,[output]);
+if(catalog.definitions){
+ acceptanceGuard(input,[output]);
+ if(JSON.stringify(catalog.definitions)!==JSON.stringify(input.definitions))throw Error('Case and catalog definitions differ');
+}
 const acceptanceKnowledge=knowledgeContext(acceptanceBinding);
 requireWorkspaceLease(catalog);
 const guide=JSON.parse(readFileSync(resolve(guideArg),'utf8'));
-if(catalog.schema!=='portable-project-catalog-v1'||!input.requirement?.id||!input.scene?.id||
- input.scene.requirement_id!==input.requirement.id)throw Error('Invalid bound input/catalog');
+if(catalog.schema!=='portable-project-catalog-v1')throw Error('Invalid project catalog');
+execFileSync('python3',[new URL('../../scripts/acceptance_definitions.py',import.meta.url).pathname,
+ 'verify-case',resolve(inputArg)],{encoding:'utf8'});
 const git=(...args)=>execFileSync('git',args,{cwd:root,encoding:'utf8'}).trim();
 if(git('rev-parse','HEAD')!==catalog.revision)throw Error('Project revision changed');
 for(const part of catalog.components??[]){
@@ -66,7 +71,8 @@ ${coverageContract}
 公共准备目录：${catalogPath}
 必要操作信息：${JSON.stringify(catalogBrief)}
 项目级操作指南：${JSON.stringify(guideBrief)}
-场景输入：${JSON.stringify(input)}`;
+场景输入：${JSON.stringify(input)}
+定义来源说明：外部已有或用户直接给出的场景可以本身就是验收依据；requirement 为 null 表示没有单独上层需求，不补造需求。场景的 check 与 origin 记录实际采用方式，不将它冒称为独立审查。所有预期仍须可追溯到冻结的用户约定，不能从实现生成额外业务要求。`;
 if(resume){if(readFileSync(join(output,'prompt.txt'),'utf8')!==prompt)throw Error('resume prompt changed');}
 else writeFileSync(join(output,'prompt.txt'),prompt);
 let resumeSession;

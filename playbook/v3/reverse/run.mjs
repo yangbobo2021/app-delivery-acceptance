@@ -1,4 +1,4 @@
-import {acceptanceGuard,knowledgeContext} from '../../acceptance-guard.mjs';
+import {acceptanceGuard,knowledgeContext,verifyDefinitionsStage} from '../../acceptance-guard.mjs';
 import {readFileSync,writeFileSync,mkdirSync,existsSync,copyFileSync} from 'node:fs';
 import {resolve,join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -12,6 +12,7 @@ if(!requestArg||!outArg||flags.some(x=>x!=='--resume'))
  throw Error('usage: node run.mjs request.json output-dir [--resume]');
 const requestPath=resolve(requestArg),folder=resolve(outArg),request=JSON.parse(readFileSync(requestPath,'utf8'));
 const acceptanceBinding=acceptanceGuard(request,[folder]);
+verifyDefinitionsStage(requestPath);
 const acceptanceKnowledge=knowledgeContext(acceptanceBinding);
 if(existsSync(folder)&&!resume)throw Error('Output exists; preserve previous reverse analysis');
 if(!existsSync(folder)&&resume)throw Error('Resume output missing');

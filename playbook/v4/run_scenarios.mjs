@@ -12,11 +12,19 @@ import {reverseArtifactReady} from '../v3/reverse/artifact.mjs';
 const [requestArg,outputArg,...flags]=process.argv.slice(2),resume=flags.includes('--resume');
 if(!requestArg||!outputArg||flags.some(x=>x!=='--resume'))throw Error('usage: node run_scenarios.mjs request.json NEW-output-dir [--resume]');
 const here=dirname(fileURLToPath(import.meta.url)),v3=resolve(here,'../v3');
-const requestPath=resolve(requestArg),output=resolve(outputArg),supplied=JSON.parse(readFileSync(requestPath));
+const requestPath=resolve(requestArg),output=resolve(outputArg);
+const supplied=JSON.parse(execFileSync('python3',[new URL('../../scripts/acceptance_definitions.py',import.meta.url).pathname,
+ 'scenario-request',requestPath],{encoding:'utf8'}));
 const acceptanceBinding=acceptanceGuard(supplied,[output]);
 const acceptanceKnowledge=knowledgeContext(acceptanceBinding);
 if(!['BLACK_BOX','WHITE_BOX'].includes(supplied.scenario_kind))throw Error('Invalid scenario kind');
 const request=bindReviewedReverse(supplied),root=resolve(request.project_root);
+if(supplied.definitions&&request.scenario_kind==='WHITE_BOX'){
+  const reversed=request.reverse_rules?.find(x=>x.id===request.target_requirement_id);
+  const frozen=supplied.reverse_rules?.find(x=>x.id===request.target_requirement_id);
+  if(reversed&&(!frozen||['id','text','status','basis_kind','basis','contract_source','contract_quote']
+    .some(key=>reversed[key]!==frozen[key])))throw Error('Reverse target differs from adopted frozen definitions');
+}
 const sha=p=>createHash('sha256').update(readFileSync(p)).digest('hex');
 if(request.scenario_kind==='BLACK_BOX'&&request.pr_reviewed_reverse_path){
   const path=resolve(request.pr_reviewed_reverse_path),result=JSON.parse(readFileSync(path));

@@ -7,6 +7,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
+
 
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -60,8 +62,13 @@ def main():
         errors.append("frozen execution receipt missing")
     if request.get("frozen_revision") != revision:
         errors.append("case version differs from prepared project")
-    if request.get("scene", {}).get("requirement_id") != request.get("requirement", {}).get("id"):
-        errors.append("scene owner differs from requirement")
+    try:
+        from acceptance_definitions import verify_case
+        if catalog.get('definitions') and request.get('definitions') != catalog['definitions']:
+            raise ValueError('case and catalog definitions differ')
+        verify_case(request)
+    except (ValueError, KeyError, OSError) as error:
+        errors.append('scene definition binding invalid: ' + str(error))
     if receipt:
         if receipt.get("head_before") != revision or receipt.get("head_after") != revision:
             errors.append("execution changed or used a different source revision")
