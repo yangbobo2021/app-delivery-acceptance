@@ -301,6 +301,8 @@ def legacy_scene_bindings(path, value):
             break
         seen.add(prior)
         current = read(records[prior])
+        if current.get('schema') != SCHEMA:
+            break  # A pre-v2 catalog has no complete business closure to prove.
         validate_definitions(current)
         if current.get('acceptance_id') != value.get('acceptance_id'):
             raise ValueError('definition ancestor belongs to another acceptance')

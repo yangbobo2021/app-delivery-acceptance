@@ -390,6 +390,17 @@ class DefinitionLifecycleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'definitions changed'):
             verify_case(case)
 
+    def test_pre_v2_ancestor_cannot_supply_unproved_compatibility_bindings(self):
+        from acceptance_definitions import legacy_scene_bindings
+        self.freeze(); current = load_binding(self.binding)
+        legacy = self.shared / 'records/catalog-pre-v2.json'
+        save(legacy, {'schema': 'acceptance-catalog-v1', 'acceptance_id': self.at,
+                      'scenarios': [{'id': 'S1'}]})
+        current['previous_catalog_sha256'] = digest(legacy)
+        matches, assessed = legacy_scene_bindings(self.shared / 'scenarios.json', current)
+        self.assertEqual(matches['S1'], [scene_fingerprint(current, 'S1', legacy_context=True)])
+        self.assertEqual(assessed, {})
+
     def test_legacy_equivalence_still_needs_the_recorded_semantic_assessment(self):
         self.freeze(); old = load_binding(self.binding)
         trace = {'project': {'id': 'fixture'}, 'generated_at': '2026-10-01T01:00:00Z',
