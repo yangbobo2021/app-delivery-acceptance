@@ -91,10 +91,46 @@ compare 只返回 proposed_only 报告，不采纳、不运行项目、不改结
 
 ## 受影响流程
 
-- 需求/规则/共享约束变化：先重查整体目标、范围及完整场景覆盖，再更新受影响场景，检查用例并重跑执行与独立复审。场景生成读完整需求，不能把局部引用当作全部实际依赖。
-- 场景条件/操作/预期变化：从场景检查及用例适配开始；无产品变化可复用原项目准备。
+- 需求/规则/共享约束变化：先重查整体目标、范围及完整场景覆盖，再由**现有场景生成工作流的 edit 模式**修订受影响目标。输入旧/新需求、完整当前上下文和当前采用的场景；输出新增、修改、退役及原因。未改内容原样保留，同一测试点保留 ID 并增版，新测试点才新增 ID；明确退役而不删除历史。生成 Agent 只负责设计，宿主合并/冻结并决定后续执行，不新增一套需求变更场景工作流。
+- 场景条件/操作/预期变化：从场景检查及用例适配开始，不因只改场景而重做整体需求分析。无产品/工具变化可复用原准备。若场景修改改变或违反需求义务，先返回需求确认/分析，不能直接将其当作用例预期。
 - 优先级、标题或单纯外部引用补充：更新记录与调度，正文和依据实际未变时不因此重跑业务。origin 或独立依据变化仍需重查。
 - 产品/组件或测试工具变化：保留已有版本门禁，准备新 catalog；测试代码/夹具变化重跑受影响执行。覆盖率始终对应实际采集版本。
+
+### 既有场景的增量修订
+
+同一 `run_scenarios.mjs` 支持 `mode: create|edit`。已有主目标场景时使用 edit；create 拒绝悄悄另起一份覆盖原场景。edit 请求的 `definitions` 是当前完整定义（包括需求更新后任何人工修改）；`previous_definitions` 指向本次需求变化前的不可覆盖快照，不以旧场景覆盖当前人工编辑。
+
+```json
+{
+  "mode": "edit",
+  "acceptance": {"project_root": "<project>", "id": "<AT-ID>", "scope_sha256": "...", "knowledge_receipt": "..."},
+  "definitions": {"path": "<current-record>", "sha256": "..."},
+  "previous_definitions": {"path": "<record-before-change>", "sha256": "..."},
+  "project_root": "<shared-workspace>",
+  "target_requirement_id": "R1",
+  "scenario_kind": "BLACK_BOX"
+}
+```
+
+宿主自动物化完整需求、当前全部场景、目标的旧/新需求、旧场景、当前目标场景和基线哈希。生成 Agent 使用同一套设计/内部自审标准，edit 只提交 `base_sha256, upsert, remove_ids, change_reasons, change_summary`；upsert 是五个设计字段的完整对象，未改场景不重写。门禁拒绝基线变化、其他目标 ID 冲突、改写出处或引用、无原因退役和整批替换。当前目标之外的关联影响写入说明，交宿主继续修订对应目标。
+
+```sh
+node <skill>/playbook/v4/run_scenarios.mjs edit-request.json NEW-scenario-dir
+python3 <skill>/scripts/acceptance_definitions.py merge-scenarios edit-request.json NEW-scenario-dir > complete-candidate.json
+python3 <skill>/scripts/acceptance_definitions.py freeze <project> <AT-ID> --input complete-candidate.json --basis '<实际检查后采用本次设计变更的依据>'
+```
+
+`merge-scenarios` 校验当前定义、生成终态/差量/结果哈希，将目标变更合并回完整集合，保留未改对象及已有出处/引用；新增场景保存真实生成来源，引用初始为空。它只输出候选，不隐式冻结、不修改项目 SPEC、不执行用例。采用前 Agent 仍对照需求检查语义，按授权决定回填。所有新尝试使用新目录；`--resume` 只恢复完全相同的冻结输入。
+
+### 用户意图决定执行范围
+
+变更不等于执行授权。宿主先读用户要求，再读本 AT 的真实执行历史；“曾执行”包含通过、失败及未形成确认结论的实际执行，不以已有用例、设计终态或通过标签代替执行事实。
+
+- `complete_change_acceptance`：用户要求完成需求变更验收。执行覆盖受影响需求的全部有效场景，包含新增、原未执行和设计未改但关联需求换版的场景；不能因为以前没执行而跳过，拒绝省略这些场景的子集计划。缺场景时先补设计，不能称完成。
+- `follow_history`：未要求完成整项变更验收。变化影响的场景中，曾执行的按场景变更处理用例并重新执行、采证和独立复核；新增及原未执行场景只更新冻结定义，保持未执行。无行为变化的元信息修改不因此重跑。
+- `design_only`：用户明确只更新、不执行。即使旧场景已执行，也不启动用例、模型执行阶段或项目准备；保留待复验事项。
+
+按用户明确选择执行个别场景时仍可提供 `scene_ids`，但不能用它缩小已经要求“完成变更验收”的范围。仅完成调度不是业务通过，旧确认结论与当前适用性仍分开。
 
 v2 执行计划直接引用已采用场景：
 
@@ -103,16 +139,17 @@ v2 执行计划直接引用已采用场景：
   "schema": "acceptance-v4-plan-v2",
   "acceptance": {"project_root": "<project>", "id": "<AT-ID>", "scope_sha256": "...", "knowledge_receipt": "..."},
   "definitions": {"path": "<freeze返回的绝对记录路径>", "sha256": "..."},
+  "previous_definitions": {"path": "<本次变化开始前的记录>", "sha256": "..."},
   "run_dir": "<本AT下全新workflows目录>",
-  "changed_only": true,
+  "execution_intent": {"mode": "complete_change_acceptance", "basis": "<用户要求完成本次需求变更验收的实际依据>"},
   "change_review": {"basis": "实际整体影响和覆盖检查记录", "checked_scene_ids": [], "checked_target_ids": []},
   "case_template": {"acceptance": {}, "source_checkout": "<共用workspace>", "template_catalog": "<准备catalog>", "guide": "<操作指南>"}
 }
 ```
 
-case_template.acceptance 填同一绑定。`python3 <skill>/playbook/v4/run_plan.py plan.json` 在 changed_only 时执行该冻结变更报告的 rerun_scene_ids；也可显式 scene_ids 选择子集，省略两者执行全部冻结场景。若报告 analysis_required，Agent 先完成整体影响/覆盖检查，change_review 列出报告全部 coverage_check_scene_ids 和 scenario_target_ids 的检查记录；缺场景先补定义，不靠执行门禁代替覆盖判断。
+case_template.acceptance 填同一绑定。`python3 <skill>/playbook/v4/run_plan.py plan.json` 按 execution_intent 调度；design_only 不需要 case_template。新 changed_only 计划默认 follow_history，显式 scene_ids 仍可按用户授权选择。新计划没有 intent、changed_only 或明确 scene_ids 时拒绝执行，不把定义更新视为全量执行授权；原已冻结计划沿用其原选择与绑定，不改历史。宿主写入带计划/定义绑定的 execution-selection.json，恢复不会因这次已经执行了部分场景而改变原选择。
 
-报告针对相邻两次冻结。跨多次修订时 Agent 必须合并尚未完成的影响，显式填完整 scene_ids；不能只执行最新差异而漏掉前次未验内容。新目录保证每次新尝试，旧目录只恢复完全相同输入。
+compare 报告针对相邻冻结。新变更执行计划的 previous_definitions 保持指向本次变化开始前的记录；宿主跨过需求采用、整体分析、逐目标场景修订等多次冻结重新比较完整影响，不能只读最后一次场景差异。若报告 analysis_required，Agent 先完成整体影响/覆盖检查，change_review 列出跨版本报告的全部 coverage_check_scene_ids 和 scenario_target_ids（可先用 compare 对基线与候选检查）；缺场景先补定义，不靠执行门禁代替覆盖判断。Agent 在 change_review.affected_target_ids/assessment 补充有依据的隐含影响，不降低机械依赖的检查下限。新目录保证每次新尝试，旧目录只恢复完全相同输入。
 
 计划完成仅证明声明任务的编排结束，不是全量通过。pending_rule_ids、missing_scenario_target_ids、未选场景和版本限制随结果披露。PR 仍走同版本、完整目标门禁；v2 子集结果不能替代现有 PR completion，不能借复用历史通过转移版本。
 

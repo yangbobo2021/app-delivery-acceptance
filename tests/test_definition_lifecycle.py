@@ -178,13 +178,16 @@ class DefinitionLifecycleTests(unittest.TestCase):
         self.assertEqual(json.dumps(trace, sort_keys=True), trace_bytes)
 
     def test_changed_plan_dispatches_only_affected_scene_and_requires_global_impact_check(self):
-        self.freeze()
+        first = self.freeze()
         template = self.prepare()
         candidate = deepcopy(self.catalog); candidate['scenarios'][0]['description'] += '; also observe the label'
         result = self.freeze(candidate)
         run_dir = self.local / 'workflows/rerun'
         plan = {**self.binding, 'schema': 'acceptance-v4-plan-v2', 'run_dir': str(run_dir),
-                'case_template': template, 'changed_only': True}
+                'case_template': template, 'changed_only': True,
+                'previous_definitions': first['definitions'],
+                'execution_intent': {'mode': 'complete_change_acceptance',
+                    'basis': 'Dispatcher fixture requests acceptance of the changed scene'}}
         plan_path = self.local / 'workflows/plan.json'; save(plan_path, plan)
         import run_plan
         actual_launch = run_plan.launch

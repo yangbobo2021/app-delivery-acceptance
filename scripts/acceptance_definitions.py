@@ -326,21 +326,21 @@ def main():
     p = sub.add_parser('verify-case'); p.add_argument('input', type=Path)
     p = sub.add_parser('verify-stage'); p.add_argument('input', type=Path)
     p = sub.add_parser('scenario-request'); p.add_argument('input', type=Path)
+    p = sub.add_parser('scenario-gate'); p.add_argument('input', type=Path); p.add_argument('folder', type=Path)
+    p = sub.add_parser('merge-scenarios'); p.add_argument('input', type=Path); p.add_argument('folder', type=Path)
     args = parser.parse_args()
     if args.command == 'verify-case':
         verify_case(read(args.input)); result = {'status': 'bound'}
     elif args.command == 'verify-stage':
         verify_stage(read(args.input)); result = {'status': 'bound'}
     elif args.command == 'scenario-request':
-        request = read(args.input)
-        value = load_binding(request)
-        if value:
-            request = {**request, 'requirements': {'items': value['requirements'],
-                'shared_constraints': value['context'].get('shared_constraints', '')},
-                'reverse_rules': value['reverse_rules'],
-                'analysis': {**request.get('analysis', {}), **value['context']},
-                'user_constraints': value['context'].get('user_constraints', [])}
-        result = request
+        from scenario_revision import materialize
+        result = materialize(read(args.input))
+    elif args.command in {'scenario-gate', 'merge-scenarios'}:
+        from acceptance_store import guard
+        from scenario_revision import gate, candidate
+        guard(read(args.input), [args.folder])
+        result = gate(read(args.input), args.folder) if args.command == 'scenario-gate' else candidate(args.input, args.folder)
     else:
         require_current(args.project, args.acceptance_id)
         if args.command == 'binding':

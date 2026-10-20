@@ -38,6 +38,8 @@ node <skill>/playbook/v4/prepare_project_semantics.mjs prep-output/catalog.json 
 
 需求列表、整体目标和范围来自 v3 前置分析；PR 的白盒目标先完成 v3 `reverse/run.mjs`，其 `result.json` 必须通过自身门禁。场景请求使用 [v3 场景请求字段](playbook-inputs-v3.md#one-requirements-scenario-list)，一次指定一个 `target_requirement_id`，传完整原始需求与关联分组。白盒提供 `reviewed_reverse_path` 和 SHA-256；含需求的 PR 黑盒目标提供 `pr_reviewed_reverse_path` 和 SHA-256。v4 Agent 在同一次过程内生成并自审场景，只有确定性结构门禁；**没有独立场景 Reviewer**。结构通过仅表示列表可供后续用例实现，不证明业务覆盖绝无遗漏。待确认规则不生成场景。
 
+首次生成使用 create；已有场景或需求变化使用同一入口的 edit 模式。旧/新约定、当前人工编辑和完整场景上下文由宿主从 definitions/previous_definitions 物化，模型仅提交带基线哈希的增删改及原因，门禁保留未改对象。`acceptance_definitions.py merge-scenarios` 输出合并后的完整候选，再由 Agent 检查并 freeze。请求、差量格式、采用与按用户意图决定执行的 v2 计划见[增量修订与执行范围](frozen-definitions.md#既有场景的增量修订)。场景工作流不执行测试、不回填来源，执行调度继续由宿主负责。
+
 ```sh
 node <skill>/playbook/v4/run_scenarios.mjs scenario-request.json NEW-scenario-dir
 ```

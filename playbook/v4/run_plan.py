@@ -12,6 +12,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 from acceptance_store import guard as acceptance_guard
 from acceptance_definitions import load_binding
+from change_execution import select_scenes
 
 
 HERE = Path(__file__).resolve().parent
@@ -54,27 +55,50 @@ def run_definitions_plan(plan_path, plan):
     """Execute adopted frozen scenes; generation/semantic impact stay with the Agent."""
     acceptance_guard(plan, [plan['run_dir']])
     value = load_binding(plan, required=True)
-    template = plan['case_template']
-    if any(plan['acceptance'].get(k) != template.get('acceptance', {}).get(k)
-           for k in ('project_root', 'id', 'scope_sha256')):
-        raise ValueError('plan and case template acceptance differ')
-    change = value['change']
+    run_dir = Path(plan['run_dir']).resolve()
+    selection_path = run_dir / 'execution-selection.json'
+    binding_path = run_dir / 'plan.binding.json'
+    legacy = binding_path.exists() and 'selection_sha256' not in read(binding_path)
+    # Once dispatch starts, later receipts cannot change that attempt's selection.
+    if selection_path.exists():
+        selection = read(selection_path)
+        if selection.get('plan_sha256') != sha(plan_path) or selection.get('definitions') != plan['definitions']:
+            raise ValueError('frozen execution selection changed')
+    elif legacy:
+        if read(binding_path).get('plan_sha256') != sha(plan_path):
+            raise ValueError('frozen legacy plan changed; use a new attempt')
+        selected = plan.get('scene_ids', value['change']['rerun_scene_ids'] if plan.get('changed_only')
+                            else [s['id'] for s in value['scenarios']])
+        selection = {'mode': 'legacy_frozen_selection', 'change': value['change'],
+                     'selected_scene_ids': selected, 'deferred_scene_ids': []}
+    else:
+        selection = {**select_scenes(plan, value), 'plan_sha256': sha(plan_path),
+                     'definitions': plan['definitions']}
+    change = selection['change']
     if change['analysis_required']:
         review = plan.get('change_review', {})
         if not review.get('basis') or set(change['coverage_check_scene_ids']) - set(review.get('checked_scene_ids', [])) or \
                 set(change['scenario_target_ids']) - set(review.get('checked_target_ids', [])):
             raise ValueError('Agent must review changed requirements/shared context and complete target/scene coverage checks before execution')
     all_ids = [s['id'] for s in value['scenarios']]
-    selected = plan.get('scene_ids', change['rerun_scene_ids'] if plan.get('changed_only') else all_ids)
-    if not isinstance(selected, list) or len(set(selected)) != len(selected) or set(selected) - set(all_ids):
-        raise ValueError('plan contains duplicate/unknown scene IDs')
-    run_dir = Path(plan['run_dir']).resolve()
+    selected = selection['selected_scene_ids']
+    if not isinstance(selected, list) or not all(isinstance(s, str) for s in selected) or \
+            len(set(selected)) != len(selected) or set(selected) - set(all_ids):
+        raise ValueError('frozen selection contains duplicate/unknown scenes')
+    template = plan.get('case_template', {})
+    if selected and any(plan['acceptance'].get(k) != template.get('acceptance', {}).get(k)
+                        for k in ('project_root', 'id', 'scope_sha256')):
+        raise ValueError('plan and case template acceptance differ')
     run_dir.mkdir(parents=True, exist_ok=True)
     with (run_dir / 'plan.lock').open('a+') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if not legacy:
+            write_once(selection_path, selection)
         write_once(run_dir / 'plan.binding.json', {'plan_sha256': sha(plan_path),
-            'definitions': plan['definitions'], 'catalog_sha256': sha(template['template_catalog']),
-            'guide_sha256': sha(template['guide'])})
+            'definitions': plan['definitions'],
+            **({'selection_sha256': sha(selection_path)} if not legacy else {}),
+            **({'catalog_sha256': sha(template['template_catalog']),
+                'guide_sha256': sha(template['guide'])} if selected or legacy else {})})
         summary = []
         for sid in selected:
             acceptance_guard(plan, [run_dir])
@@ -102,6 +126,8 @@ def run_definitions_plan(plan_path, plan):
         result = {'schema': 'acceptance-v4-plan-result-v2', 'status': 'completed',
                   'definitions': plan['definitions'], 'scenes': summary,
                   'selected_scene_ids': selected, 'unselected_scene_ids': sorted(set(all_ids) - set(selected)),
+                  **({'execution_intent': selection['mode'], 'deferred_scene_ids': selection['deferred_scene_ids']}
+                     if not legacy else {}),
                   'pending_rule_ids': change['pending_rule_ids'],
                   'missing_scenario_target_ids': change['missing_scenario_target_ids'],
                   'scope': 'declared frozen scenes only; scheduling completion is not acceptance/PR pass'}
