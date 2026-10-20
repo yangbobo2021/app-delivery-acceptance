@@ -5,6 +5,7 @@ Its explicitly fictional native counters cannot certify any application's covera
 No Agent, network, real project or installed external coverage tool is used.
 """
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -16,7 +17,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[1] / "scripts/v3"))
 from coverage_protocol import PROTOCOL, preparation, sha, verify_report
-from coverage_registry import activate
+from coverage_registry import activate, ensure_active
 from run_coverage import run_coverage
 import coverage_views
 
@@ -127,6 +128,26 @@ class ProjectCoverageProtocolTest(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             run_coverage(self.request("normal"))
         self.assertEqual({path: sha(path) for path in files}, original)
+
+    def test_preparation_rejects_paths_bound_to_caller_working_directory(self):
+        for name in ("inventory_path", "registry_path"):
+            with self.subTest(name=name):
+                profile = json.loads(json.dumps(self.profile))
+                profile["spec"][name] = "relative/" + Path(profile["spec"][name]).name
+                self.write(self.prepared / "prepared.json", profile)
+                config = {**self.config, "prepared_sha256": sha(self.prepared / "prepared.json")}
+                with self.assertRaisesRegex(ValueError, f"coverage {name} must be an absolute path"):
+                    preparation(config, run_check=False)
+
+    def test_active_preparation_is_usable_from_another_working_directory(self):
+        other = self.base / "case-workdir"
+        other.mkdir()
+        original = Path.cwd()
+        try:
+            os.chdir(other)
+            ensure_active(self.prepared)
+        finally:
+            os.chdir(original)
 
     def test_verified_archive_summary_survives_missing_runtime_module(self):
         from unittest.mock import patch

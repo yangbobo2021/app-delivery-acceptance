@@ -13,7 +13,7 @@
 - `tools`：实际验证过的 `{name, version, role}`；准备资料记录实际命令/API及官方文档依据。安装包名称或版本标签不能代替验证。
 - `spec.project_root / revision / components / source_hashes`：实际执行工作区、完整冻结版本与全部源码范围。静态资源仍在清单内。
 - 新准备的 `spec.runtime_manifest / runtime_sha256 / probe_report / probe_report_sha256`：绑定本次验收的运行时环境和独立覆盖率探针报告。后续用例每次执行前复核环境、依赖、执行器、源码、适配器及探针字节；任一变化须重新准备。旧归档中不存在这些字段的历史准备保持可读，不将旧结果伪装成本轮运行环境验证。
-- `spec.inventory_path / inventory_sha256 / registry_path`：不可变范围清单及其摘要、持续证据索引。`registry_path` 的父目录必须是当前 ID 的 `workflows` 下的专用尝试目录，供后续用例调试精确授权；不能直接把索引放在 `workflows` 根目录。
+- `spec.inventory_path / inventory_sha256 / registry_path`：不可变范围清单及其摘要、持续证据索引。两个路径必须是绝对路径，保证准备与用例从不同工作目录调用时仍指向同一文件。`registry_path` 的父目录必须是当前 ID 的 `workflows` 下的专用尝试目录，供后续用例调试精确授权；不能直接把索引放在 `workflows` 根目录。
 - `source_dispositions`：逐一覆盖源码清单，说明 `measured / non_executable / unsupported` 及具体依据，不能删掉不支持的范围。
 - `preparation_evidence`：真实工具链探针、原生零命中单位及配置等 `{path, sha256}`。合成探针仅证明工具能力，不能作为业务验收或业务覆盖率。
 - `preparation_status`：新准备为 `ready` 或 `partial`。某条执行路由探针失败，或者源码被标为 `unsupported` 时不能写 `ready`；失败的首次探针原始资料保留。`blocked` 留在 Agent 阶段结果中，不激活准备。

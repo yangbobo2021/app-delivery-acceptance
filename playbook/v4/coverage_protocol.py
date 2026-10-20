@@ -95,6 +95,9 @@ def preparation(config, *, run_check=True, mapping=None):
     root = Path(spec["project_root"]).resolve()
     if not spec.get("source_hashes") or not spec.get("registry_path") or not spec.get("inventory_path"):
         raise ValueError("coverage needs complete source inventory and persistent evidence index")
+    for name in ("inventory_path", "registry_path"):
+        if not Path(spec[name]).is_absolute():
+            raise ValueError(f"coverage {name} must be an absolute path usable from every execution directory")
     if not spec.get('inventory_sha256'):
         raise ValueError('coverage needs a frozen scope inventory digest')
     bound_file(spec['inventory_path'], spec['inventory_sha256'], mapping)

@@ -13,6 +13,10 @@ const requestPath = resolve(requestArg), output = resolve(outputArg);
 const request = JSON.parse(readFileSync(requestPath));
 if (request.schema !== 'project-coverage-agent-request-v1') throw Error('Invalid coverage Agent request');
 if (existsSync(output)) throw Error('Coverage output already exists; use a new workflow attempt');
+for (const name of ['inventory_path', 'registry_path']) {
+  if (typeof request[name] !== 'string' || !isAbsolute(request[name]))
+    throw Error(`Coverage ${name} must be an absolute path usable from every execution directory`);
+}
 const runtimePath = resolve(request.runtime_manifest);
 const runtimeBytes = readFileSync(runtimePath);
 const hash = value => createHash('sha256').update(value).digest('hex');
