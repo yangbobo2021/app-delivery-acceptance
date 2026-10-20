@@ -297,6 +297,112 @@ class DefinitionLifecycleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'stage requirements differ'):
             verify_stage(wrong)
 
+    def independent_addition(self):
+        value = deepcopy(load_binding(self.binding))
+        value['requirements'].append(definition('R4', 'Accept an independent input format'))
+        value['scenarios'].append(scenario('S4', 'Exercise the independent input format', 'R4'))
+        value['context'].update(business_goal='Verify existing behavior and the additional input format',
+            confirmed_scope={'included_requirement_ids': ['R1', 'R2', 'R3', 'R4']},
+            requirement_groups=[{'id': 'G4', 'requirement_ids': ['R4'], 'reason': 'Independent obligation'}],
+            user_constraints=[{'id': 'U4', 'description': 'Accept the additional requirement'}])
+        return value
+
+    def test_independent_addition_changes_only_new_target_selection_and_business_binding(self):
+        from change_execution import select_scenes
+        first = self.freeze(); old = load_binding(self.binding)
+        candidate = self.independent_addition(); result = self.freeze(candidate)
+        current = load_binding(self.binding); report = result['change']
+        self.assertTrue(report['analysis_required'])
+        self.assertTrue(report['context_changed'])
+        self.assertFalse(report['execution_context_changed'])
+        self.assertEqual(report['rerun_scene_ids'], ['S4'])
+        self.assertEqual(current['requirements'][:3], old['requirements'])
+        self.assertEqual(current['scenarios'][:2], old['scenarios'])
+        self.assertEqual(scene_fingerprint(old, 'S1'), scene_fingerprint(current, 'S1'))
+        plan = {**self.binding, 'previous_definitions': first['definitions'],
+                'execution_intent': {'mode': 'complete_change_acceptance', 'basis': 'Accept new R4'}}
+        selection = select_scenes(plan, current, {'executed_scene_ids': ['S1', 'S2'], 'sources': []})
+        self.assertEqual(selection['selected_scene_ids'], ['S4'])
+        self.assertEqual(selection['affected_target_ids'], ['R4'])
+        self.assertEqual(selection['deferred_scene_ids'], [])
+
+    def test_shared_constraints_still_invalidate_all_scene_bindings_and_select_unrun_scenes(self):
+        from change_execution import select_scenes
+        self.catalog['scenarios'].append(scenario('S3', 'Check the third requirement', 'R3'))
+        first = self.freeze(); old = load_binding(self.binding)
+        candidate = deepcopy(old)
+        candidate['context']['shared_constraints'] = 'Every result must now include an audit timestamp'
+        result = self.freeze(candidate); current = load_binding(self.binding)
+        self.assertTrue(result['change']['execution_context_changed'])
+        self.assertEqual(result['change']['scenario_target_ids'], ['R1', 'R2', 'R3'])
+        self.assertEqual(result['change']['rerun_scene_ids'], ['S1', 'S2', 'S3'])
+        self.assertNotEqual(scene_fingerprint(old, 'S1'), scene_fingerprint(current, 'S1'))
+        plan = {**self.binding, 'previous_definitions': first['definitions'],
+                'execution_intent': {'mode': 'complete_change_acceptance', 'basis': 'Accept changed common obligation'}}
+        selection = select_scenes(plan, current, {'executed_scene_ids': ['S1'], 'sources': []})
+        self.assertEqual(selection['selected_scene_ids'], ['S1', 'S2', 'S3'])
+
+    def test_unknown_context_fields_remain_binding_and_related_requirements_propagate(self):
+        self.catalog['scenarios'][0]['related_refs'] = ['R2']
+        self.freeze(); old = load_binding(self.binding)
+        candidate = deepcopy(old)
+        candidate['context']['domain_invariant'] = 'A newly supplied common condition'
+        self.assertEqual(compare(old, candidate)['rerun_scene_ids'], ['S1', 'S2'])
+        self.assertNotEqual(scene_fingerprint(old, 'S1'), scene_fingerprint(candidate, 'S1'))
+        candidate = deepcopy(old)
+        candidate['requirements'][1]['text'] += '; changed actual behavior'
+        self.assertEqual(compare(old, candidate)['rerun_scene_ids'], ['S1', 'S2'])
+
+    def test_legacy_hashes_remain_current_across_independent_addition_without_rewriting_history(self):
+        first = self.freeze(); old = load_binding(self.binding)
+        old_bytes = Path(first['history']).read_bytes()
+        actual = scene_fingerprint(old, 'S1', legacy_context=True)
+        trace = {'project': {'id': 'fixture', 'revision': self.revision},
+                 'generated_at': '2026-10-01T01:00:00Z', 'scenarios': [old['scenarios'][0]],
+                 'requirements': old['requirements'], 'executed_scene_ids': ['S1'],
+                 'judgment': {'status': 'passed', 'reason': 'Existing fixture verdict'},
+                 'definition_binding_sha256': actual}
+        trace_bytes = json.dumps(trace, sort_keys=True)
+        self.freeze(self.independent_addition())
+        def row():
+            state = project_state([trace, catalog_trace(self.shared / 'scenarios.json', 'fixture')], {})
+            return next(t for t in state['traces'] if t.get('scenarios') and t['scenarios'][0]['id'] == 'S1')
+        self.assertEqual(row()['definition_applicability'], 'matches_current')
+        self.assertEqual(row()['definition_binding_sha256'], actual)
+        candidate = deepcopy(load_binding(self.binding))
+        candidate['context']['shared_constraints'] = 'An actual new common behavior obligation'
+        self.freeze(candidate)
+        self.assertEqual(row()['definition_applicability'], 'needs_revalidation')
+        self.assertEqual(row()['judgment'], trace['judgment'])
+        self.assertEqual(Path(first['history']).read_bytes(), old_bytes)
+        self.assertEqual(json.dumps(trace, sort_keys=True), trace_bytes)
+
+    def test_legacy_case_binding_requires_the_same_exact_frozen_snapshot(self):
+        self.freeze()
+        old = load_binding(self.binding)
+        case = {'acceptance': self.acceptance, **scene_input(self.binding, 'S1')}
+        case['definition_binding_sha256'] = scene_fingerprint(old, 'S1', legacy_context=True)
+        verify_case(case)
+        bad = deepcopy(case); bad['definition_binding_sha256'] = 'unproved-hash'
+        with self.assertRaisesRegex(ValueError, 'definition_binding_sha256'):
+            verify_case(bad)
+        self.freeze(self.independent_addition())
+        with self.assertRaisesRegex(ValueError, 'definitions changed'):
+            verify_case(case)
+
+    def test_legacy_equivalence_still_needs_the_recorded_semantic_assessment(self):
+        self.freeze(); old = load_binding(self.binding)
+        trace = {'project': {'id': 'fixture'}, 'generated_at': '2026-10-01T01:00:00Z',
+                 'scenarios': [old['scenarios'][0]], 'executed_scene_ids': ['S1'],
+                 'judgment': {'status': 'passed'},
+                 'definition_binding_sha256': scene_fingerprint(old, 'S1', legacy_context=True)}
+        candidate = deepcopy(old); candidate['requirements'][0]['text'] = 'The returned value shall equal three'
+        self.freeze(candidate, {'changes': {'requirements:R1': {
+            'classification': 'equivalent', 'reason': 'Same expected value and conditions'}}})
+        projected = project_state([trace, catalog_trace(self.shared / 'scenarios.json', 'fixture')], {})
+        row = next(t for t in projected['traces'] if t.get('scenarios') and t['scenarios'][0]['id'] == 'S1')
+        self.assertEqual(row['definition_applicability'], 'equivalent_by_assessment')
+
 
 if __name__ == '__main__':
     unittest.main()

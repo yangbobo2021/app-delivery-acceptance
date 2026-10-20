@@ -91,7 +91,8 @@ def project_state(traces, progress):
         if project_id in catalogs:
             actual = chosen[0].get('definition_binding_sha256') if chosen else None
             expected = catalogs[project_id]['definition_bindings'][scene_id]
-            row['definition_applicability'] = ('matches_current' if actual == expected else
+            row['definition_applicability'] = ('matches_current' if actual == expected or
+                                               actual in catalogs[project_id].get('definition_legacy_bindings', {}).get(scene_id, []) else
                                                'equivalent_by_assessment' if actual in catalogs[project_id].get('definition_equivalences', {}).get(scene_id, []) else
                                                'needs_revalidation' if actual else 'unknown')
             row['current_definition_sha256'] = expected

@@ -57,7 +57,7 @@ def select_scenes(plan, value, history=None):
     affected = set(report['rerun_scene_ids'])
     changed_targets = {c['ref'].split(':', 1)[1] for c in report['changes']
                        if c['classification'] == 'definition' and not c['ref'].startswith('scenarios:')}
-    if report['context_changed']:
+    if report['execution_context_changed']:
         changed_targets.update(r['id'] for g in ('requirements', 'reverse_rules') for r in value[g]
                                if r.get('status') != 'needs_confirmation')
     additional = plan.get('change_review', {}).get('affected_target_ids', [])

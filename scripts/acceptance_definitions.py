@@ -12,6 +12,17 @@ SCHEMA = 'acceptance-catalog-v2'
 COLLECTIONS = ('requirements', 'reverse_rules', 'scenarios')
 GENERATED = {'version', 'content_sha256'}
 METADATA = {'title', 'priority', 'priority_reason', 'external_refs'}
+ORGANIZATION_CONTEXT = {'business_goal', 'confirmed_scope', 'requirement_groups', 'user_constraints'}
+
+
+def execution_context(context):
+    """Bind business constraints, not the analysis of which targets to work on.
+
+    User intent/provenance stays in the full snapshot. Observable obligations must
+    be frozen in requirements/rules or shared_constraints, not only analysis prose.
+    Unknown context fields remain binding so extensions fail conservatively.
+    """
+    return {key: value for key, value in context.items() if key not in ORGANIZATION_CONTEXT}
 
 
 def content(item):
@@ -153,12 +164,17 @@ def compare(previous, candidate, assessment=None):
         if semantic and group == 'scenarios' and after:
             affected.add(ident)
     context_changed = bool(previous and previous.get('context') != candidate.get('context'))
+    execution_context_changed = bool(previous and execution_context(previous['context']) !=
+                                     execution_context(candidate['context']))
     if context_changed:
         analysis = True
+    if execution_context_changed:
+        changed_targets.update(r['id'] for group in COLLECTIONS[:2] for r in candidate[group]
+                               if r.get('status') != 'needs_confirmation')
     changed_dependencies = {c['ref'].split(':', 1)[1] for c in changes
                             if c['classification'] == 'definition' and not c['ref'].startswith('scenarios:')}
     for scene in candidate['scenarios']:
-        if context_changed or refs(scene) & changed_dependencies:
+        if execution_context_changed or refs(scene) & changed_dependencies:
             affected.add(scene['id'])
         if analysis:
             scenario_checks.add(scene['id'])
@@ -184,7 +200,8 @@ def compare(previous, candidate, assessment=None):
     return {'schema': 'acceptance-definition-change-v1',
             'base_sha256': fingerprint(previous) if previous else None,
             'candidate_sha256': fingerprint(candidate), 'changes': changes,
-            'context_changed': context_changed, 'analysis_required': analysis,
+            'context_changed': context_changed, 'execution_context_changed': execution_context_changed,
+            'analysis_required': analysis,
             'coverage_check_scene_ids': sorted(scenario_checks),
             'scenario_target_ids': sorted(changed_targets | set(missing)),
             'rerun_scene_ids': sorted(affected), 'missing_scenario_target_ids': missing,
@@ -235,7 +252,7 @@ def load_binding(config, current=True, required=False):
     return value
 
 
-def scene_fingerprint(value, scene_id):
+def scene_fingerprint(value, scene_id, *, legacy_context=False):
     from acceptance_store import fingerprint
     scene = next((s for s in value['scenarios'] if s['id'] == scene_id), None)
     if scene is None:
@@ -249,8 +266,46 @@ def scene_fingerprint(value, scene_id):
         result['external_basis_texts'] = sorted({r['text'] for r in item.get('external_refs', [])} - {own_text})
         return result
     closure = {'scene': execution_content(scene), 'target': execution_content(target) if target else None,
-               'related': [execution_content(r) for r in related], 'context': value['context']}
+               'related': [execution_content(r) for r in related],
+               'context': value['context'] if legacy_context else execution_context(value['context'])}
     return fingerprint(closure)
+
+
+def legacy_scene_bindings(path, value):
+    """Read-only compatibility for old full-context hashes, with a proved ancestor.
+
+    Never reinterpret a receipt hash without its immutable definition snapshot.
+    Equal business closures match directly; semantic rewordings still require the
+    recorded Agent equivalence assessment. Missing history supplies no aliases.
+    """
+    from acceptance_store import read, digest
+    root = Path(path).parent
+    records = {digest(p): p for p in (root / 'records').glob('catalog-*.json') if p.is_file() and not p.is_symlink()}
+    expected = {s['id']: scene_fingerprint(value, s['id']) for s in value['scenarios']}
+    equivalent = value.get('change', {}).get('equivalent_bindings', {})
+    matches, assessed, seen = {}, {}, set()
+    current = value
+    while current:
+        for scene in current['scenarios']:
+            sid = scene['id']
+            if sid not in expected:
+                continue
+            actual = scene_fingerprint(current, sid)
+            old = scene_fingerprint(current, sid, legacy_context=True)
+            if actual == expected[sid]:
+                matches.setdefault(sid, set()).add(old)
+            elif actual in equivalent.get(sid, []):
+                assessed.setdefault(sid, set()).add(old)
+        prior = current.get('previous_catalog_sha256')
+        if not prior or prior in seen or prior not in records:
+            break
+        seen.add(prior)
+        current = read(records[prior])
+        validate_definitions(current)
+        if current.get('acceptance_id') != value.get('acceptance_id'):
+            raise ValueError('definition ancestor belongs to another acceptance')
+    return ({sid: sorted(hashes) for sid, hashes in matches.items()},
+            {sid: sorted(hashes) for sid, hashes in assessed.items()})
 
 
 def scene_input(config, scene_id):
@@ -285,6 +340,9 @@ def verify_case(config):
     for key in ('scene', 'requirement', 'related_requirements', 'business_goal', 'confirmed_scope',
                 'scenario_self_check', 'definition_binding_sha256',
                 *(['source_evidence'] if expected.get('source_evidence') else [])):
+        if key == 'definition_binding_sha256' and config.get(key) == scene_fingerprint(
+                value, config['scene']['id'], legacy_context=True):
+            continue  # Same exact frozen snapshot; keep old inputs/receipts unchanged.
         if config.get(key) != expected[key]:
             raise ValueError('case differs from frozen definitions: ' + key)
 

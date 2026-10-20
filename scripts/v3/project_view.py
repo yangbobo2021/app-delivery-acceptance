@@ -43,10 +43,14 @@ def catalog_trace(path, project_id):
     ids = [s["id"] for s in value["scenarios"]]
     if len(ids) != len(set(ids)):
         raise ValueError("duplicate stable scene IDs in catalog")
-    from acceptance_definitions import scene_fingerprint
+    from acceptance_definitions import scene_fingerprint, legacy_scene_bindings
+    legacy, assessed = legacy_scene_bindings(path, value) if value.get('schema') == 'acceptance-catalog-v2' else ({}, {})
+    equivalences = value.get('change', {}).get('equivalent_bindings', {})
     return {"schema": "delivery-trace-v1", "generated_at": value.get("updated_at", ""),
             **({'definition_bindings': {s['id']: scene_fingerprint(value, s['id']) for s in value['scenarios']},
-                'definition_equivalences': value.get('change', {}).get('equivalent_bindings', {}),
+                'definition_legacy_bindings': legacy,
+                'definition_equivalences': {sid: sorted(set(equivalences.get(sid, [])) | set(assessed.get(sid, [])))
+                    for sid in set(equivalences) | set(assessed)},
                 'definition_catalog': value} if value.get('schema') == 'acceptance-catalog-v2' else {}),
             "project": {**value.get("project", {}), "id": project_id},
             "requirements": value.get("requirements", []), "reverse_rules": value.get("reverse_rules", []),
