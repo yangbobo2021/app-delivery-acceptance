@@ -4,7 +4,7 @@ import {resolve,join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {performance} from 'node:perf_hooks';
-import {cligent} from '../v3/runtime-path.mjs';
+import {createAgentRuntime} from '../v3/runtime-path.mjs';
 const [inputArg,reviewArg,catalogArg,guideArg,outArg,...flags]=process.argv.slice(2),resume=flags.includes('--resume');
 if(!outArg)throw Error('usage: node repair_case_delta_v3.mjs case-input feedback catalog guide output-dir');
 const input=JSON.parse(readFileSync(resolve(inputArg))),review=JSON.parse(readFileSync(resolve(reviewArg)));
@@ -56,10 +56,11 @@ if(resume){
  if(!resumeSession||events.some(x=>x.type==='done'&&x.payload?.status==='success'))
   throw Error('No interrupted repair session to resume');
 }
+const agent=createAgentRuntime({directory:out,resume});
 const t=performance.now();let done,raw='',calls=0;try{
  writeFileSync(join(out,'runner.pid'),String(process.pid)+'\n');
  const task=resume?'继续同一场景的差量修复。核对已完成的测试文件及观察，只完成尚未完成的缺口；不要重复外部效果。最终仅输出原任务要求的 JSON。':prompt;
- for await(const e of new cligent.CodexAdapter().run(task,{cwd:acceptanceBinding.project_root,model:process.env.ACCEPTANCE_MODEL??'gpt-6.1-sol',effort:process.env.ACCEPTANCE_EFFORT??'high',
+ for await(const e of agent.run(task,{cwd:acceptanceBinding.project_root,model:agent.metadata.model,effort:agent.metadata.effort,
   ...(resume?{resume:resumeSession}:{}),
   permissions:{fileWrite:'allow',shellExecute:'allow',networkAccess:input.local_loopback_required?'allow':'deny',
    writablePaths:[`.acceptance-local/${acceptanceBinding.id}`]}})){
@@ -68,7 +69,7 @@ const t=performance.now();let done,raw='',calls=0;try{
 }catch(e){writeFileSync(join(out,'error.txt'),String(e));}
 finally{if(existsSync(join(out,'runner.pid')))unlinkSync(join(out,'runner.pid'));}
 writeFileSync(join(out,'answer.txt'),raw+'\n');try{writeFileSync(join(out,'answer.json'),JSON.stringify(JSON.parse(raw.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'')),null,2)+'\n');}catch{}
-const metrics={seconds:(performance.now()-t)/1000,tool_calls:calls,status:done?.status,usage:done?.usage,
+const metrics={agent_runtime:agent.metadata,model:agent.metadata.model,effort:agent.metadata.effort,seconds:(performance.now()-t)/1000,tool_calls:calls,status:done?.status,usage:done?.usage,
  ...(resume?{resumed_from_session:resumeSession}:{}),
  head_after:git('rev-parse','HEAD'),tracked_changes:git('diff','--name-only','HEAD')};
 writeFileSync(join(out,'metrics.json'),JSON.stringify(metrics,null,2)+'\n');console.log(JSON.stringify(metrics));

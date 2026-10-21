@@ -61,7 +61,7 @@ def ensure_runtime(node=None):
                 pass
         receipt.unlink(missing_ok=True)
         print(f'[acceptance-runtime] Installing locked dependencies into {PACKAGE_ROOT / "node_modules"}', file=sys.stderr, flush=True)
-        subprocess.run([npm, 'ci', '--prefix', str(PACKAGE_ROOT), '--global=false', '--include=dev', '--include=optional', '--include=peer', '--no-audit', '--no-fund'], cwd=PACKAGE_ROOT, env=env, stdout=sys.stderr, stderr=sys.stderr, check=True, timeout=900)
+        subprocess.run([npm, 'ci', '--prefix', str(PACKAGE_ROOT), '--global=false', '--include=dev', '--include=optional', '--include=peer', '--no-audit', '--no-fund'], cwd=PACKAGE_ROOT, env=env, stdout=sys.stderr, stderr=sys.stderr, check=True, timeout=1800)
         checked = probe()
         value = {'fingerprint': fingerprint, 'install_id': uuid.uuid4().hex, 'installed_at': time.time(), 'package_root': str(PACKAGE_ROOT), 'environment': {**identity, 'node_path': node, 'npm': npm_version}, 'probe': checked}
         temporary = receipt.with_suffix('.tmp')

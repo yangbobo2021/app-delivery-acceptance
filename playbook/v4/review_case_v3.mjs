@@ -2,7 +2,7 @@ import {readFileSync,writeFileSync,appendFileSync,mkdirSync,existsSync,unlinkSyn
 import {resolve,join} from 'node:path';
 import {performance} from 'node:perf_hooks';
 import {execFileSync} from 'node:child_process';
-import {cligent} from '../v3/runtime-path.mjs';
+import {createAgentRuntime} from '../v3/runtime-path.mjs';
 
 const [checkoutArg,inputArg,outputArg,...flags]=process.argv.slice(2),resume=flags.includes('--resume');
 if(!checkoutArg||!inputArg||!outputArg)throw Error('usage: node review-case.mjs checkout input-json output-dir');
@@ -46,13 +46,14 @@ if(resume){
  if(!resumeSession||events.some(x=>x.type==='done'&&x.payload?.status==='success'))
   throw Error('No interrupted review session to resume');
 }
-const result={model:process.env.ACCEPTANCE_MODEL??'gpt-6.1-sol',effort:process.env.ACCEPTANCE_EFFORT??'high',started_at:new Date().toISOString(),prompt_characters:prompt.length,
+const agent=createAgentRuntime({directory:output,resume});
+const result={agent_runtime:agent.metadata,model:agent.metadata.model,effort:agent.metadata.effort,started_at:new Date().toISOString(),prompt_characters:prompt.length,
  ...(resume?{resumed_from_session:resumeSession}:{})};
 const t=performance.now(),texts=[];let done,error,tools=0;
 try{
  writeFileSync(join(output,'runner.pid'),String(process.pid)+'\n');
  const task=resume?'继续对同一冻结场景作独立审查；先核对先前已读证据，只完成剩余判断。最终仅输出原任务要求的 JSON。':prompt;
- for await(const event of new cligent.CodexAdapter().run(task,{cwd:checkout,model:result.model,effort:result.effort,
+ for await(const event of agent.run(task,{cwd:checkout,model:result.model,effort:result.effort,
    ...(resume?{resume:resumeSession}:{}),
    permissions:{fileWrite:'deny',shellExecute:'allow',networkAccess:'deny'}})){
   appendFileSync(join(output,'agent.jsonl'),JSON.stringify(event)+'\n');

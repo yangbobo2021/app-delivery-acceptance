@@ -1,5 +1,7 @@
 # Project-neutral acceptance workflow (v3)
 
+启动模型流程前按 [Agent 运行配置](agent-runtime.md) 明确当前 Agent、实际模型与服务，先做真实预检。所有阶段通过统一适配器执行，模型任务及独立 Reviewer 使用不同会话；恢复必须匹配保存的 Agent/模型/服务绑定。
+
 This contract separates model judgments from deterministic execution. No project path, test framework, fixture, service, credential, coverage tool, or source-language convention is built into the workflow. The target project supplies those through a frozen request and per-project adapter commands. The Playbook flows cover whole-list analysis, one-target scenario design and one-scene case design/review; the commit reverse route is a single autonomous Agent task; the portable executor and trace viewer use Python's standard library.
 
 First read `.acceptance-local/current.json` for startup/resume and require each execution config to match its acceptance ID. Use `init/start` to begin and `finish` only when the entire acceptance ends; interruptions and partial batches retain the pointer. Viewing history never changes it; there is no conversation binding. Apply the mandatory [project acceptance store contract](project-acceptance-store.md): stable acceptance ID, `.acceptance` / `.acceptance-local`, indexed knowledge reads and frozen scope binding. All new public requests/manifests carry `acceptance`; their output is under `.acceptance-local/<ID>/workflows/`. The ID survives scope and code changes; old evidence is never relabeled.
