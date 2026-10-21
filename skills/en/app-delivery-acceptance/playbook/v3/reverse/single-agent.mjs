@@ -3,7 +3,7 @@ import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {performance} from 'node:perf_hooks';
 import {execFileSync} from 'node:child_process';
-import {cligent} from '../runtime-path.mjs';
+import {createAgentRuntime} from '../runtime-path.mjs';
 import {normalizeRuleCoverage} from './normalize.mjs';
 
 const sha=value=>createHash('sha256').update(value).digest('hex');
@@ -16,8 +16,9 @@ export async function runSingleAgent({folder,cwd,root,request,change,inventory,r
  if(resume&&(!prior||prior.final_state==='completed'))throw Error('Only an interrupted or blocked read-only reverse run may resume');
  if(resume&&!existsSync(join(folder,'draft.candidate.json'))&&!existsSync(join(folder,'draft.current.json')))
   throw Error('No saved reverse draft; start a new immutable read-only attempt');
- const metrics=prior??{schema:'reverse-selfcheck-metrics-v1',started_at:new Date().toISOString(),
-  model:process.env.REVERSE_MODEL??'gpt-6.1-sol',effort:process.env.REVERSE_EFFORT??'high',calls:[],
+ const agent=resume?null:createAgentRuntime({directory:folder,model:process.env.REVERSE_MODEL,effort:process.env.REVERSE_EFFORT});
+ const metrics=prior??{agent_runtime:agent.metadata,schema:'reverse-selfcheck-metrics-v1',started_at:new Date().toISOString(),
+  model:agent.metadata.model,effort:agent.metadata.effort,calls:[],
   input_sha256:sha(readFileSync(join(folder,'request.frozen.json'))),change_sha256:sha(readFileSync(join(folder,'change.json')))};
  if(metrics.input_sha256!==sha(readFileSync(join(folder,'request.frozen.json')))||
     metrics.change_sha256!==sha(readFileSync(join(folder,'change.json'))))throw Error('Reverse resume binding changed');
@@ -37,7 +38,7 @@ export async function runSingleAgent({folder,cwd,root,request,change,inventory,r
    writeFileSync(join(folder,'prompt-selfcheck.txt'),prompt);
    const call={role:'single_agent',phase:'reverse_and_self_check',started_at:new Date().toISOString(),prompt_characters:prompt.length};
    metrics.calls.push(call);save();
-   const adapter=new cligent.CodexAdapter(),abort=new AbortController();
+   const adapter=agent,abort=new AbortController();
    const timer=setTimeout(()=>abort.abort('reverse time limit'),Number(process.env.REVERSE_TIME_LIMIT_MS??480000));
    const texts=[];let done,error,toolUses=0;const started=performance.now();
    try{

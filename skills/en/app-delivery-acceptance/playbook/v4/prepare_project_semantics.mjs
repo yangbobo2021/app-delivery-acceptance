@@ -3,7 +3,7 @@ import {readFileSync,writeFileSync,appendFileSync,mkdirSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {performance} from 'node:perf_hooks';
-import {cligent} from '../v3/runtime-path.mjs';
+import {createAgentRuntime} from '../v3/runtime-path.mjs';
 
 const [catalogArg,outputArg]=process.argv.slice(2);
 if(!catalogArg||!outputArg)throw Error('usage: node prepare_project_semantics.mjs prepared-catalog.json new-output-dir');
@@ -23,11 +23,12 @@ ${coverageContract}
 
 项目验收经验（操作参考，不是业务预期）：${JSON.stringify(acceptanceKnowledge)}\n确定性准备：${JSON.stringify(catalog)}`;
 writeFileSync(join(output,'prompt.txt'),prompt);
-const result={model:process.env.ACCEPTANCE_MODEL??'gpt-6.1-sol',effort:'medium',started_at:new Date().toISOString(),
+const agent=createAgentRuntime({directory:output});
+const result={agent_runtime:agent.metadata,model:agent.metadata.model,effort:agent.metadata.effort,started_at:new Date().toISOString(),
  catalog_sha256:createHash('sha256').update(bytes).digest('hex'),prompt_characters:prompt.length};
 const t=performance.now(),texts=[];let done,error,tools=0;
 try{
- for await(const event of new cligent.CodexAdapter().run(prompt,{cwd:resolve(catalog.project_root),model:result.model,effort:result.effort,
+ for await(const event of agent.run(prompt,{cwd:resolve(catalog.project_root),model:result.model,effort:result.effort,
   permissions:{fileWrite:'deny',shellExecute:'allow',networkAccess:'deny'}})){
   appendFileSync(join(output,'agent.jsonl'),JSON.stringify(event)+'\n');
   if(event.type==='text'&&typeof event.payload?.content==='string')texts.push(event.payload.content);

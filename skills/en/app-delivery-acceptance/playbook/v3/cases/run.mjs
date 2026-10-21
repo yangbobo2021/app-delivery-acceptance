@@ -6,11 +6,11 @@ import {createHash,randomUUID} from 'node:crypto';
 import {performance} from 'node:perf_hooks';
 import {execFileSync} from 'node:child_process';
 import factory from './workflow.mjs';
-import {hostCapabilities,cligent} from '../runtime-path.mjs';
+import {hostCapabilities,createAgentRuntime} from '../runtime-path.mjs';
 import {bindReviewedReverse} from '../reverse/binding.mjs';
 import {reverseArtifactReady} from '../reverse/artifact.mjs';
 import {applyCaseCodeRepair} from './code-repair.mjs';
-const {createWorktreeHostCapabilities}=hostCapabilities,{CodexAdapter}=cligent;
+const {createWorktreeHostCapabilities}=hostCapabilities;
 
 const [label,inputArg,outputArg,...flags]=process.argv.slice(2),resume=flags.includes('--resume');
 if(!label||!/^[a-z0-9-]+$/.test(label)||!inputArg||!outputArg)throw Error('usage: node run.mjs label request.json output-dir [--resume]');
@@ -71,9 +71,10 @@ const load=name=>{try{return JSON.parse(readFileSync(join(folder,name),'utf8'))}
 if(!resume)save('scene.current.json',{...request.scene,version:1});
 const quote=s=>"'"+s.replaceAll("'","'\\''")+"'";
 const commandPrefix=[process.execPath,join(root,'scripts/stage.mjs'),frozen,folder].map(quote).join(' ');
-const adapters={designer:new CodexAdapter(),reviewer:new CodexAdapter(),repairer:new CodexAdapter()};
-const started=performance.now(),metrics=resume?load('metrics.json'):{label,model:process.env.ACCEPTANCE_MODEL??'gpt-6.1-sol',
- effort:process.env.ACCEPTANCE_EFFORT??'high',session_id:randomUUID(),input_sha256:sha(frozen),
+const agent=createAgentRuntime({directory:folder,resume});
+const adapters={designer:agent,reviewer:agent,repairer:agent};
+const started=performance.now(),metrics=resume?load('metrics.json'):{label,agent_runtime:agent.metadata,model:agent.metadata.model,
+ effort:agent.metadata.effort,session_id:randomUUID(),input_sha256:sha(frozen),
  started_at:new Date().toISOString(),calls:[],stages:[],tool_calls:0};
 if(!metrics||metrics.input_sha256!==sha(frozen)||metrics.final_state)throw Error('Invalid resume binding');
 if(resume)delete metrics.error;

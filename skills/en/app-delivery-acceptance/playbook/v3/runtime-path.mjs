@@ -11,4 +11,4 @@ export const playbookRoot = dirname(dirname(fileURLToPath(import.meta.resolve('@
 export const xstate = await import('xstate');
 export const runtime = await import('@sublang/playbook/xstate-runtime');
 export const hostCapabilities = await import('@sublang/playbook/host-capabilities');
-export const cligent = await import('@sublang/cligent/adapters/codex');
+export {createAgentRuntime, resolveAgentRuntime, bindAgentRuntime} from '../agent-runtime.mjs';

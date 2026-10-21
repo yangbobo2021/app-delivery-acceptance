@@ -4,7 +4,7 @@ import {resolve,join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import {performance} from 'node:perf_hooks';
-import {cligent} from '../v3/runtime-path.mjs';
+import {createAgentRuntime} from '../v3/runtime-path.mjs';
 
 const [inputArg,catalogArg,guideArg,outputArg,...flags]=process.argv.slice(2),resume=flags.includes('--resume');
 if(!inputArg||!catalogArg||!guideArg||!outputArg)throw Error('usage: node run_case_guided_v6.mjs input.json prepared-catalog.json project-guide.json new-output-dir');
@@ -82,7 +82,8 @@ if(resume){
  if(!resumeSession||events.some(x=>x.type==='done'&&x.payload?.status==='success'))
   throw Error('No interrupted Agent session to resume');
 }
-const result={model:process.env.ACCEPTANCE_MODEL??'gpt-6.1-sol',effort:process.env.ACCEPTANCE_EFFORT??'high',started_at:new Date().toISOString(),
+const agent=createAgentRuntime({directory:output,resume});
+const result={agent_runtime:agent.metadata,model:agent.metadata.model,effort:agent.metadata.effort,started_at:new Date().toISOString(),
  input_sha256:createHash('sha256').update(readFileSync(resolve(inputArg))).digest('hex'),
  catalog_sha256:fingerprint,revision:catalog.revision,scene_id:input.scene.id,prompt_characters:prompt.length,
  ...(resume?{resumed_from_session:resumeSession}:{})};
@@ -90,7 +91,7 @@ const t=performance.now(),texts=[];let done,error,tools=0;
 try{
  writeFileSync(join(output,'runner.pid'),String(process.pid)+'\n');
  const task=resume?'继续同一场景用例实现与本地调试。先核对当前测试文件和已执行观察，只完成尚未做完的工作；不要重复已确认的外部效果。最终仅输出原任务要求的 JSON。':prompt;
- for await(const event of new cligent.CodexAdapter().run(task,{cwd:acceptanceBinding.project_root,model:result.model,effort:result.effort,
+ for await(const event of agent.run(task,{cwd:acceptanceBinding.project_root,model:result.model,effort:result.effort,
   ...(resume?{resume:resumeSession}:{}),
   permissions:{fileWrite:'allow',shellExecute:'allow',networkAccess:input.local_loopback_required?'allow':'deny',
    writablePaths:[`.acceptance-local/${acceptanceBinding.id}`]}})){

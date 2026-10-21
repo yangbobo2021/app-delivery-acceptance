@@ -6,10 +6,10 @@ import {randomUUID,createHash} from 'node:crypto';
 import {performance} from 'node:perf_hooks';
 import {execFileSync} from 'node:child_process';
 import factory from './workflow.mjs';
-import {hostCapabilities,cligent} from '../runtime-path.mjs';
+import {hostCapabilities,createAgentRuntime} from '../runtime-path.mjs';
 import {bindReviewedReverse} from '../reverse/binding.mjs';
 import {reverseArtifactReady} from '../reverse/artifact.mjs';
-const {createWorktreeHostCapabilities}=hostCapabilities,{CodexAdapter}=cligent;
+const {createWorktreeHostCapabilities}=hostCapabilities;
 const root=dirname(fileURLToPath(import.meta.url)),trial=process.argv[2];
 if(!trial||!/^[a-z0-9-]+$/.test(trial)||!process.argv[3]||!process.argv[4])throw Error('usage: node run.mjs label request.json output-dir [draft.json] [--feedback review.json]');
 const folder=resolve(process.argv[4]),requestPath=resolve(process.argv[3]);if(existsSync(folder))throw Error('Run folder exists; refusing overwrite');
@@ -45,11 +45,12 @@ const common={acceptance_knowledge:acceptanceKnowledge,target_requirement:target
  all_requirements:request.requirements.items,shared_constraints:request.requirements.shared_constraints,
  genuine_user_constraints:request.user_constraints,selected_commit_scope:request.selected_commit_scope};
 const load=file=>{try{return JSON.parse(readFileSync(join(folder,file),'utf8'))}catch{return null}};
-const model=process.env.SCENARIO_PROTOTYPE_MODEL??'gpt-6.1-sol',effort='high',id=randomUUID();
-const adapters={analyst:new CodexAdapter(),reviewer:new CodexAdapter()};
+const agent=createAgentRuntime({directory:folder,model:process.env.SCENARIO_PROTOTYPE_MODEL});
+const {model,effort}=agent.metadata,id=randomUUID();
+const adapters={analyst:agent,reviewer:agent};
 const controller=new AbortController();process.once('SIGTERM',()=>controller.abort());process.once('SIGINT',()=>controller.abort());
 const started=performance.now();let stageStart=started,lastStage='initialization',runtime;
-const metrics={trial,model,effort,session_id:id,target_requirement_id:target.id,scenario_kind:request.scenario_kind,
+const metrics={trial,agent_runtime:agent.metadata,model,effort,session_id:id,target_requirement_id:target.id,scenario_kind:request.scenario_kind,
  started_at:new Date().toISOString(),calls:[],stages:[],tool_calls:0,judgment_model_calls:0,initial_draft:!!initialPath};
 metrics.input_sha256=createHash('sha256').update(readFileSync(frozenRequestPath)).digest('hex');
 metrics.workflow_version='v3';

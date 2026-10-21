@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {execFileSync,spawnSync} from 'node:child_process';
 import {performance} from 'node:perf_hooks';
-import {cligent} from '../v3/runtime-path.mjs';
+import {createAgentRuntime} from '../v3/runtime-path.mjs';
 import {bindReviewedReverse} from '../v3/reverse/binding.mjs';
 import {reverseArtifactReady} from '../v3/reverse/artifact.mjs';
 
@@ -99,13 +99,14 @@ if(resume&&events.some(x=>x.type==='done'&&x.payload?.status==='success')){
   if(!raw)throw Error('Completed scenario has no final text');
   writeFileSync(join(output,'draft.candidate.json'),JSON.stringify(JSON.parse(raw.trim().replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'')),null,2)+'\n');
 }else{
-  const metrics={model:process.env.ACCEPTANCE_MODEL??'gpt-6.1-sol',effort:process.env.ACCEPTANCE_EFFORT??'high',
+  const agent=createAgentRuntime({directory:output,resume});
+  const metrics={agent_runtime:agent.metadata,model:agent.metadata.model,effort:agent.metadata.effort,
     target_requirement_id:target.id,scenario_kind:request.scenario_kind,started_at:new Date().toISOString(),
     prompt_characters:prompt.length,...(resume?{resumed_from_session:session}:{})};
   const tick=performance.now(),texts=[];let done,error,tools=0;
   try{
     const task=resume?'继续同一需求的场景生成。核对已完成的内部自审，只提交尚未完成的最终场景 JSON。':prompt;
-    for await(const event of new cligent.CodexAdapter().run(task,{cwd:root,model:metrics.model,effort:metrics.effort,
+    for await(const event of agent.run(task,{cwd:root,model:metrics.model,effort:metrics.effort,
       ...(resume?{resume:session}:{}),permissions:{fileWrite:'deny',shellExecute:'deny',networkAccess:'deny'}})){
       appendFileSync(eventsPath,JSON.stringify(event)+'\n');
       if(event.type==='text'&&typeof event.payload?.content==='string')texts.push(event.payload.content);
