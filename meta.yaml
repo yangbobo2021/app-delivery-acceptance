@@ -1,0 +1,15 @@
+{
+  "format": 2,
+  "org": "yangbobo2021",
+  "name": "app-delivery-acceptance",
+  "version": "0.1.0-github.1",
+  "description": "Frozen delivery requirements and scenarios, real execution evidence, independent review and coverage.",
+  "repository": "https://github.com/yangbobo2021/app-delivery-acceptance",
+  "artifacts": {
+    "app-delivery-acceptance": {
+      "kind": "skill",
+      "language": "en"
+    }
+  },
+  "x-source-commit": "096c83e6b668300725aed871315837cefff3f836"
+}
