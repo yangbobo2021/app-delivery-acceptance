@@ -95,6 +95,9 @@ def preparation(config, *, run_check=True, mapping=None):
     root = Path(spec["project_root"]).resolve()
     if not spec.get("source_hashes") or not spec.get("registry_path") or not spec.get("inventory_path"):
         raise ValueError("coverage needs complete source inventory and persistent evidence index")
+    for name in ("inventory_path", "registry_path"):
+        if not Path(spec[name]).is_absolute():
+            raise ValueError(f"coverage {name} must be an absolute path usable from every execution directory")
     if not spec.get('inventory_sha256'):
         raise ValueError('coverage needs a frozen scope inventory digest')
     bound_file(spec['inventory_path'], spec['inventory_sha256'], mapping)
@@ -127,6 +130,34 @@ def preparation(config, *, run_check=True, mapping=None):
         bound_file(artifact["path"], artifact["sha256"], mapping)
     if not profile.get("preparation_evidence"):
         raise ValueError("coverage requires actual toolchain probe evidence")
+    runtime_keys = ("runtime_manifest", "runtime_sha256", "probe_report", "probe_report_sha256")
+    if any(spec.get(key) for key in runtime_keys):
+        if not all(spec.get(key) for key in runtime_keys):
+            raise ValueError("coverage runtime/probe binding is incomplete")
+        runtime_path = bound_file(spec["runtime_manifest"], spec["runtime_sha256"], mapping)
+        probe_path = bound_file(spec["probe_report"], spec["probe_report_sha256"], mapping)
+        runtime = read(runtime_path)
+        if (runtime.get("schema") != "project-runtime-preparation-v1" or
+                Path(runtime.get("workspace", "")).resolve() != root or
+                runtime.get("revision") != spec["revision"]):
+            raise ValueError("coverage profile binds another runtime workspace/revision")
+        # Active case execution has no archive map and must revalidate this
+        # machine's environment. Historical read-only archive inspection uses
+        # byte-identical mapped evidence; it must not rerun a retired runtime.
+        live_runtime = not mapping and runtime_path.resolve() == Path(spec["runtime_manifest"]).resolve()
+        if run_check and live_runtime:
+            import sys
+            sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+            from runtime_preparation import validate_runtime
+            validate_runtime(runtime_path, expected_acceptance=runtime["acceptance"], resmoke=True)
+        from coverage_preparation import verify_report as verify_probes
+        measured = [name for name, item in dispositions.items() if item["kind"] == "measured"]
+        probe = verify_probes(probe_path, runtime_path, spec["runtime_sha256"], measured,
+                              verify_runtime=run_check and live_runtime, mapping=mapping)
+        expected_status = "ready" if (probe["status"] == "ready" and measured and
+                                      not any(item["kind"] == "unsupported" for item in dispositions.values())) else "partial"
+        if profile.get("preparation_status") != expected_status:
+            raise ValueError("coverage readiness does not match validated probe/source limits")
     if run_check:
         with tempfile.TemporaryDirectory(prefix="coverage-verify-preparation-") as folder:
             checked = invoke(profile, "verify-preparation", {"prepared": str(path)}, Path(folder) / "checked.json", mapping)
@@ -171,6 +202,9 @@ def verify_report(report_path, receipt_path=None, *, run_check=True, mapping=Non
         if not any(Path(item['path']).is_relative_to(Path(base)) for base in (session['output'],report['prepared'])):
             raise ValueError('native coverage evidence is outside its execution/preparation')
         bound_file(item["path"], item["sha256"], mapping)
+    for item in report.values():
+        if isinstance(item,dict) and isinstance(item.get('path'),str) and isinstance(item.get('sha256'),str):
+            bound_file(item['path'], item['sha256'], mapping)
     if report['status']=='measured' and any(x['kind']=='unsupported' for x in profile['source_dispositions'].values()):
         raise ValueError('unsupported source scope cannot claim complete measured coverage')
     for component in report["components"]:

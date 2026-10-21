@@ -9,7 +9,10 @@ from coverage_protocol import PROTOCOL, read, sha, save, preparation, verify_rep
 
 def project_policy_path(root):
     try:
-        value=subprocess.check_output(['git','rev-parse','--path-format=absolute','--git-common-dir'],cwd=root,text=True,stderr=subprocess.DEVNULL).strip()
+        # A Git repository may contain several acceptance projects in distinct
+        # worktrees. The common dir would let one project's preparation replace
+        # another's active binding before its scene can run.
+        value=subprocess.check_output(['git','rev-parse','--absolute-git-dir'],cwd=root,text=True,stderr=subprocess.DEVNULL).strip()
         return Path(value)/'delivery-acceptance-coverage.json'
     except (OSError,subprocess.CalledProcessError):return None
 

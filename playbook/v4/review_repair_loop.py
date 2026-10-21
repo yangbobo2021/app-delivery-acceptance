@@ -42,6 +42,11 @@ def continue_after_review(config, output, state_path, state, prepared, catalog,
 
         repair = stage(state_path, state, tag, repair_step)
         answer = load(repair["answer"])
+        if answer.get("status") == "needs_contract":
+            return {"status": "needs_scope_or_contract", "review": review,
+                    "reason": "repair Agent requires a newly bound contract or project preparation; "
+                              "preserve this attempt and do not execute its old binding: " +
+                              str(answer.get("reason", ""))}
         if answer.get("status") == "blocked" or not answer.get("test_command"):
             return {"status": "repair_parked", "review": review,
                     "reason": "repair Agent did not produce executable case"}

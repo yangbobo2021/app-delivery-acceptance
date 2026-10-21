@@ -75,3 +75,19 @@ test('legacy attempts cannot resume a model session without a runtime binding',t
   assert.ok(!existsSync(join(home,'agent-runtime.json')));
   assert.equal(readFileSync(join(home,'old-evidence.json'),'utf8'),'original evidence');
 });
+
+test('Claude multimodal input contains the frozen pixels in a SDK user-message stream',async t=>{
+  const {claudePrompt}=await import('../playbook/agent-runtime.mjs');
+  const f=fixture(t),path=join(f.home,'frozen.png');
+  const bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jQp8AAAAASUVORK5CYII=','base64');
+  writeFileSync(path,bytes);
+  assert.equal(claudePrompt('plain'),'plain');
+  const messages=[];
+  for await(const m of claudePrompt([{type:'text',text:'review'},{type:'local_image',path}]))messages.push(m);
+  assert.equal(messages.length,1);
+  assert.deepEqual(messages[0].message.content,[{type:'text',text:'review'},
+    {type:'image',source:{type:'base64',media_type:'image/png',data:bytes.toString('base64')}}]);
+  writeFileSync(path,'not an image');
+  assert.throws(()=>claudePrompt([{type:'local_image',path}]),/image format/);
+  assert.throws(()=>claudePrompt([{type:'image_url',url:'https://example.invalid'}]),/Unsupported/);
+});

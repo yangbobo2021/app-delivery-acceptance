@@ -47,6 +47,10 @@ def validate_session(path,root,output,command):
 
 def run_coverage(request):
     config=request.get('coverage') or {}
+    root=Path(request['cwd']).resolve();out=Path(request['output']).resolve()
+    from coverage_registry import project_coverage,ensure_active,register
+    active=project_coverage(root,config) or config
+    execution_binding(request,active)
     if config.get('protocol')!=PROTOCOL:
         candidate=read(Path(request['prepared'])/'prepared.json')
         if candidate.get('schema')!='project-coverage-preparation-v1':

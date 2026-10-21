@@ -80,6 +80,24 @@ export function bindAgentRuntime(directory, metadata, {resume=false}={}) {
   return metadata;
 }
 
+// Claude SDK accepts message streams rather than Codex local_image blocks.
+// Read pixels here so both adapters review the exact frozen evidence.
+export function claudePrompt(prompt) {
+  if (typeof prompt === 'string') return prompt;
+  if (!Array.isArray(prompt) || !prompt.length) throw Error('Invalid multimodal prompt');
+  const content=prompt.map(block=>{
+    if (block.type==='text' && typeof block.text==='string') return {type:'text',text:block.text};
+    if (block.type!=='local_image' || typeof block.path!=='string') throw Error('Unsupported multimodal block');
+    const bytes=readFileSync(block.path);
+    const mime=bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))?'image/png':
+      bytes[0]===255&&bytes[1]===216&&bytes[2]===255?'image/jpeg':
+      bytes.subarray(0,4).toString()==='RIFF'&&bytes.subarray(8,12).toString()==='WEBP'?'image/webp':null;
+    if(!mime)throw Error('Unsupported screenshot image format');
+    return {type:'image',source:{type:'base64',media_type:mime,data:bytes.toString('base64')}};
+  });
+  return (async function*(){yield {type:'user',message:{role:'user',content},parent_tool_use_id:null};})();
+}
+
 export function createAgentRuntime({directory,resume=false,model,...resolution}={}) {
   const {metadata,inherited}=resolveRuntimeConfig({model,...resolution});
   const sdk=metadata.agent==='codex'?'@openai/codex-sdk':'@anthropic-ai/claude-agent-sdk';
@@ -109,7 +127,7 @@ export function createAgentRuntime({directory,resume=false,model,...resolution}=
         const {ClaudeCodeAdapter}=await import('@sublang/cligent/adapters/claude-code');
         const {query}=await import('@anthropic-ai/claude-agent-sdk');
         adapter=new ClaudeCodeAdapter({loadSdk:async()=>({query:({prompt,options})=>
-          query({prompt,options:{...options,env:{...inherited,...options.env},
+          query({prompt:claudePrompt(prompt),options:{...options,env:{...inherited,...options.env},
             settingSources:[],strictMcpConfig:true,mcpServers:{},
             disallowedTools:[...new Set([...(options.disallowedTools??[]),'Agent','Skill'])]}})})});
       }

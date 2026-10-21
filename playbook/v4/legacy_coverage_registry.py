@@ -20,7 +20,7 @@ def save(p,data):
 def _git(root,*args):
     return subprocess.check_output(['git',*args],cwd=root,text=True,stderr=subprocess.DEVNULL).strip()
 def project_policy_path(root):
-    try:return Path(_git(root,'rev-parse','--path-format=absolute','--git-common-dir'))/'delivery-acceptance-coverage.json'
+    try:return Path(_git(root,'rev-parse','--absolute-git-dir'))/'delivery-acceptance-coverage.json'
     except (subprocess.CalledProcessError,OSError):return None
 def project_coverage(root,declared=None):
     path=project_policy_path(root)

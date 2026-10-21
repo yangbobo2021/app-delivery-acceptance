@@ -29,7 +29,7 @@ def completed_review(directory, input_path):
     raw = next((e.get("payload", {}).get("content", "") for e in reversed(events) if e.get("type") == "text"), "").strip()
     if json.loads(raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()) != answer:
         raise RuntimeError("completed review answer differs from session evidence")
-    verdict = validate(answer, read(input_path))
+    verdict = validate(answer, read(input_path), metrics)
     gate_path = directory / "decision-gate.json"
     if not gate_path.exists():
         gate_path.write_text(json.dumps(verdict, ensure_ascii=False, indent=2) + "\n")
@@ -48,7 +48,7 @@ def correction_input(directory, input_path, verdict):
         "previous_review_path": str(answer_path),
         "previous_review_sha256": hashlib.sha256(answer_path.read_bytes()).hexdigest(),
         "gate": verdict,
-        "instruction": "Correct only the judgment structure against the same frozen evidence. Copy every original finding verbatim; additional concrete findings are allowed, deletion or rewriting is not. Retain observations and uncertainty; do not change scope, files or execute tests. Missing assertions require repair_required, not a product verdict based on a successful command."}}
+        "instruction": "Correct only the judgment structure against the same frozen evidence. Copy every original finding verbatim; additional concrete findings are allowed, deletion or rewriting is not. Retain observations and uncertainty; do not change scope, files or execute tests. Missing assertions require repair_required. A successful business command alone cannot establish a product BUG; a directly inspected, frozen visual failure with a product finding is the separate UI exception."}}
     target = directory.with_name(directory.name + "-decision-correction-input.json")
     if target.exists():
         if read(target) != value:

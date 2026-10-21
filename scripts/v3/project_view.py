@@ -10,10 +10,11 @@ import sys
 import copy
 import threading
 import time
+import mimetypes
 from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from acceptance_store import locations, inside, owned_path, read, read_current, validate, validate_knowledge, digest, project_root
+from acceptance_store import locations, inside, owned_path, read, read_current, validate, validate_knowledge, validate_catalog, digest, project_root
 from progress_views import collect
 from project_statistics import project_state
 from coverage_views import summarize
@@ -38,11 +39,7 @@ def files_under(roots, name):
 
 def catalog_trace(path, project_id):
     value = read(path)
-    if value.get("schema") not in {"acceptance-catalog-v1", "acceptance-catalog-v2"} or not isinstance(value.get("scenarios"), list):
-        raise ValueError("invalid complete scenario catalog")
-    ids = [s["id"] for s in value["scenarios"]]
-    if len(ids) != len(set(ids)):
-        raise ValueError("duplicate stable scene IDs in catalog")
+    validate_catalog(value)
     from acceptance_definitions import scene_fingerprint, legacy_scene_bindings
     legacy, assessed = legacy_scene_bindings(path, value) if value.get('schema') == 'acceptance-catalog-v2' else ({}, {})
     equivalences = value.get('change', {}).get('equivalent_bindings', {})
@@ -57,6 +54,48 @@ def catalog_trace(path, project_id):
             "scenarios": value["scenarios"], "bindings": [], "case_results": [], "attempt_id": "catalog",
             "stage": "frozen_definitions" if value.get('schema') == 'acceptance-catalog-v2' else "scenario_self_checked", "judgment": {"status": "not_run"},
             "coverage": {"status": "pending"}}
+
+
+def current_progress_for_catalog(progress):
+    """Keep the newest candidate list per target for project statistics."""
+    latest = {}
+    other = []
+    for preview in progress.get('previews', []):
+        scenes = preview.get('scenarios', [])
+        if preview.get('stage') not in {'scenario_self_checked', 'scenario_approved'}:
+            other.append(preview)
+            continue
+        owners = {scene.get('requirement_id') for scene in scenes}
+        if len(owners) != 1 or None in owners:
+            other.append(preview)
+            continue
+        owner = next(iter(owners))
+        key = (preview.get('generated_at') or '', preview.get('progress_folder') or '')
+        if owner not in latest or key > latest[owner][0]:
+            latest[owner] = (key, preview)
+    return {**progress, 'previews': [*other, *(preview for _, preview in latest.values())]}
+
+
+def catalog_observed_scene_ids(traces, progress):
+    """Compare the catalog with current target lists and bound case history."""
+    current = current_progress_for_catalog(progress)
+    return {scene['id'] for trace in [*traces, *current.get('previews', []),
+                                     *current.get('case_history', [])]
+            for scene in trace.get('scenarios', [])}
+
+
+def registered_artifact_path(local, shared, mapping, name, expected=None):
+    """Resolve an immutable registered capture in this checkout's archive."""
+    from coverage_protocol import resolved
+    key = str(name)
+    item = mapping.get(key + '#' + expected) if expected else None
+    item = item or mapping.get(key)
+    if item and (expected is None or item['sha256'] == expected):
+        path = owned_path(shared, item['path'])
+        if digest(path) != item['sha256']:
+            raise ValueError('archived coverage artifact changed: ' + key)
+        return path
+    return resolved(owned_path(local, name), mapping, expected)
 
 
 def workflow_requests(roots, local):
@@ -222,13 +261,14 @@ class ProjectView:
             paths = [*paths, context['coverage_registry']]
         rows = []
         from coverage_views import artifact_mapping
-        from coverage_protocol import resolved
         mapping=artifact_mapping(local)
         warnings=warnings if warnings is not None else []
+        registered_artifact=lambda name,expected=None: registered_artifact_path(
+            local,shared,mapping,name,expected)
         entries={}
         for name in paths:
             try:
-                registry_path=resolved(owned_path(local,name),mapping)
+                registry_path=registered_artifact(name)
                 if not registry_path.is_file():continue  # Explicit archived captures remain discoverable below.
                 registry=read(registry_path)
                 if registry.get('schema') not in {'continuous-coverage-index-v1','project-coverage-index-v1'}:
@@ -250,19 +290,19 @@ class ProjectView:
             try:
                 if entry['scene_id'] not in known_scenes:
                     raise ValueError('coverage scene is outside the registered project catalog')
-                report_path = resolved(owned_path(local, entry['report']),mapping,entry['report_sha256'])
+                report_path = registered_artifact(entry['report'], entry['report_sha256'])
                 if digest(report_path) != entry['report_sha256']:
                     raise ValueError('registered coverage report changed')
                 report = read(report_path)
                 if report['scene_id'] != entry['scene_id'] or report['prepared_sha256'] != entry['profile']:
                     raise ValueError('registered coverage binding changed')
-                prepared = read(resolved(owned_path(local, report['prepared']) / 'prepared.json',mapping,report['prepared_sha256']))
-                receipt = read(resolved(owned_path(local, report['receipt_path']),mapping,report.get('execution_sha256')))
+                prepared = read(registered_artifact(Path(report['prepared']) / 'prepared.json',report['prepared_sha256']))
+                receipt = read(registered_artifact(report['receipt_path'],report.get('execution_sha256')))
                 if report.get('protocol')=='project-coverage-v1':
                     rows.append({'schema':'registered-coverage-capture-v1',
                         'project':{'id':read(shared/'manifest.json')['project_id'],'revision':receipt['head_after']},
                         'scenarios':[{'id':entry['scene_id']}],'generated_at':receipt['end_utc'],
-                        'change':{'inventory':read(resolved(owned_path(local,prepared['spec']['inventory_path']),mapping))},
+                        'change':{'inventory':read(registered_artifact(prepared['spec']['inventory_path'],prepared['spec'].get('inventory_sha256')))},
                         'coverage':{**report,'report_path':entry['report'],'capture_end':receipt['end_utc']}})
                     continue
                 check = report_path.parent / 'collection-check.json'
@@ -385,7 +425,8 @@ class ProjectView:
         payload = {"schema": "acceptance-project-view-v1", "project_root": str(self.root),
                    "acceptances": rows, "acceptance_id": selected, "traces": [],
                    "progress": {"previews": [], "stages": []}, "coverage": [],
-                   "project_state": {"traces": [], "projects": []}, "warnings": []}
+                   "project_state": {"traces": [], "projects": []}, "warnings": [],
+                   "design_gaps": []}
         payload["denominator_complete"] = False
         active, current_error = self.current_status()
         payload["current_acceptance_id"] = active
@@ -452,6 +493,14 @@ class ProjectView:
                     result["evidence_url"] = self.evidence_url(selected, path, result, file)
                 elif result.get("evidence_path"):
                     payload["warnings"].append("部分原始证据仅保存在原机器或外部存储，当前无法读取。")
+            ui = row.get('judgment', {}).get('ui_review') or {}
+            ui['screenshots'] = []
+            for name in ui.get('screenshot_paths', []):
+                file = resolver(path, name)
+                if file and file.suffix.lower() in {'.png', '.jpg', '.jpeg', '.webp'}:
+                    from urllib.parse import urlencode
+                    ui['screenshots'].append({'label': file.name, 'url': '/api/ui-evidence?' + urlencode({
+                        'acceptance_id': selected, 'trace': self.key(path), 'sha256': digest(file)})})
         pid = state["manifest"]["project_id"]
         for trace in [*traces, *progress.get("previews", []), *progress.get("case_history", [])]:
             trace["project"]["id"] = pid
@@ -460,9 +509,17 @@ class ProjectView:
         catalog = shared / "scenarios.json"
         all_traces = list(traces)
         if catalog.is_file():
+            catalog_value = read(catalog)
+            payload["design_gaps"] = catalog_value.get("design_gaps", [])
+            if payload["design_gaps"]:
+                payload["warnings"].append(
+                    f"场景设计仍有 {len(payload['design_gaps'])} 项必达义务缺口；相关需求不可宣称完整验收。")
+                payload["warnings"].extend(
+                    f"{gap['requirement_id']}：{gap['quote']}；{gap['reason']}"
+                    for gap in payload["design_gaps"])
             all_traces.append(catalog_trace(catalog, pid))
             catalog_ids = {s["id"] for s in all_traces[-1]["scenarios"]}
-            observed_ids = {s["id"] for t in [*traces, *progress.get("previews", []), *progress.get("case_history", [])] for s in t.get("scenarios", [])}
+            observed_ids = catalog_observed_scene_ids(traces, progress)
             payload["denominator_complete"] = bool(all_traces[-1].get("definition_catalog")) or observed_ids.issubset(catalog_ids)
             if all_traces[-1].get("definition_catalog"):
                 payload["definitions"] = all_traces[-1]["definition_catalog"]
@@ -472,17 +529,21 @@ class ProjectView:
             payload["warnings"].append("缺少项目完整场景清单；当前仅显示已发现记录，不能作为项目整体覆盖或完整验收结论。")
         coverage_rows = coverage_inputs(traces, progress, folders)
         coverage_rows.extend(t for t in all_traces if t.get('attempt_id')=='catalog')
-        try:
-            coverage_rows.extend(self.registered_coverage(selected,payload['warnings']))
-        except (ValueError, OSError, KeyError) as error:
-            payload['warnings'].append('新增覆盖率索引核对失败；原确认结论保持不变：' + str(error))
+        # Supplemental coverage-only captures require the complete catalog for
+        # scene membership checks. Partial v4 scene traces already carry their
+        # same-run coverage, so do not report a false index failure here.
+        if catalog.is_file():
+            try:
+                coverage_rows.extend(self.registered_coverage(selected,payload['warnings']))
+            except (ValueError, OSError, KeyError) as error:
+                payload['warnings'].append('新增覆盖率索引核对失败；原确认结论保持不变：' + str(error))
         try:
             coverage_rows = self.coverage_cohort_rows(selected, coverage_rows)
         except (ValueError, OSError, KeyError) as error:
             payload['warnings'].append('覆盖率保持各实际版本分别展示：' + str(error))
         measured=summarize(coverage_rows,evidence_root=local)
         payload.update(traces=traces, progress=progress,
-                       project_state=project_state(all_traces, progress),
+                       project_state=project_state(all_traces, current_progress_for_catalog(progress) if catalog.is_file() else progress),
                        coverage=measured)
         # Coverage-only captures replace no business judgment. Attach each proved
         # capture only to its actual scene/revision, retaining the original time.
@@ -587,14 +648,14 @@ window.addEventListener('unhandledrejection',event=>{
 </script><script>''', 1)
     cover_start = html.index('function cover(c){')
     cover_end = html.index('function render(items){', cover_start)
-    html = html[:cover_start] + r'''function conclusionBlock(t,s){
+    html = html[:cover_start] + r'''function conclusionBlock(t,s,uiBlock=''){
  const key=JSON.stringify(['conclusion',document.querySelector('#acceptanceId').value,t.project.id,s.id]),open=expanded.has(key);
  const links=Object.entries(t.current_links||{}).map(([label,url])=>`<div><a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a></div>`).join('');
  const applicability={matches_current:'与当前定义一致；产品版本仍按实际记录',equivalent_by_assessment:'经 Agent 对照判定定义等价；保留原执行版本',needs_revalidation:'当前定义已变，需复验',unknown:'尚无可核对的当前定义结论'}[t.definition_applicability]||'';
- return `${status(t.judgment.status)}<div class="small">${esc(applicability)}</div><div class="clamp conclusion-preview${open?' open':''}"><div>${esc(t.judgment.reason||'')}</div>${links}</div><button type="button" data-expand="${esc(key)}" data-more="展开查看更多" aria-expanded="${open}" onclick="toggleBlock(this)">${open?'收起':'展开查看更多'}</button>`;
+ return `${status(t.judgment.status)}${uiBlock}<div class="small">${esc(applicability)}</div><div class="clamp conclusion-preview${open?' open':''}"><div>${esc(t.judgment.reason||'')}</div>${links}</div><button type="button" data-expand="${esc(key)}" data-more="展开查看更多" aria-expanded="${open}" onclick="toggleBlock(this)">${open?'收起':'展开查看更多'}</button>`;
 }
 ''' + html[cover_end:]
-    html = html.replace("${status(t.judgment.status)}${block(t.judgment.reason||'')}</td><td${span}>${cover(t.coverage)}</td>", '${conclusionBlock(t,s)}</td>')
+    html = html.replace("${status(t.judgment.status)}${block(t.judgment.reason||'')}${uiBlock}</td><td${span}>${cover(t.coverage)}</td>", '${conclusionBlock(t,s,uiBlock)}</td>')
     html = html.replace("button.textContent=expanded.has(key)?'收起':'展开'", "button.textContent=expanded.has(key)?'收起':button.dataset.more||'展开';button.setAttribute('aria-expanded',String(expanded.has(key)))")
     html = html.replace('${esc(b.test_file)}</div>', '${block(b.test_file)}</div>')
     html = html.replace("${b.test_file?", "${t.workspace_case?`<div class=\"small\">${t.workspace_case.integration_status==='committed_to_pr_branch'?'项目回归入口：':'用例入口：'}${esc(t.workspace_case.command.join(' ')||'历史证据审计，未纳入自动回归')}</div>${block(t.workspace_case.files.map(f=>f.path).join('\\n'))}<div class=\"small\">${t.workspace_case.integration_status==='committed_to_pr_branch'?'已提交至 PR 分支；':''}此处保留原确认结论和历史执行绑定。</div>`:''}${b.test_file?", 1)
@@ -613,7 +674,8 @@ function renderCoverage(){
  if(!x){document.querySelector('#coverageSummary').innerHTML='<span class="muted">暂无可计算的执行数据</span>';return;}
  const m=x.scopes?.[scope]||{},tools=(x.tools||[]).map(t=>`${t.name} ${t.version||'版本未记录'}`).join('；');
  const metric=(label,v)=>{const ready=v&&typeof v.total==='number'&&typeof v.covered==='number';return `<div class="metric"><span>${esc(label)}</span><strong>${ready?(v.total?esc(toolPct(v)):'不适用'):'暂不可计算'}</strong><div class="small">${ready?`${v.covered} / ${v.total}`:''}</div><div class="small">${esc(v?.status==='incomplete'||m.status==='incomplete'?'已测范围，数据尚不完整':v?.reason||m.reason||'')}</div></div>`;};
- const values=m.components?.length?m.components.map(c=>`<h3>${esc(c.label||c.id)}</h3><div class="coverage-pair">${metric('行覆盖率',c.line)}${metric('分支覆盖率',c.branch)}</div>`).join(''):`<div class="coverage-pair">${metric('行覆盖率',m.line)}${metric('分支覆盖率',m.branch)}</div>`;
+ const native=c=>Object.entries(c).filter(([name,v])=>!['id','label','source_paths','line','branch'].includes(name)&&v&&typeof v==='object'&&typeof v.tool_output==='string').map(([name,v])=>`<details><summary>${esc(v.label||name)} · ${esc(v.status||'原生统计')}</summary><pre>${esc(v.tool_output.slice(0,4000))}</pre></details>`).join('');
+ const values=m.components?.length?m.components.map(c=>`<h3>${esc(c.label||c.id)}</h3><div class="coverage-pair">${metric('行覆盖率',c.line)}${metric('分支覆盖率',c.branch)}</div>${native(c)}`).join(''):`<div class="coverage-pair">${metric('行覆盖率',m.line)}${metric('分支覆盖率',m.branch)}</div>`;
  document.querySelector('#coverageSummary').innerHTML=`<div class="small coverage-meta">实际采集版本：${esc(x.revision)} · ${esc(x.scenes_with_coverage??0)} / ${esc(x.scenes??0)} 个场景有采集 · 最近采集：${esc(when(x))}</div>${values}<div class="small coverage-meta">${esc(m.reason||m.basis||'')} ${esc(tools?'工具：'+tools:'工具信息未记录')}</div><div class="small">${esc(x.collection_note||'')}</div>`+(rows.length>1?'<div class="small">按最近采集时间从新到旧排列；不同版本或准备不混算，也不代表当前交付版本已重新采集。</div>':'');
 }
 document.querySelector('#coverageVersion').addEventListener('change',()=>{selectedCoverageKey=document.querySelector('#coverageVersion').value;renderCoverage();});
@@ -715,6 +777,28 @@ def make_server(project, port=0, selected=None):
                         raise ValueError('artifact is not available in this checkout')
                     raw, mime = file.read_bytes(), item.get('mime', 'application/octet-stream')
                     if mime in {'text/html', 'application/javascript'}:mime='text/plain; charset=utf-8'
+                elif parsed.path == '/api/ui-evidence':
+                    selected_id, _ = view.selection(args.get('acceptance_id', [None])[0])
+                    candidates = files_under(view.roots(selected_id), 'request.frozen.json')
+                    source = next(path for path in candidates if view.key(path) == args['trace'][0])
+                    summary = read(source.parent / 'summary.json')
+                    review_path = view.resolve_evidence(source, summary['review_path'], selected_id)
+                    review = read(review_path)
+                    review_input = read(review_path.with_name('input.json'))
+                    manifest_path = view.resolve_evidence(source, review_input['frozen_evidence_manifest'], selected_id)
+                    manifest = read(manifest_path)
+                    allowed = {item['path']: item['sha256'] for item in manifest.get('files', [])}
+                    file = None
+                    for name in review.get('ui_review', {}).get('screenshot_paths', []):
+                        if allowed.get(name) != args['sha256'][0]:
+                            continue
+                        candidate = view.resolve_evidence(source, name, selected_id)
+                        if candidate and candidate.suffix.lower() in {'.png', '.jpg', '.jpeg', '.webp'} and digest(candidate) == args['sha256'][0]:
+                            file = candidate
+                            break
+                    if not file:
+                        raise ValueError('reviewed UI screenshot is unavailable or changed')
+                    raw, mime = file.read_bytes(), mimetypes.guess_type(file.name)[0] or 'application/octet-stream'
                 elif parsed.path == "/api/evidence":
                     selected_id, _ = view.selection(args.get("acceptance_id", [None])[0])
                     view.validated_state(selected_id)

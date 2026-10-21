@@ -113,6 +113,17 @@ def verify_frozen_workspace(config, catalog):
         raise ValueError('catalog must be newly prepared for the single acceptance workspace')
     if git(root, 'rev-parse', 'HEAD') != catalog['revision']:
         raise ValueError('workspace revision changed; freeze a new version/catalog')
+    if catalog.get('preparation_protocol') == 'two-agent-v1' and not catalog.get('runtime'):
+        raise ValueError('catalog is missing its runtime Agent binding')
+    runtime = catalog.get('runtime')
+    if runtime:
+        if not isinstance(runtime, dict) or not all(runtime.get(key) for key in ('manifest', 'sha256')):
+            raise ValueError('catalog runtime binding is incomplete')
+        from runtime_preparation import validate_runtime
+        checked = validate_runtime(runtime['manifest'], expected_acceptance=config['acceptance'], resmoke=False)
+        if (checked['runtime_sha256'] != runtime['sha256'] or
+                checked['workspace'] != str(root) or checked['revision'] != catalog['revision']):
+            raise ValueError('catalog runtime Agent result changed or belongs to another checkout')
     from acceptance_store import digest
     for name, expected in catalog.get('source_hashes', {}).items():
         file = inside(root, name)
@@ -143,7 +154,9 @@ def require_scene_lease(config):
     lease = os.environ.get('ACCEPTANCE_WORKSPACE_LEASE')
     if not lease or not owner_path.is_file() or read(owner_path).get('output_dir') != lease:
         raise ValueError('case/repair entry requires the owning scene pipeline lease')
-    with (root.parent / 'workspace.lock').open('a+') as lock:
+    # The scene host owns and creates this file. A debugging child only needs
+    # to test its held lock; it must not need write access to the ID root.
+    with (root.parent / 'workspace.lock').open('r') as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:

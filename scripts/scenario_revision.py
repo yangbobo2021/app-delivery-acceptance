@@ -132,7 +132,26 @@ def gate(request, folder):
     base = folder / 'scenarios.base.json'
     if base.read_text() != request['scenario_base_text']:
         raise ValueError('frozen scenario baseline changed')
-    result = apply_patch(request, read(folder / 'draft.candidate.json'))
+    draft = read(folder / 'draft.candidate.json')
+    result = apply_patch(request, draft)
+    if request.get('scenario_selfcheck_protocol') == 'v4-target-check-v1':
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            check_folder = Path(tmp)
+            check_request = {**request, 'mode': 'create'}
+            check_result = {**result, 'selfcheck': draft.get('selfcheck')}
+            check_result.pop('base_sha256', None)
+            save(check_folder / 'request.json', check_request)
+            save(check_folder / 'draft.candidate.json', check_result)
+            process = subprocess.run(['node', str(Path(__file__).resolve().parents[1] /
+                'playbook/v3/scenarios/scripts/gate.mjs'), str(check_folder / 'request.json'),
+                str(check_folder), 'draft', '1'], capture_output=True, text=True)
+            if process.returncode:
+                detail = read(check_folder / 'draft-gate.json')
+                save(folder / 'draft-gate.json', detail)
+                raise ValueError('Merged scene self-check invalid: ' + str(detail['errors']))
+            save(folder / 'selfcheck.current.json', read(check_folder / 'selfcheck.current.json'))
     save(folder / 'scenarios.current.json', result)
     save(folder / 'scenarios.round-1.json', result)
     save(folder / 'draft-gate.json', {'stage': 'draft', 'status': 'ready', 'errors': [],
@@ -158,6 +177,11 @@ def candidate(request_path, folder):
             terminal.get('scenarios_sha256') != digest(folder / 'scenarios.current.json') or \
             read(folder / 'draft-gate.json').get('status') != 'ready':
         raise ValueError('scenario result is incomplete or changed')
+    checked = None
+    if frozen.get('scenario_selfcheck_protocol') == 'v4-target-check-v1':
+        if terminal.get('selfcheck_sha256') != digest(folder / 'selfcheck.current.json'):
+            raise ValueError('scenario self-check changed after generation')
+        checked = read(folder / 'selfcheck.current.json')
     result = read(folder / 'scenarios.current.json')
     if request['mode'] == 'edit':
         if terminal.get('delta_sha256') != digest(folder / 'draft.candidate.json') or \
@@ -169,11 +193,20 @@ def candidate(request_path, folder):
         if target in g['requirement_ids'] for rid in g['requirement_ids']} - {target})
     adopted = []
     for scene in result['scenarios']:
+        scene = deepcopy(scene)
         sid = scene['id']
+        if checked and frozen.get('scenario_ui_protocol') == 'v4-ui-acceptance-v1':
+            ui = checked['ui_requirement']
+            check = next(x for x in checked['scene_checks'] if x['scene_id'] == sid)
+            if ui['required'] or 'ui_acceptance' in scene:
+                scene['ui_acceptance'] = {'required': ui['required'],
+                    'visual_expectation': check.get('ui_visual_expectation', '')}
         if sid in old and scene == old[sid]:
             adopted.append(deepcopy(scene))
             continue
         item = deepcopy(scene) if sid in old else {k: scene[k] for k in DESIGN_FIELDS}
+        if 'ui_acceptance' in scene:
+            item['ui_acceptance'] = deepcopy(scene['ui_acceptance'])
         if sid not in old:
             item.update(requirement_id=target, kind=request['scenario_kind'])
             item['origin'] = {'kind': 'skill_generated_internal_self_check',
@@ -199,6 +232,11 @@ def candidate(request_path, folder):
             merged.append(replaced[scene['id']]); inserted.add(scene['id'])
     merged.extend(s for s in adopted if s['id'] not in inserted)
     current['scenarios'] = merged
+    if checked:
+        gaps = [g for g in current.get('design_gaps', []) if g['requirement_id'] != target]
+        gaps.extend({'requirement_id': target, 'quote': x['quote'], 'reason': x['gap_reason']}
+            for x in checked['obligations'] if not x['scene_ids'] and x.get('gap_reason'))
+        current['design_gaps'] = gaps
     current['scenario_revision'] = {'request': str(folder / 'request.frozen.json'),
         'request_sha256': terminal['request_sha256'], 'result_sha256': terminal['scenarios_sha256'],
         'mode': request['mode'], 'change_reasons': result.get('change_reasons', {}),

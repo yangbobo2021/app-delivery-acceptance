@@ -60,6 +60,74 @@ class ScenarioRevisionTests(unittest.TestCase):
         path = f.local / 'workflows/edit-request.json'; save(path, self.raw)
         return path, folder
 
+    def test_edit_selfcheck_ui_and_gaps_survive_adoption_without_touching_other_targets(self):
+        self.request.update(scenario_selfcheck_protocol='v4-target-check-v1',
+                            scenario_ui_protocol='v4-ui-acceptance-v1')
+        d = self.delta()
+        expectation = 'Content remains readable and unobstructed'
+        for scene in d['upsert']:
+            scene['description'] += '; ' + expectation
+        # An unchanged human scene keeps its exact definition and receives no new UI criterion.
+        # Use non-UI first to verify no incidental version bump of retained scenes.
+        scenes = apply_patch(self.request, d)['scenarios']
+        d['selfcheck'] = {'ui_requirement': {'required': False, 'reason': 'CLI output only'},
+            'obligations': [{'quote': 'preserve the timestamp', 'scene_ids': [x['id'] for x in scenes]},
+                {'quote': 'Return three', 'scene_ids': [], 'gap_reason': 'Fixture gap for adoption check'}],
+            'scene_checks': [{'scene_id': x['id'], 'owner_quote': 'Return three',
+                'distinguishing_failure': 'Distinct failure of ' + x['id'],
+                'observable_result': 'Visible result of ' + x['id'],
+                'failure_impact': 'Scope-specific failure', 'ui_visual_expectation': ''} for x in scenes]}
+        f = self.f; folder = f.local / 'workflows/checked-edit'
+        save(folder/'request.frozen.json', self.request)
+        (folder/'scenarios.base.json').write_text(self.request['scenario_base_text'])
+        save(folder/'draft.candidate.json', d)
+        gate(self.request, folder)
+        terminal = {'final_state': 'done', 'request_sha256': digest(folder/'request.frozen.json'),
+            'scenarios_sha256': digest(folder/'scenarios.current.json'),
+            'delta_sha256': digest(folder/'draft.candidate.json'),
+            'selfcheck_sha256': digest(folder/'selfcheck.current.json')}
+        save(folder/'terminal.json', terminal)
+        path = f.local/'workflows/checked-request.json'; save(path,self.raw)
+        before = load_binding(f.binding)
+        merged = candidate(path,folder)
+        self.assertEqual(merged['scenarios'][1], before['scenarios'][1])
+        self.assertEqual(next(s for s in merged['scenarios'] if s['id']=='KEEP'),
+                         next(s for s in before['scenarios'] if s['id']=='KEEP'))
+        self.assertEqual(merged['design_gaps'], [{'requirement_id':'R1','quote':'Return three',
+            'reason':'Fixture gap for adoption check'}])
+        # Tampering with the separate self-check cannot silently change adopted UI or gap contracts.
+        checked = read(folder/'selfcheck.current.json'); checked['ui_requirement']['required'] = True
+        save(folder/'selfcheck.current.json',checked)
+        with self.assertRaisesRegex(ValueError, 'self-check changed'):
+            candidate(path,folder)
+        # A second attempt validates UI criteria against every full merged scene.
+        d['selfcheck']['ui_requirement']['required'] = True
+        for x in d['selfcheck']['scene_checks']:
+            x['ui_visual_expectation'] = expectation
+        save(folder/'draft.candidate.json',d)
+        with self.assertRaisesRegex(ValueError,'self-check invalid'):
+            gate(self.request,folder)  # KEEP lacks the visual criterion; cannot silently invent it.
+
+        keep = next(x for x in self.request['existing_scenarios'] if x['id']=='KEEP')
+        keep = {k:keep[k] for k in ('id','title','description','priority','priority_reason')}
+        keep['description'] += '; ' + expectation
+        d['upsert'].append(keep); d['change_reasons']['KEEP']='New UI requirement applies to this target'
+        save(folder/'draft.candidate.json',d); gate(self.request,folder)
+        terminal.update(scenarios_sha256=digest(folder/'scenarios.current.json'),
+            delta_sha256=digest(folder/'draft.candidate.json'),
+            selfcheck_sha256=digest(folder/'selfcheck.current.json'))
+        save(folder/'terminal.json',terminal)
+        merged=candidate(path,folder)
+        self.assertEqual(next(x for x in merged['scenarios'] if x['id']=='S2'),before['scenarios'][1])
+        f.freeze(merged)
+        from acceptance_definitions import scene_input,verify_case
+        bound={**f.binding,**scene_input(f.binding,'S1')}
+        self.assertEqual(bound['ui_acceptance'],{'required':True,'visual_expectation':expectation})
+        verify_case(bound)
+        bound['ui_acceptance']['visual_expectation']='Substituted criterion'
+        with self.assertRaisesRegex(ValueError,'frozen UI contract'):
+            verify_case(bound)
+
     def test_current_human_edits_are_the_baseline_and_old_requirement_is_supplied(self):
         f = self.f
         current = load_binding(f.binding)

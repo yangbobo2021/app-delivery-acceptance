@@ -5,6 +5,7 @@ Its explicitly fictional native counters cannot certify any application's covera
 No Agent, network, real project or installed external coverage tool is used.
 """
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -16,7 +17,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[1] / "scripts/v3"))
 from coverage_protocol import PROTOCOL, preparation, sha, verify_report
-from coverage_registry import activate
+from coverage_registry import activate, ensure_active
 from run_coverage import run_coverage
 import coverage_views
 
@@ -67,9 +68,11 @@ class ProjectCoverageProtocolTest(unittest.TestCase):
         self.inventory.write_text("{}")
         self.probe = self.base / "SYNTHETIC-probe.json"
         self.probe.write_text('{"synthetic":true,"purpose":"protocol-only tool substitute"}')
+        self.interpreter = self.base / 'retirable-python'
+        self.interpreter.symlink_to(sys.executable)
         self.profile = {
             "schema": "project-coverage-preparation-v1",
-            "entry": [sys.executable, str(self.adapter)],
+            "entry": [str(self.interpreter), str(self.adapter)],
             "adapter_files": {"tools/stub.py": sha(self.adapter)},
             "tools": [{"name": "SYNTHETIC protocol stub", "version": "fixture-1",
                        "role": "protocol regression only, not business coverage"}],
@@ -125,6 +128,53 @@ class ProjectCoverageProtocolTest(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             run_coverage(self.request("normal"))
         self.assertEqual({path: sha(path) for path in files}, original)
+
+    def test_preparation_rejects_paths_bound_to_caller_working_directory(self):
+        for name in ("inventory_path", "registry_path"):
+            with self.subTest(name=name):
+                profile = json.loads(json.dumps(self.profile))
+                profile["spec"][name] = "relative/" + Path(profile["spec"][name]).name
+                self.write(self.prepared / "prepared.json", profile)
+                config = {**self.config, "prepared_sha256": sha(self.prepared / "prepared.json")}
+                with self.assertRaisesRegex(ValueError, f"coverage {name} must be an absolute path"):
+                    preparation(config, run_check=False)
+
+    def test_active_preparation_is_usable_from_another_working_directory(self):
+        other = self.base / "case-workdir"
+        other.mkdir()
+        original = Path.cwd()
+        try:
+            os.chdir(other)
+            ensure_active(self.prepared)
+        finally:
+            os.chdir(original)
+
+    def test_verified_archive_summary_survives_missing_runtime_module(self):
+        from unittest.mock import patch
+        report = self.collect()
+        trace = self.trace(report)
+        live = coverage_views.summarize([trace])[0]
+        snapshot = {"tools": live["tools"], "scopes": live["scopes"]}
+        coverage_views._cache.clear()
+        with patch.object(coverage_views, "summarize_reports",
+                          side_effect=ValueError("Cannot find module 'project-tool'")), \
+             patch.object(coverage_views, "archived_summary", return_value=snapshot) as archived:
+            result = coverage_views.summarize([trace])[0]
+        self.assertEqual(result["scopes"]["project"]["status"], "measured")
+        self.assertEqual(len(result["verified_reports"]), 1)
+        archived.assert_called_once()
+
+    def test_project_declared_run_metadata_is_hash_bound(self):
+        report_path = self.collect()
+        extra = self.base / 'collector-lifecycle.json'
+        extra.write_text('{"status":"finished"}')
+        report = json.loads(report_path.read_text())
+        report['collector_lifecycle'] = {'path': str(extra), 'sha256': sha(extra)}
+        self.write(report_path, report)
+        self.assertEqual(verify_report(report_path, run_check=False)['scene_id'], 'SCENE-1')
+        extra.write_text('{"status":"changed"}')
+        with self.assertRaisesRegex(ValueError, 'bound file missing or changed'):
+            verify_report(report_path, run_check=False)
 
     def test_report_for_another_scene_is_not_registered(self):
         with self.assertRaisesRegex(ValueError, "scene/profile/source"):
@@ -231,6 +281,40 @@ class ProjectCoverageProtocolTest(unittest.TestCase):
         self.write(modified, value)
         with self.assertRaisesRegex(ValueError, "source version"):
             verify_report(modified)
+
+    def test_new_runtime_bound_profile_rejects_stale_runtime_without_breaking_legacy(self):
+        # Legacy profile above remains valid; only a new runtime-bound profile
+        # requires this per-acceptance handoff and its exact bytes.
+        runtime = self.base / "runtime.json"
+        self.write(runtime, {"schema": "project-runtime-preparation-v1", "status": "ready",
+                             "workspace": str(self.root), "revision": self.revision,
+                             "acceptance": {"project_root": str(self.root), "id": "SYNTHETIC-ID",
+                                            "scope_sha256": "synthetic"}})
+        plan = self.base / "probe-plan.json"
+        self.write(plan, {"synthetic": True})
+        probe = self.base / "probe-report.json"
+        ref = {"path": str(self.probe), "sha256": sha(self.probe)}
+        self.write(probe, {"schema": "project-coverage-probe-report-v1", "status": "ready",
+                           "runtime_sha256": sha(runtime), "workspace": str(self.root),
+                           "revision": self.revision, "plan": str(plan), "plan_sha256": sha(plan),
+                           "routes": [{"id": "synthetic", "source_paths": ["src/example.unknownlang"],
+                                       "probes": {mode: {"status": "passed", "receipts": {"collect": ref},
+                                                         "native": [ref]} for mode in ("zero", "nonzero")}}]})
+        self.profile["spec"].update(runtime_manifest=str(runtime), runtime_sha256=sha(runtime),
+                                     probe_report=str(probe), probe_report_sha256=sha(probe))
+        self.profile["preparation_status"] = "ready"
+        self.write(self.prepared / "prepared.json", self.profile)
+        self.config["prepared_sha256"] = sha(self.prepared / "prepared.json")
+        from unittest.mock import patch
+        with patch('coverage_preparation.verify_report', return_value={"status": "ready"}):
+            self.assertEqual(preparation(self.config, run_check=False)["preparation_status"], "ready")
+            with patch('runtime_preparation.validate_runtime', side_effect=ValueError('stale runtime environment')):
+                with self.assertRaisesRegex(ValueError, 'stale runtime environment'):
+                    preparation(self.config, run_check=True)
+        runtime.write_bytes(runtime.read_bytes() + b" ")
+        with patch('coverage_preparation.verify_report', return_value={"status": "ready"}):
+            with self.assertRaisesRegex(ValueError, "bound file missing or changed"):
+                preparation(self.config, run_check=False)
 
     def test_archived_mapping_keeps_view_usable_after_original_paths_disappear(self):
         report = self.collect()
@@ -425,6 +509,7 @@ class ProjectCoverageProtocolTest(unittest.TestCase):
         self.assertTrue((record / "record.json").is_file())
         (local / "project-context.json").unlink()
         source.rename(self.base / "coverage-capture-offline")
+        self.interpreter.unlink()  # Published results must outlive their runtime.
         # Frozen adapter alias must work even without the mutable project adapter.
         self.adapter.rename(self.adapter.with_suffix(".offline"))
         result = ProjectView(self.root).snapshot(acceptance_id)

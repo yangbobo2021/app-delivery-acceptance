@@ -17,8 +17,9 @@ SKILL = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(SKILL / "scripts"), str(SKILL / "scripts/v3")]
 from acceptance_store import (initialize, update_scope, read_knowledge, guard, validate,
                               validate_knowledge, publish_catalog, archive, read, save,
-                              read_current, start_acceptance, finish_acceptance)
-from project_view import ProjectView, make_server, project_html
+                              read_current, start_acceptance, finish_acceptance,
+                              frozen_artifact_alias)
+from project_view import ProjectView, make_server, project_html, catalog_trace
 
 
 class StoreTests(unittest.TestCase):
@@ -34,6 +35,33 @@ class StoreTests(unittest.TestCase):
 
     def config(self):
         return {"project_root": str(self.root), "acceptance": self.binding, "test_roots": ["e2e"]}
+
+    def test_existing_equivalent_ignore_rule_is_preserved(self):
+        other = Path(self.tmp.name) / "other-project"
+        other.mkdir()
+        original = b"node_modules/\n.acceptance-local/\n"
+        (other / ".gitignore").write_bytes(original)
+        initialize(other, "AT-other", "Other", "Tester", {"targets": ["REQ-1"]}, "Request")
+        self.assertEqual((other / ".gitignore").read_bytes(), original)
+        self.assertEqual(validate(other, "AT-other")["manifest"]["acceptance_id"], "AT-other")
+
+    def test_frozen_alias_requires_bound_hash_for_generated_artifacts(self):
+        from acceptance_store import digest
+        project = Path(self.tmp.name) / 'source'
+        project.mkdir()
+        original = project / 'dist/app.js'
+        frozen = self.output / 'frozen/app.js'
+        frozen.parent.mkdir(parents=True)
+        frozen.write_text('generated build')
+        profile = {'spec': {'project_root': str(project), 'source_hashes': {}}, 'adapter_files': {}}
+        alias = {'path': str(frozen), 'sha256': digest(frozen)}
+        self.assertEqual(frozen_artifact_alias(profile, str(original), alias), str(frozen))
+        with self.assertRaisesRegex(ValueError, 'frozen artifact digest'):
+            frozen_artifact_alias(profile, str(original), str(frozen))
+        with self.assertRaisesRegex(ValueError, 'unbound or changed'):
+            frozen_artifact_alias(profile, str(original), {**alias, 'sha256': '0'*64})
+        with self.assertRaises(ValueError):
+            frozen_artifact_alias(profile, str(project / '../outside.js'), alias)
 
     def test_source_child_cannot_create_read_or_view_its_own_acceptance_store(self):
         child = self.root / '.worktrees' / 'source'
@@ -212,6 +240,44 @@ class StoreTests(unittest.TestCase):
             "requirements": [{"id": "REQ-1", "text": "Requirement"}], "reverse_rules": [],
             "scenarios": [{"id": f"S{i}", "requirement_id": "REQ-1", "title": f"Scene {i}",
                            "description": "Fixture only", "priority": "P1"} for i in range(3)]})
+
+    def test_invalid_catalog_project_is_rejected_before_replacing_history(self):
+        self.catalog()
+        shared = self.root / '.acceptance' / self.at
+        before = {str(p.relative_to(shared)): (p.read_bytes(), p.stat().st_mtime_ns)
+                  for p in shared.rglob('*') if p.is_file()}
+        current = read(shared / 'scenarios.json')
+        for bad_project in ['Invoice CLI', ['Invoice CLI'], 42, None, {}]:
+            with self.subTest(project=bad_project):
+                invalid = {**current, 'project': bad_project}
+                with self.assertRaisesRegex(ValueError, 'catalog project must be an object'):
+                    publish_catalog(self.root, self.at, invalid)
+                after = {str(p.relative_to(shared)): (p.read_bytes(), p.stat().st_mtime_ns)
+                         for p in shared.rglob('*') if p.is_file()}
+                self.assertEqual(after, before)
+        self.assertEqual(ProjectView(self.root).snapshot(self.at)
+                         ['project_state']['projects'][0]['scenario_count'], 3)
+
+    def test_catalog_reader_reports_legacy_bad_project_without_mutating_it(self):
+        self.catalog()
+        current = read(self.root / '.acceptance' / self.at / 'scenarios.json')
+        legacy = self.root / 'old-catalog.json'
+        save(legacy, {**current, 'project': 'Invoice CLI'})
+        before = (legacy.read_bytes(), legacy.stat().st_mtime_ns)
+        with self.assertRaisesRegex(ValueError, 'catalog project must be an object'):
+            catalog_trace(legacy, 'project')
+        self.assertEqual((legacy.read_bytes(), legacy.stat().st_mtime_ns), before)
+
+    def test_catalog_reader_preserves_valid_project_metadata_and_unexecuted_scenes(self):
+        result = self.catalog()
+        current = read(result['catalog'])
+        current['project'].update(revision='frozen-revision', root=str(self.root))
+        result = publish_catalog(self.root, self.at, current)
+        trace = catalog_trace(result['catalog'], 'project')
+        self.assertEqual(trace['project'], current['project'])
+        self.assertEqual(len(trace['scenarios']), 3)
+        self.assertEqual(trace['case_results'], [])
+        self.assertEqual(trace['judgment']['status'], 'not_run')
 
     def trace(self, at, status):
         folder = self.root / ".acceptance-local" / at / "workflows" / "case"
@@ -457,6 +523,7 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(len(data["traces"]), 1)
         self.assertFalse(data["denominator_complete"])
         self.assertTrue(data["warnings"])
+        self.assertFalse(any("索引核对失败" in warning for warning in data["warnings"]))
 
     def test_unindexed_new_knowledge_blocks_execution_but_not_history_reading(self):
         self.catalog()

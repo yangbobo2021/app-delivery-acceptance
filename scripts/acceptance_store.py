@@ -247,8 +247,8 @@ def validate(project, acceptance_id, check_knowledge=True):
             manifest.get("acceptance_id") != acceptance_id or not manifest.get("owner") or
             not manifest.get("project_id")):
         raise ValueError("invalid acceptance identity manifest")
-    if not re.search(r"^/\.acceptance-local/\s*$", (root / ".gitignore").read_text(), re.M):
-        raise ValueError(".gitignore must contain /.acceptance-local/")
+    if not re.search(r"^/?\.acceptance-local/\s*$", (root / ".gitignore").read_text(), re.M):
+        raise ValueError(".gitignore must contain a root .acceptance-local/ directory rule")
     git_root = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=root, capture_output=True, text=True)
     if git_root.returncode == 0:
         ignored = subprocess.run(["git", "check-ignore", "--no-index", "--", str(local / "acceptance-guard-probe")], cwd=root, capture_output=True)
@@ -323,14 +323,31 @@ def validate(project, acceptance_id, check_knowledge=True):
             "knowledge_sha256": fingerprint(inventory)}
 
 
+def validate_design_gaps(value, owners):
+    gaps = value.get("design_gaps", [])
+    if not isinstance(gaps, list):
+        raise ValueError("design_gaps must be a list")
+    source_text = {item["id"]: item.get("text", "") for item in value["requirements"]}
+    source_text.update({item["id"]: item.get("text", "") for item in value.get("reverse_rules", [])})
+    for gap in gaps:
+        if (not isinstance(gap, dict) or gap.get("requirement_id") not in owners or
+                not isinstance(gap.get("quote"), str) or not gap["quote"].strip() or
+                gap["quote"] not in source_text[gap["requirement_id"]] or
+                not isinstance(gap.get("reason"), str) or not gap["reason"].strip()):
+            raise ValueError("design gap needs an owner, exact source quote and reason")
+
+
 def validate_catalog(value):
-    if value.get('schema') == 'acceptance-catalog-v2':
+    if isinstance(value, dict) and value.get('schema') == 'acceptance-catalog-v2':
         from acceptance_definitions import validate_definitions
         validate_definitions(value)
         return
-    if (value.get("schema") != "acceptance-catalog-v1" or not value.get("project") or
+    if (not isinstance(value, dict) or value.get("schema") != "acceptance-catalog-v1" or
             not isinstance(value.get("requirements"), list) or not isinstance(value.get("scenarios"), list)):
         raise ValueError("complete project scenario catalog required")
+    project = value.get("project")
+    if not isinstance(project, dict) or not project:
+        raise ValueError("catalog project must be an object, for example {id, label, revision, root}")
     scene_ids = [item["id"] for item in value["scenarios"]]
     if len(scene_ids) != len(set(scene_ids)):
         raise ValueError("duplicate stable scene IDs")
@@ -339,6 +356,7 @@ def validate_catalog(value):
     for item in value["scenarios"]:
         if not item.get("id") or item.get("requirement_id") not in owners:
             raise ValueError("scene needs an original requirement or admitted rule")
+    validate_design_gaps(value, owners)
 
 
 def publish_catalog(project, acceptance_id, value, *, assessment=None):
@@ -406,7 +424,7 @@ def _initialize(project, acceptance_id, title, owner, scope, basis):
         (knowledge / "INDEX.md").write_text(INDEX)
     gitignore = root / ".gitignore"
     text = gitignore.read_text() if gitignore.exists() else ""
-    if not re.search(r"^/\.acceptance-local/\s*$", text, re.M):
+    if not re.search(r"^/?\.acceptance-local/\s*$", text, re.M):
         gitignore.write_text(text + ("\n" if text and not text.endswith("\n") else "") + "/.acceptance-local/\n")
     save(shared / "manifest.json", {"schema": "acceptance-manifest-v1", "acceptance_id": acceptance_id,
          "project_id": root.name, "title": title, "owner": owner, "created_at": now()}, exclusive=True)
@@ -552,12 +570,51 @@ def v4_result_files(source):
     paths = [source / name for name in ['request.frozen.json', 'state.json', 'summary.json']]
     paths += [answer, review, review.with_name('input.json'), review.with_name('metrics.json'),
               review.with_name('decision-gate.json'), receipt, receipt.with_name('execution.log'), coverage]
+    if review_input.get('ui_acceptance', {}).get('required'):
+        manifest_path = bound(review_input['frozen_evidence_manifest'])
+        manifest = read(manifest_path)
+        reviewed = read(review)
+        referenced = reviewed.get('ui_review', {}).get('screenshot_paths', [])
+        frozen = {item['path']: item['sha256'] for item in manifest.get('files', [])}
+        if reviewed.get('ui_review', {}).get('status') in {'passed', 'failed'} and not referenced:
+            raise ValueError('reviewed UI conclusion has no frozen screenshot')
+        paths.append(manifest_path)
+        for name in referenced:
+            image = bound(name)
+            if image.suffix.lower() not in {'.png', '.jpg', '.jpeg', '.webp'} or frozen.get(name) != digest(image):
+                raise ValueError('reviewed UI screenshot differs from frozen manifest')
+            paths.append(image)
     # Only these protocol files are implicit. Raw counts, observations, environment,
     # debug attempts and session transcripts require an additional reviewed allowlist.
     for path in paths:
         if not path.is_file():
             raise ValueError('Incomplete v4 result archive; missing ' + str(path))
     return sorted({path.relative_to(source).as_posix() for path in paths})
+
+
+def frozen_artifact_alias(profile, original, alias):
+    """Validate one offline alias against its frozen bytes and project inventory."""
+    bound_digest=None
+    if isinstance(alias,dict):
+        frozen=alias.get('path')
+        bound_digest=alias.get('sha256')
+        if not isinstance(frozen,str) or not isinstance(bound_digest,str) or digest(frozen)!=bound_digest:
+            raise ValueError('Coverage publication alias descriptor is unbound or changed')
+    elif isinstance(alias,str):
+        frozen=alias
+    else:
+        raise ValueError('Coverage publication alias must name a frozen file')
+    project_root=Path(profile['spec']['project_root']).resolve()
+    if '..' in Path(original).parts:
+        raise ValueError('Coverage publication alias escapes project')
+    relative=Path(original).resolve().relative_to(project_root)
+    inside(project_root,relative)
+    expected=profile['adapter_files'].get(str(relative)) or profile['spec']['source_hashes'].get(str(relative))
+    if expected and digest(frozen)!=expected:
+        raise ValueError('Coverage publication alias differs from frozen source or adapter')
+    if not expected and not bound_digest:
+        raise ValueError('Coverage publication alias lacks a frozen artifact digest')
+    return frozen
 
 
 def coverage_archive_files(source, reports):
@@ -577,10 +634,54 @@ def coverage_archive_files(source, reports):
         include(Path(report['receipt_path']).with_name('execution.log'))
         include(receipt['coverage_session_path']);include(profile['spec']['inventory_path'])
         for item in [*report['raw_evidence'],*profile['preparation_evidence']]:include(item['path'])
-        for original,frozen in profile.get('artifact_aliases',{}).items():
-            relative=Path(original).relative_to(Path(profile['spec']['project_root']))
-            expected=profile['adapter_files'].get(str(relative)) or profile['spec']['source_hashes'].get(str(relative))
-            if not expected or digest(frozen)!=expected:raise ValueError('Coverage publication alias lacks frozen source binding')
+        # Project tools may bind additional run metadata (for example an
+        # execution request or collector lifecycle receipt). Preserve every
+        # top-level file reference with an explicit digest, regardless of its
+        # project-chosen field name.
+        for item in report.values():
+            if isinstance(item,dict) and isinstance(item.get('path'),str) and isinstance(item.get('sha256'),str):
+                extra=owned_path(source,item['path'])
+                if digest(extra)!=item['sha256']:
+                    raise ValueError('Coverage publication bound metadata changed: '+str(extra))
+                include(extra)
+        coverage_spec = profile['spec']
+        if coverage_spec.get('runtime_manifest') or coverage_spec.get('probe_report'):
+            if not all(coverage_spec.get(key) for key in ('runtime_manifest', 'runtime_sha256',
+                                                          'probe_report', 'probe_report_sha256')):
+                raise ValueError('Coverage publication has incomplete runtime/probe binding')
+            runtime_path = owned_path(source, coverage_spec['runtime_manifest'])
+            probe_path = owned_path(source, coverage_spec['probe_report'])
+            if digest(runtime_path) != coverage_spec['runtime_sha256'] or digest(probe_path) != coverage_spec['probe_report_sha256']:
+                raise ValueError('Coverage publication runtime/probe bytes changed')
+            include(runtime_path);include(probe_path)
+            probe = read(probe_path)
+            plan = owned_path(source, probe['plan'])
+            if digest(plan) != probe['plan_sha256']:
+                raise ValueError('Coverage publication probe plan changed')
+            include(plan)
+            for route in probe.get('routes', []):
+                for attempt in route.get('probes', {}).values():
+                    if attempt.get('status') != 'passed':
+                        continue
+                    for reference in attempt.get('receipts', {}).values():
+                        path = owned_path(source, reference['path'])
+                        if digest(path) != reference['sha256']:
+                            raise ValueError('Coverage publication probe receipt changed')
+                        include(path)
+                        command_receipt = read(path)
+                        for stream in ('stdout', 'stderr'):
+                            asset = command_receipt[stream]
+                            asset_path = owned_path(source, asset['path'])
+                            if digest(asset_path) != asset['sha256']:
+                                raise ValueError('Coverage publication probe stream changed')
+                            include(asset_path)
+                    for reference in attempt.get('native', []):
+                        path = owned_path(source, reference['path'])
+                        if digest(path) != reference['sha256']:
+                            raise ValueError('Coverage publication probe native data changed')
+                        include(path)
+        for original,alias in profile.get('artifact_aliases',{}).items():
+            frozen=frozen_artifact_alias(profile,original,alias)
             aliases[original]=include(frozen)
         for name,expected in profile['adapter_files'].items():
             original=str(Path(profile['spec']['project_root'])/name)
@@ -625,6 +726,18 @@ def archive(project, acceptance_id, source, files, basis, *, v4_result=False, co
     files=[*files,*scene_files]
     coverage_reports=[*(coverage_reports or []),*scene_reports]
     coverage_files,aliases=coverage_archive_files(source,coverage_reports) if coverage_reports else ([],{})
+    coverage_snapshot=None
+    if coverage_reports:
+        from coverage_protocol import summarize_reports, verify_report, sha
+        report_paths=sorted({str(owned_path(source,source/name if not Path(name).is_absolute() else name))
+                             for name in coverage_reports})
+        checked=[verify_report(name) for name in report_paths]
+        if len({item['prepared_sha256'] for item in checked}) != 1:
+            raise ValueError('Coverage publication cannot combine incompatible preparations')
+        coverage_snapshot={"schema":"project-coverage-summary-snapshot-v1",
+                           "reports":[{"path":name,"sha256":sha(name)} for name in report_paths],
+                           "prepared_sha256":checked[0]['prepared_sha256'],
+                           "summary":summarize_reports(report_paths)}
     files=[*files,*coverage_files]
     if not files or not basis.strip():
         raise ValueError("explicit reviewed file allowlist and publication basis required")
@@ -642,11 +755,19 @@ def archive(project, acceptance_id, source, files, basis, *, v4_result=False, co
         dest = target / name
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, dest)
+    snapshot_name=None
+    if coverage_snapshot:
+        snapshot_name='coverage-summary.json'
+        if snapshot_name in data:
+            raise ValueError('Coverage snapshot name collides with selected evidence')
+        save(target/snapshot_name,coverage_snapshot,exclusive=True)
+        data[snapshot_name]=target/snapshot_name
     save(target / "record.json", {"schema": "acceptance-evidence-record-v1", "acceptance_id": acceptance_id,
          "scope_sha256": state["scope"]["sha256"], "created_at": now(), "basis": basis,
          "files": {name: digest(path) for name, path in data.items()},
          "original_paths": {str(path): name for name, path in data.items()},
          "path_aliases": aliases,
+         "coverage_summary":snapshot_name,
          "coverage_reports": [owned_path(source,source/name if not Path(name).is_absolute() else name).relative_to(source).as_posix()
                               for name in (coverage_reports or [])],
          "workflow_requests": {name: {"original_path": str(path),

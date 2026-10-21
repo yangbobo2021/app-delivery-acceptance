@@ -43,6 +43,22 @@ def load(path):
     return json.loads(path.read_text()) if path.is_file() else None
 
 
+def execution_evidence_roots(execution_dir, relatives):
+    """Select project-declared outputs made beneath this frozen execution."""
+    root = Path(execution_dir).resolve()
+    if not isinstance(relatives, list) or not all(isinstance(item, str) and item for item in relatives):
+        raise ValueError('execution evidence paths must be a list of nonempty relative strings')
+    selected = []
+    for relative in relatives:
+        if Path(relative).is_absolute():
+            raise ValueError('execution evidence path must be relative')
+        path = (root / relative).resolve()
+        if path == root or not path.is_relative_to(root) or not path.exists():
+            raise ValueError('execution evidence path missing/outside frozen run: ' + relative)
+        selected.append(path)
+    return selected
+
+
 def run(argv, cwd=None, env=None, log=None, timeout=None):
     start = time.monotonic()
     result = subprocess.run(argv, cwd=cwd, env=env, text=True,
@@ -222,7 +238,7 @@ def _run_review_attempt(root, input_path, review_dir, log_path):
     if first["exit_code"] or not metrics or not answer or metrics.get("status") != "success":
         raise RuntimeError("review Agent incomplete: " + first["output_tail"])
     from decision_gate import validate
-    verdict = validate(answer, load(input_path))
+    verdict = validate(answer, load(input_path), metrics)
     save(review_dir / "decision-gate.json", verdict)
     return {"answer": str(review_dir / "answer.json"),
             "metrics": str(review_dir / "metrics.json"),
@@ -470,7 +486,8 @@ def main():
         return
     def evidence_step():
         from coverage_evidence import freeze_coverage, evidence_paths
-        roots = [execution_dir]
+        roots = [execution_dir, *execution_evidence_roots(
+            execution_dir, config.get('evidence_execution_relative_paths', []))]
         receipt = load(execution["receipt"])
         coverage_result, coverage_path = freeze_coverage(config.get("coverage"), root, execution_dir,
                                                          execution["receipt"], output / "coverage-report")

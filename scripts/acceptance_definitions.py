@@ -86,9 +86,16 @@ def validate_definitions(value):
             raise ValueError('supported reverse rule needs independent expected-behavior basis')
         if rule['status'] == 'needs_confirmation' and not rule.get('question'):
             raise ValueError('pending reverse rule needs a concrete question')
+    from acceptance_store import validate_design_gaps
+    validate_design_gaps(value, {rid for rid, r in targets.items() if r.get('status') != 'needs_confirmation'})
     for scene in value['scenarios']:
         if scene.get('priority') not in {'P0', 'P1', 'P2', 'P3'} or not scene.get('priority_reason'):
             raise ValueError('scene priority/reason required')
+        ui = scene.get('ui_acceptance')
+        if ui is not None and (not isinstance(ui, dict) or type(ui.get('required')) is not bool or
+                not isinstance(ui.get('visual_expectation'), str) or
+                (ui['required'] and (not ui['visual_expectation'].strip() or ui['visual_expectation'] not in scene['description']))):
+            raise ValueError('UI scene needs its frozen visual expectation in the description')
         check = scene.get('check', {})
         if not check.get('method') or not check.get('basis'):
             raise ValueError('adopted/generated scene needs its actual check method and basis')
@@ -327,6 +334,7 @@ def scene_input(config, scene_id):
             'confirmed_scope': value['context'].get('confirmed_scope', {}),
             'scenario_self_check': scene['check']['method'],
             'definition_binding_sha256': scene_fingerprint(value, scene_id),
+            **({'ui_acceptance': deepcopy(scene['ui_acceptance'])} if 'ui_acceptance' in scene else {}),
             **({'source_evidence': {'revision': sources[0]['revision'], 'items': sources}} if sources else {})}
 
 
@@ -339,6 +347,9 @@ def verify_case(config):
             raise ValueError('case input has no bound scene owner')
         return
     expected = scene_input(config, config.get('scene', {}).get('id'))
+    if expected.get('ui_acceptance') and any(config.get('ui_acceptance', {}).get(k) != v
+            for k, v in expected['ui_acceptance'].items()):
+        raise ValueError('case differs from frozen UI contract')
     for key in ('scene', 'requirement', 'related_requirements', 'business_goal', 'confirmed_scope',
                 'scenario_self_check', 'definition_binding_sha256',
                 *(['source_evidence'] if expected.get('source_evidence') else [])):

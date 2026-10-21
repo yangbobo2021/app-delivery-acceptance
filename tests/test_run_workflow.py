@@ -33,9 +33,28 @@ class RunnerTests(unittest.TestCase):
         command += list(extra)
         if stage:
             command += ["--stage", stage]
+        if env:
+            selected = Path(env['PATH'].split(os.pathsep)[0]) / 'playbook'
+            if selected.is_relative_to(self.root) and selected.is_file():
+                node = selected.parent / 'node'
+                real_node = shutil.which('node')
+                node.write_text("#!/usr/bin/env python3\nimport os,sys\n" +
+                    "target=" + repr(str(selected)) + " if '--with' in sys.argv else " + repr(real_node) + "\n" +
+                    "os.execv(target, [target] + sys.argv[1:])\n")
+                node.chmod(0o755)
+                bootstrap = (
+                    "import sys,importlib.util;from pathlib import Path;"
+                    "sys.path.insert(0," + repr(str(RUNNER.parent)) + ");"
+                    "s=importlib.util.spec_from_file_location('fixture_launcher'," + repr(str(RUNNER)) + ");"
+                    "m=importlib.util.module_from_spec(s);s.loader.exec_module(m);"
+                    "m.ensure_runtime_modules=lambda:None;"
+                    "m.playbook_package=lambda:Path(" + repr(str(selected.parent)) + ");"
+                    "sys.argv=[" + repr(str(RUNNER)) + "]+sys.argv[1:];sys.exit(m.main())"
+                )
+                command = [sys.executable, '-c', bootstrap, *command[2:]]
         return subprocess.run(
             command,
-            cwd=cwd or self.project, env=env, capture_output=True, text=True,
+            cwd=cwd or self.project, env=env, capture_output=True, text=True, timeout=90,
         )
 
     def fake_runtime(self):
@@ -49,6 +68,13 @@ class RunnerTests(unittest.TestCase):
             "print(json.dumps({'sessionId': '55555555-5555-4555-8555-555555555555', 'reply': 'ok', 'config': config, 'prompt': sys.argv[-1], 'selection': os.getenv('DELIVERY_ACCEPTANCE_TEST_DIR'), 'cwd': os.getcwd()}))\n"
         )
         runtime.chmod(0o755)
+        # The packaged launcher pins its local Playbook CLI instead of resolving
+        # a global playbook executable. Intercept only that CLI in this fixture.
+        node = fake_bin / "node"
+        node.write_text("#!/usr/bin/env python3\nimport os,sys\n" +
+            "if '--with' not in sys.argv:\n os.execv(" + repr(shutil.which('node')) + ", [" + repr(shutil.which('node')) + "] + sys.argv[1:])\n" +
+            runtime.read_text().split('\n', 1)[1])
+        node.chmod(0o755)
         env = os.environ.copy()
         env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
         return env
@@ -365,12 +391,12 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(json.loads((module_dir / "@sublang" / "playbook" / "package.json").read_text())["version"], "16.0.0")
         self.assertTrue((module_dir / "xstate" / "package.json").is_file())
 
-        (module_dir / "xstate").unlink()
+        shutil.rmtree(module_dir / "xstate")
         (module_dir / "xstate").symlink_to(self.root / "missing-runtime", target_is_directory=True)
         runner.ensure_runtime_modules()
         self.assertTrue((module_dir / "xstate" / "package.json").is_file())
 
-        (module_dir / "xstate").unlink()
+        shutil.rmtree(module_dir / "xstate")
         with patch.object(Path, "symlink_to", side_effect=OSError("symlinks unavailable")):
             runner.ensure_runtime_modules()
         self.assertFalse((module_dir / "xstate").is_symlink())
