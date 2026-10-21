@@ -2,9 +2,11 @@
 
 应用交付验收与自动化测试 Skill。以冻结需求、代码版本、场景、真实执行证据和独立复审形成可回溯的验收结果，并提供只读结果与覆盖率视图。
 
-## 当前基线
+首次接触本仓库，请先看[仓库首页的安装与首次任务](https://github.com/yangbobo2021/app-delivery-acceptance#第一次使用)。配套公开六项目测试集、固定基线及验证记录见[测试集说明](references/benchmark.md)。本页面面向需要了解依赖准备或维护源码的读者。
 
-2026-10-16 首次纳入 Git 版本管理，保存当前使用版本。初始标签为 `baseline-2026-10-16`；该标签是版本快照，不表示本次重新完成了全部功能验收。
+## 当前版本
+
+推荐固定 Git 标签 `v0.1`，对应提交 `013c08ddd1b99f4eb4a89a26323da675e07f2aa4`。SPEX 包内版本为 `0.1.0-github.3`；Git 标签与包内版本分别记录，不据名称推断测试范围。具体已验证版本、抽样范围和限制见[验证记录](references/benchmark.md#已有哪些验证记录)。
 
 保留 Skill、脚本、测试、视图、参考文档及仍被调用的 Playbook 文件；`.slc-verify` 是现有测试依赖，继续保留。`.slc` 编译缓存、中间生成稿、依赖目录、Python 缓存和本地环境配置不入库；有复用价值的缓存保留在本地，取消 Git 跟踪不等于删除本地文件。每个旧 Playbook 的正式 GEARS 文件只保留在其 `.playbook/` 目录内；首次快照中的缓存和重复文件仍可通过 Git 历史回溯。
 
@@ -36,9 +38,9 @@ python3 <skill>/scripts/ensure_runtime.py
 
 按 `SKILL.md` 和对应工作流文档准备项目输入后执行，不要将真实凭据、项目运行数据或验收证据放入此 Skill 仓库。
 
-## 后续修改与回溯
+## 维护源码与历史回溯
 
-当前 Skill 的原目录就是 Git 工作目录，Codex 安装链接继续指向该目录。修改后先检查差异并完成适当验证，再提交和推送：
+本节供维护者使用。Skills CLI 或 SPEX 安装的目录可能是复制或导出文件，不保证处于 Git 仓库中。开发时使用单独的源码检出目录，在仓库根目录执行以下命令；提交、推送按维护者的授权和仓库权限执行：
 
 ```sh
 git status
@@ -48,16 +50,16 @@ git commit -m "说明本次修改"
 git push
 ```
 
-查看基线或比较后续修改：
+历史标签 `baseline-2026-10-16` 是首次版本快照，保留用于回溯，不作为当前首次安装入口，也不表示已重新验收全部功能。查看当前标签或比较后续源码修改：
 
 ```sh
-git show baseline-2026-10-16
-git diff baseline-2026-10-16 HEAD
+git show v0.1
+git diff v0.1 HEAD
 git log --oneline --decorate
 ```
 
 需要阅读旧版本而不影响当前目录时，可创建独立工作树：
 
 ```sh
-git worktree add --detach ../app-delivery-acceptance-baseline baseline-2026-10-16
+git worktree add --detach ../app-delivery-acceptance-v0.1 v0.1
 ```
