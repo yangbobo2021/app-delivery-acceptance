@@ -1,5 +1,13 @@
 {
   "name": "app-delivery-acceptance-playbook",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "engines": {"node": ">=22"},
+  "dependencies": {
+    "@openai/codex-sdk": "0.162.1",
+    "@sublang/cligent": "0.26.0",
+    "@sublang/playbook": "16.0.0",
+    "@sublang/spex": "4.0.0",
+    "xstate": "5.33.2"
+  }
 }

@@ -20,7 +20,19 @@
 
 ## 使用环境
 
-使用 Python 3、Node.js，以及现有 `@sublang/playbook` 16 运行时和对应 Codex 适配环境。`playbook/v3/runtime-path.mjs` 支持通过 `PLAYBOOK_PACKAGE_ROOT` 指定运行时，也会查找本地或全局安装。外部运行时不包含在此仓库中；当前 `playbook/package.json` 未声明这些外部依赖，不能仅凭安装该目录的依赖还原完整运行环境。
+支持 macOS/Linux；需要 Python 3、Git、Node.js >=22 和 npm，以及可用的 Codex 认证、模型访问。首次下载需要能访问 npm 包源，Skill 目录须可写。基础运行时缺失或版本不足时明确报错，不自动安装或切换系统 Node；原生 Windows 暂不支持。
+
+Agent 在模型流程或 SPEX 回填前运行：
+
+```sh
+python3 <skill>/scripts/ensure_runtime.py
+```
+
+`playbook/package.json` 和提交的 `package-lock.json` 固定运行依赖。准备入口首次执行 `npm ci`，仅安装到本 Skill 的 `playbook/node_modules/`；后续在声明、锁文件、Node/npm/平台一致且实际模块和 CLI 检查通过时返回 `status: reused`，不重新安装。成功收据及 `install_id` 保存在 `node_modules/.acceptance-runtime.json`，只有安装完成并验证后才写入。缺包、环境变化或安装中断后会重新准备；同目录安装互斥，失败不继续业务流程。
+
+模型工作流的公共运行时入口自动执行相同检查，使用自身 Node 路径，从 Skill 本地解析正式模块入口，不使用全局 Playbook、`PLAYBOOK_PACKAGE_ROOT` 或被测项目的依赖兜底。Python 的资料存储和定义冻结不需要先下载 npm 包。模型认证及模型选择仍使用执行电脑自己的配置，不随 Skill 分发，也不由依赖准备脚本验证账号可用性。
+
+默认回填使用本地固定 SPEX CLI：`<skill>/playbook/node_modules/.bin/spex scaffold --lang zh --agents codex`。只有获授权回填且项目缺少组织规范时才初始化；准备依赖不会提前生成项目 SPEC。
 
 按 `SKILL.md` 和对应工作流文档准备项目输入后执行，不要将真实凭据、项目运行数据或验收证据放入此 Skill 仓库。
 

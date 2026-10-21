@@ -1,5 +1,6 @@
 # Local dependencies and interpreter caches
 node_modules/
+playbook/.runtime-install.lock
 __pycache__/
 *.py[cod]
 .pytest_cache/

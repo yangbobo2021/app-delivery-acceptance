@@ -92,54 +92,14 @@ EXECUTION_RECORD_GUIDANCE = (
 
 
 def playbook_package() -> Path:
-    executable = shutil.which("playbook")
-    if executable:
-        resolved = Path(executable).resolve()
-        for directory in (resolved.parent, *resolved.parents):
-            manifest = directory / "package.json"
-            if manifest.is_file():
-                try:
-                    package = json.loads(manifest.read_text(encoding="utf-8"))
-                except (OSError, UnicodeError, json.JSONDecodeError):
-                    continue
-                if package.get("name") == "@sublang/playbook":
-                    return directory
-    npm = shutil.which("npm")
-    if npm:
-        root = subprocess.run([npm, "root", "-g"], capture_output=True, text=True, check=False)
-        if root.returncode == 0:
-            candidate = Path(root.stdout.strip()) / "@sublang" / "playbook"
-            if candidate.is_dir():
-                return candidate
-    raise ValueError("cannot locate the installed @sublang/playbook package used by the playbook CLI")
+    from ensure_runtime import ensure_runtime
+    prepared = ensure_runtime()
+    return Path(prepared['package_root']) / 'node_modules' / '@sublang' / 'playbook'
 
 
 def ensure_runtime_modules() -> None:
-    """Resolve module imports inside the shared Skill without shipping host paths."""
-    package_root = playbook_package()
-    package = json.loads((package_root / "package.json").read_text(encoding="utf-8"))
-    if package.get("version") != PLAYBOOK_VERSION:
-        raise ValueError(f"this Skill needs @sublang/playbook {PLAYBOOK_VERSION}; found {package.get('version')}")
-    xstate = package_root / "node_modules" / "xstate"
-    if not (xstate / "package.json").is_file():
-        raise ValueError(f"xstate is missing from the Playbook runtime at {package_root}")
-    modules = SKILL_ROOT / "playbook" / "node_modules"
-    targets = {modules / "@sublang" / "playbook": package_root, modules / "xstate": xstate}
-    for link, target in targets.items():
-        if link.resolve() == target.resolve() and link.is_dir():
-            continue
-        link.parent.mkdir(parents=True, exist_ok=True)
-        if link.is_symlink():
-            link.unlink()
-        elif link.exists():
-            raise ValueError(f"incompatible bundled module at {link}; remove it before running this Skill")
-        try:
-            link.symlink_to(target, target_is_directory=True)
-        except OSError as error:
-            try:
-                shutil.copytree(target, link)
-            except OSError as copy_error:
-                raise ValueError(f"cannot bind Playbook runtime in the installed Skill at {link}: {error}; copy failed: {copy_error}") from copy_error
+    """Compatibility entry: prepare the same local locked runtime used by v3/v4."""
+    playbook_package()
 
 
 def terminal_failure_response(session_id: str, playbook_id: str = "delivery-acceptance") -> str | None:
@@ -331,8 +291,6 @@ def main() -> int:
         parser.error(f"project does not exist: {project}")
     if not entry.is_file():
         parser.error(f"compiled workflow is missing: {entry}")
-    if not shutil.which("playbook"):
-        parser.error("Playbook runtime is not installed (install @sublang/playbook and the Codex SDK)")
     if not shutil.which("git"):
         parser.error("Git is required to identify the target revision and preflight the ledger")
     if not args.session and not args.requirements:
@@ -498,7 +456,7 @@ def main() -> int:
                 parser.error(str(error))
             overlay_path = Path(temp_dir) / "playbook-overlay.yaml"
             overlay_path.write_text(json.dumps(overlay), encoding="utf-8")
-            command = ["playbook", "run", "--with", str(overlay_path), "--json"]
+            command = [shutil.which("node"), str(playbook_package() / "reference/sdlc/code.playbook/bin/playbook.js"), "run", "--with", str(overlay_path), "--json"]
             if args.session:
                 command += ["--session", args.session, (args.reply or "continue") + "\n\n" + language_guidance(language) + "\n" + OUTPUT_QUALITY_GUIDANCE + ("\n" + EXECUTION_RECORD_GUIDANCE if args.stage == "acceptance" else "")]
             else:
