@@ -4,6 +4,8 @@
 
 交给 Codex 或 Claude Code 一条需求，得到真实测试、独立复审和可追溯的验收结果。
 
+[开始第一个 Demo](#跑通第一个-demo) · [预览验收结果](#先看结果) · [查看测试集](#测试集与识别结果)
+
 ![从需求到交付结论：冻结需求、测试场景、真实执行、独立复审、交付结论](skills/en/app-delivery-acceptance/assets/docs/workflow.png)
 
 ## 为什么使用这个 Skill
@@ -18,7 +20,9 @@
 
 ![真实受控验收结果摘要：3条需求、7个场景独立通过，行覆盖39/43、分支覆盖9/12](skills/en/app-delivery-acceptance/assets/docs/result-summary.png)
 
-*上图依据一次 v0.1 受控验收的真实数据绘制。Web 看板还能展开执行日志、冻结截图和历史记录；[查看该次验证范围](skills/en/app-delivery-acceptance/references/benchmark.md#v01-合并后受控回归摘要)。*
+[放大结果图](skills/en/app-delivery-acceptance/assets/docs/result-summary.png) · [查看该次验证范围](skills/en/app-delivery-acceptance/references/benchmark.md#v01-合并后受控回归摘要)
+
+*上图依据一次 v0.1 受控验收的真实数据绘制。Web 看板还能展开执行日志、冻结截图和历史记录。*
 
 ## 跑通第一个 Demo
 
@@ -48,7 +52,9 @@ npx skills@1.7.4 add \
 
 ### 第 2 步：准备 Demo 项目
 
-下载固定版本的测试集，进入 Python CLI 项目：
+Demo 是一个读取 CSV、按账号汇总金额的命令行应用。本次只验收 **INV-02：按账号准确汇总整数金额**。
+
+下载固定版本的测试集，进入该项目：
 
 ```sh
 git clone --branch baseline/2026-10-20-v1 --single-branch \
@@ -72,7 +78,7 @@ cd projects/python-cli
 本轮只验收 INV-02，不修改产品代码或 SPEC，不读取人工评测答案和历史结果来构造测试。
 ```
 
-**完成标志：** Agent 开始准备环境、设计场景和执行测试，并给出本地看板地址。
+**完成标志：** 该需求的全部场景完成执行和独立复审，Agent 给出验收摘要与本地看板地址。
 
 ### 第 4 步：查看验收结果
 
