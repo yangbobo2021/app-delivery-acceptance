@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="182" viewBox="0 0 1120 182" role="img" aria-labelledby="title desc">
+<title id="title">从需求到交付结论的验证流程</title><desc id="desc">冻结需求，生成或采用场景，运行真实测试，由独立会话复审，留下可追溯的交付结论。</desc>
+<g style="font-family:system-ui,-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif">
+<rect width="1120" height="182" rx="18" fill="#f5f7fb"/>
+<rect x="18" y="20" width="204" height="142" rx="13" fill="#ffffff" stroke="#d9e1ee"/>
+<text x="36" y="49" font-size="14" font-weight="700" fill="#617793">01</text>
+<text x="36" y="88" font-size="24" font-weight="700" fill="#20324d">需求原文</text>
+<text x="36" y="124" font-size="14" fill="#4e617b">冻结本次验收范围</text>
+<path d="M225 91h10m-4-4 4 4-4 4" fill="none" stroke="#7d90aa" stroke-width="2"/>
+<rect x="238" y="20" width="204" height="142" rx="13" fill="#ffffff" stroke="#d9e1ee"/>
+<text x="256" y="49" font-size="14" font-weight="700" fill="#617793">02</text>
+<text x="256" y="88" font-size="24" font-weight="700" fill="#20324d">测试场景</text>
+<text x="256" y="124" font-size="14" fill="#4e617b">补齐需要验证的行为</text>
+<path d="M445 91h10m-4-4 4 4-4 4" fill="none" stroke="#7d90aa" stroke-width="2"/>
+<rect x="458" y="20" width="204" height="142" rx="13" fill="#ffffff" stroke="#d9e1ee"/>
+<text x="476" y="49" font-size="14" font-weight="700" fill="#617793">03</text>
+<text x="476" y="88" font-size="24" font-weight="700" fill="#20324d">真实执行</text>
+<text x="476" y="124" font-size="14" fill="#4e617b">运行产品，采集证据</text>
+<path d="M665 91h10m-4-4 4 4-4 4" fill="none" stroke="#7d90aa" stroke-width="2"/>
+<rect x="678" y="20" width="204" height="142" rx="13" fill="#ffffff" stroke="#d9e1ee"/>
+<text x="696" y="49" font-size="14" font-weight="700" fill="#617793">04</text>
+<text x="696" y="88" font-size="24" font-weight="700" fill="#20324d">独立复审</text>
+<text x="696" y="124" font-size="14" fill="#4e617b">核对用例和执行证据</text>
+<path d="M885 91h10m-4-4 4 4-4 4" fill="none" stroke="#7d90aa" stroke-width="2"/>
+<rect x="898" y="20" width="204" height="142" rx="13" fill="#e5f5f0" stroke="#78bfa8"/>
+<text x="916" y="49" font-size="14" font-weight="700" fill="#617793">05</text>
+<text x="916" y="88" font-size="24" font-weight="700" fill="#126950">交付结论</text>
+<text x="916" y="124" font-size="14" fill="#4e617b">通过、BUG 或证据不足</text>
+</g></svg>

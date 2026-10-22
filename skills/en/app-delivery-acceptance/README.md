@@ -2,7 +2,7 @@
 
 应用交付验收与自动化测试 Skill。以冻结需求、代码版本、场景、真实执行证据和独立复审形成可回溯的验收结果，并提供只读结果与覆盖率视图。
 
-首次接触本仓库，请先看[仓库首页的安装与首次任务](https://github.com/yangbobo2021/app-delivery-acceptance#第一次使用)。配套公开六项目测试集、固定基线及验证记录见[测试集说明](references/benchmark.md)。本页面面向需要了解依赖准备或维护源码的读者。
+首次接触本仓库，请先看[仓库首页的安装与首次任务](https://github.com/yangbobo2021/app-delivery-acceptance#跑通第一个-demo)。配套公开六项目测试集、固定基线及验证记录见[测试集说明](references/benchmark.md)。本页面面向需要了解依赖准备或维护源码的读者。
 
 ## 当前版本
 
@@ -38,6 +38,27 @@ python3 <skill>/scripts/ensure_runtime.py
 
 按 `SKILL.md` 和对应工作流文档准备项目输入后执行，不要将真实凭据、项目运行数据或验收证据放入此 Skill 仓库。
 
+## 更多安装与排障
+
+### 通过 SPEX 安装
+
+在 SPEX 的 **Add from Git** 中填写：Git source 为 `https://github.com/yangbobo2021/app-delivery-acceptance.git`，Revision 为 `v0.1` 或明确选择的完整提交，package subdirectory 留空，选择 `app-delivery-acceptance` 并导出到所选 Agent。
+
+Git 标签 `v0.1` 对应包内版本 `0.1.0-github.3`（prerelease）；它们是不同标识，验收时记录实际安装提交。SPEX 再次导出可能替换生成依赖，下次调用会重新准备。
+
+### 常见问题
+
+| 情况 | 处理入口 |
+| --- | --- |
+| 安装后 Agent 没找到 Skill | 核对 CLI 选择的 Agent 和安装目录，新开对话并明确指定 Skill 名称 |
+| 基础工具缺失或 npm 下载失败 | 检查 Python/Git/Node 版本和网络；保留错误后重试依赖准备 |
+| 模型不可用 | 先检查当前 Agent 自己能否调用所选模型，再执行 [模型预检](references/agent-runtime.md#预检与依赖) |
+| 中断后继续 | 让 Agent 继续当前项目的同一验收，先核对 ID、进程和冻结记录 |
+| 重新打开结果 | 让 Agent 打开历史验收看板，无需重新测试；[查看器命令](SKILL.md#live-results-and-acceptance-claim) |
+| 旧结论通过，但当前需复验 | 核对需求、场景或产品版本的变化，旧结论仍保留其原始版本含义 |
+
+完整验收会多次调用模型和执行项目测试，耗时与用量随场景和修补轮次变化。原生 Windows 暂不支持。结果与证据属于被测项目，`.acceptance-local/` 忽略提交；[资料目录](references/project-acceptance-store.md#三类产物与目录)。
+
 ## 维护源码与历史回溯
 
 本节供维护者使用。Skills CLI 或 SPEX 安装的目录可能是复制或导出文件，不保证处于 Git 仓库中。开发时使用单独的源码检出目录，在仓库根目录执行以下命令；提交、推送按维护者的授权和仓库权限执行：
@@ -63,3 +84,5 @@ git log --oneline --decorate
 ```sh
 git worktree add --detach ../app-delivery-acceptance-v0.1 v0.1
 ```
+
+当前仓库尚未附许可证文件。

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="610" viewBox="0 0 1120 610" role="img" aria-labelledby="title desc">
+<title id="title">真实受控样例的验收结果摘要</title><desc id="desc">三个需求、七个场景已执行并独立通过。网页加法四场景、版本接口两场景、健康检查一场景。行覆盖39/43，分支覆盖9/12。</desc>
+<g style="font-family:system-ui,-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif">
+<rect x="1" y="1" width="1118" height="608" rx="18" fill="#ffffff" stroke="#d9e1ee"/>
+<path d="M19 1h1082a18 18 0 0 1 18 18v64H1V19A18 18 0 0 1 19 1" fill="#f5f7fb"/>
+<text x="30" y="51" font-size="25" font-weight="700" fill="#20324d">交付验收结果</text>
+<rect x="824" y="25" width="266" height="31" rx="15" fill="#e5f5f0"/>
+<text x="957" y="46" text-anchor="middle" font-size="14" fill="#126950">真实受控样例 · Skill v0.1</text>
+<rect x="30" y="105" width="188" height="108" rx="11" fill="#f7f9fc"/>
+<text x="47" y="135" font-size="15" fill="#52667f">需求</text>
+<text x="47" y="186" font-size="38" font-weight="700" fill="#20324d">3</text>
+<rect x="248" y="105" width="188" height="108" rx="11" fill="#f7f9fc"/>
+<text x="265" y="135" font-size="15" fill="#52667f">场景</text>
+<text x="265" y="186" font-size="38" font-weight="700" fill="#20324d">7</text>
+<rect x="466" y="105" width="188" height="108" rx="11" fill="#f7f9fc"/>
+<text x="483" y="135" font-size="15" fill="#52667f">已执行</text>
+<text x="483" y="186" font-size="38" font-weight="700" fill="#20324d">7</text>
+<rect x="684" y="105" width="188" height="108" rx="11" fill="#f7f9fc"/>
+<text x="701" y="135" font-size="15" fill="#52667f">独立通过</text>
+<text x="701" y="186" font-size="38" font-weight="700" fill="#126950">7</text>
+<rect x="902" y="105" width="188" height="108" rx="11" fill="#f7f9fc"/>
+<text x="919" y="135" font-size="15" fill="#52667f">产品 BUG</text>
+<text x="919" y="186" font-size="38" font-weight="700" fill="#20324d">0</text>
+<text x="32" y="253" font-size="17" font-weight="700" fill="#20324d">需求与执行结论</text>
+<rect x="30" y="270" width="1060" height="35" rx="5" fill="#f0f4fa"/>
+<text x="46" y="293" font-size="14" fill="#52667f">需求</text>
+<text x="526" y="293" font-size="14" fill="#52667f">已执行场景</text>
+<text x="717" y="293" font-size="14" fill="#52667f">实际证据</text>
+<text x="1000" y="293" font-size="14" fill="#52667f">独立结论</text>
+<line x1="30" y1="353" x2="1090" y2="353" stroke="#e6ebf2"/>
+<text x="46" y="333" font-size="17" fill="#20324d">ADD-01 · 网页加法</text>
+<text x="526" y="333" font-size="17" fill="#20324d">4 / 4</text>
+<text x="717" y="333" font-size="15" fill="#52667f">真实截图与执行日志</text>
+<text x="1000" y="333" font-size="17" font-weight="700" fill="#126950">通过</text>
+<line x1="30" y1="402" x2="1090" y2="402" stroke="#e6ebf2"/>
+<text x="46" y="382" font-size="17" fill="#20324d">INFO-01 · 版本接口</text>
+<text x="526" y="382" font-size="17" fill="#20324d">2 / 2</text>
+<text x="717" y="382" font-size="15" fill="#52667f">HTTP 响应与执行日志</text>
+<text x="1000" y="382" font-size="17" font-weight="700" fill="#126950">通过</text>
+<line x1="30" y1="451" x2="1090" y2="451" stroke="#e6ebf2"/>
+<text x="46" y="431" font-size="17" fill="#20324d">HEALTH-01 · 健康检查</text>
+<text x="526" y="431" font-size="17" fill="#20324d">1 / 1</text>
+<text x="717" y="431" font-size="15" fill="#52667f">真实服务与执行日志</text>
+<text x="1000" y="431" font-size="17" font-weight="700" fill="#126950">通过</text>
+<text x="32" y="487" font-size="17" font-weight="700" fill="#20324d">代码覆盖率 · Coverage.py 7.12.0</text>
+<text x="32" y="522" font-size="15" fill="#52667f">行覆盖率</text>
+<text x="472" y="522" text-anchor="end" font-size="18" font-weight="700" fill="#20324d">90.70% · 39/43</text>
+<rect x="32" y="538" width="440" height="10" rx="5" fill="#e8eef7"/>
+<rect x="32" y="538" width="399.07" height="10" rx="5" fill="#3a73d8"/>
+<text x="585" y="522" font-size="15" fill="#52667f">分支覆盖率</text>
+<text x="1025" y="522" text-anchor="end" font-size="18" font-weight="700" fill="#20324d">75.00% · 9/12</text>
+<rect x="585" y="538" width="440" height="10" rx="5" fill="#e8eef7"/>
+<rect x="585" y="538" width="330.00" height="10" rx="5" fill="#3a73d8"/>
+<text x="32" y="585" font-size="13" fill="#617793">依据同一次受控验收的冻结记录绘制；定义、执行和独立结论保留实际版本。</text>
+</g></svg>
