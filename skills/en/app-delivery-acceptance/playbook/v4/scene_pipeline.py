@@ -76,6 +76,30 @@ def git(root, *args):
     return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
 
 
+def case_runner(config):
+    strategy = config.get('case_strategy', 'implement')
+    if strategy not in ('implement', 'existing_only'):
+        raise ValueError('case_strategy must be implement or existing_only')
+    return 'run_existing_case_v1.mjs' if strategy == 'existing_only' else 'run_case_guided_v6.mjs'
+
+
+def evaluate_case(config, output, prepared, answer_path):
+    # Advisory opinions and Agent failures must not alter scheduling or verdicts.
+    try:
+        from case_evaluation import describe
+        return describe(config, output, prepared, answer_path, run)
+    except Exception as error:
+        return {'status': 'unavailable', 'advisory_only': True, 'reason': str(error)[:1500]}
+
+
+def protect_existing(config, output, catalog):
+    if config.get('case_strategy', 'implement') == 'existing_only':
+        baseline = load(Path(output) / 'case' / 'existing-files.json')
+        if baseline is not None:
+            from existing_case_policy import verify
+            verify(catalog, baseline, load(Path(output) / 'case' / 'answer.json'))
+
+
 def stage(state_path, state, name, fn):
     if ACTIVE_ACCEPTANCE_CONFIG is not None:
         acceptance_guard(ACTIVE_ACCEPTANCE_CONFIG, [ACTIVE_ACCEPTANCE_CONFIG["output_dir"]])
@@ -83,6 +107,7 @@ def stage(state_path, state, name, fn):
         catalog_path = Path(ACTIVE_ACCEPTANCE_CONFIG["output_dir"]) / "catalog.json"
         if catalog_path.is_file():
             verify_frozen_workspace(ACTIVE_ACCEPTANCE_CONFIG, load(catalog_path))
+            protect_existing(ACTIVE_ACCEPTANCE_CONFIG, ACTIVE_ACCEPTANCE_CONFIG["output_dir"], load(catalog_path))
     item = state["stages"].get(name)
     if item and item["status"] == "completed":
         return item["result"]
@@ -102,6 +127,7 @@ def stage(state_path, state, name, fn):
             catalog_path = Path(ACTIVE_ACCEPTANCE_CONFIG["output_dir"]) / "catalog.json"
             if catalog_path.is_file():
                 verify_frozen_workspace(ACTIVE_ACCEPTANCE_CONFIG, load(catalog_path))
+                protect_existing(ACTIVE_ACCEPTANCE_CONFIG, ACTIVE_ACCEPTANCE_CONFIG["output_dir"], load(catalog_path))
     except Exception as error:
         state["stages"][name]["status"] = "parked"
         state["stages"][name]["error"] = str(error)
@@ -268,13 +294,16 @@ def run_independent_review(root, input_path, review_dir, log_path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("config")
-    parser.add_argument("--stop-after", choices=["prepare", "case", "execution", "evidence", "gate"])
+    parser.add_argument("--stop-after", choices=["prepare", "case", "case-evaluation", "execution", "evidence", "gate"])
     args = parser.parse_args()
     config_path = Path(args.config).resolve()
     config = load(config_path)
     if not config or config.get("schema") != "isolated-scene-pipeline-v1":
         raise ValueError("invalid pipeline config")
+    case_runner(config)  # Reject unknown strategies before any stage.
     case_input = load(config["case_input"])
+    if case_input.get("case_strategy", "implement") != config.get("case_strategy", "implement"):
+        raise ValueError("case strategy differs from frozen input")
     from acceptance_definitions import verify_case, load_binding
     verify_case(case_input or {})
     if case_input.get('definitions') != config.get('definitions'):
@@ -352,7 +381,7 @@ def main():
     case_dir = output / "case"
 
     def case_step():
-        command = ["node", str(HERE / "run_case_guided_v6.mjs"),
+        command = ["node", str(HERE / case_runner(config)),
                    str(Path(config["case_input"]).resolve()), prepared["catalog"],
                    str(Path(config["guide"]).resolve()), str(case_dir)]
         resuming = case_dir.exists()
@@ -391,7 +420,7 @@ def main():
         return
     active_answer_path = case["answer"]
     answer = load(active_answer_path)
-    if answer.get("status") == "blocked":
+    if answer.get("status") == "blocked" and config.get("case_strategy", "implement") != "existing_only":
         feedback_path = output / "case-feedback.json"
         save(feedback_path, {"kind": "local_case_blocker",
                              "reason": answer.get("reason"),
@@ -420,6 +449,10 @@ def main():
         repair = stage(state_path, state, "case_repair", repair_step)
         active_answer_path = repair["answer"]
         answer = load(active_answer_path)
+    evaluation = evaluate_case(config, output, prepared, active_answer_path)
+    protect_existing(config, output, catalog)
+    if args.stop_after == "case-evaluation":
+        return
     if answer.get("status") == "blocked" or not answer.get("test_command"):
         raise RuntimeError("case Agent did not produce an executable case")
     files = collect_files(root, answer, catalog)
@@ -590,6 +623,8 @@ def main():
     final = continue_after_review(config, output, state_path, state, prepared,
                                   catalog, root, original, review)
     summary = {"scene_id": original["scene"]["id"], "review_status": final["status"],
+               "case_strategy": config.get("case_strategy", "implement"),
+               "case_evaluation": evaluation,
                "review_path": final["review"]["answer"],
                "review_completion_reason": final["reason"],
                "stages": {name: data["result"] for name, data in state["stages"].items()

@@ -142,6 +142,14 @@ def main():
                 "resume_safe_after_local_loopback", "scope_note"):
         if key in template:
             config[key] = template[key]
+    strategy = template.get('case_strategy', 'implement')
+    if strategy not in ('implement', 'existing_only'):
+        raise ValueError('case_strategy must be implement or existing_only')
+    config['case_strategy'] = strategy
+    case_input['case_strategy'] = strategy
+    config['case_evaluation'] = template.get('case_evaluation', True)
+    if type(config['case_evaluation']) is not bool:
+        raise ValueError('case_evaluation must be boolean')
     out.mkdir(parents=True)
     (out / "case-input.json").write_text(json.dumps(case_input, ensure_ascii=False, indent=2) + "\n")
     (out / "config.json").write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n")

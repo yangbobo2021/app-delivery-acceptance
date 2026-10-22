@@ -11,6 +11,9 @@ from scene_pipeline import HERE, collect_files, digest, load, run, save, stage, 
 def continue_after_review(config, output, state_path, state, prepared, catalog,
                           root, original, first_review):
     review = first_review
+    if config.get('case_strategy', 'implement') == 'existing_only':
+        return {"status": review["status"], "review": review,
+                "reason": "existing_only retains the independent verdict without modifying tests"}
     maximum = int(config.get("max_review_repairs", 2))
     for number in range(1, maximum + 1):
         if review["status"] != "repair_required":

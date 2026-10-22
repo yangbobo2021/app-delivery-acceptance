@@ -64,6 +64,8 @@ python3 <skill>/playbook/v4/bind_case.py case-template.json NEW-handoff-dir
 python3 <skill>/playbook/v4/scene_pipeline.py NEW-handoff-dir/config.json
 ```
 
+用例入口由模板的 `case_strategy` 选择：默认 `implement` 保持原职责；`existing_only` 调用 `run_existing_case_v1.mjs`，查找并真实调试已有测试、使用相同输出字段，但禁止新建/修改测试及其辅助文件，自动修补关闭。两者后接只读评估 Agent，输出 `case-evaluation.json` / `case-evaluation.md`，描述场景覆盖、质量、可能重复及依据；它不改变命令或关联、不触发修补、不设置通过/BUG，也不因缺口或评估失败阻止后续执行。`case_evaluation` 默认 `true`；显式 `false` 跳过描述。`--stop-after case` 仍只停在用例产物，`--stop-after case-evaluation` 可在描述后由调用者主动暂停；这不是评估 Agent 的门禁。详情见 [用例 Agent 与描述性评估](case-agents.md)。
+
 用例 Agent 在一个连续过程内自行读取所需源码/测试、选择现有或新用例、实现测试并本地调试，提交测试文件、命令和真实观察。调度器验证只修改声明的测试目录，然后在新目录冻结执行原命令，保存意图、日志、退出码和文件哈希；独立 Reviewer 只读检查场景判据、用例可靠性、真实路径、证据和结果。`repair_required` 中属于测试代码/证据的明确缺口可有限次差量修复，再生成新的执行和审查凭证；场景边界或业务合同问题停在待确认，不靠修测试代码“通过”。用例 Agent 的 `passed_local` 不是最终结论；只有独立复审的 `passed` 或有可靠失败证据的 `product_bug` 才是已判定结果。
 
 原生应用在 Agent 调试环境启动受限、而项目准备已实测宿主能运行时，用例 Agent 可交付 `host_ready`：测试文件、原始业务命令、隔离方式和静态检查已就绪，同时明确哪些业务断言尚未在本地执行及环境错误。调度器仍须正式冻结执行，独立 Reviewer 只依据该次真实执行判断；`host_ready` 本身没有产品结论。若宿主也无法运行或命令未就绪，仍为 `blocked`。

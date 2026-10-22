@@ -570,6 +570,15 @@ def v4_result_files(source):
     paths = [source / name for name in ['request.frozen.json', 'state.json', 'summary.json']]
     paths += [answer, review, review.with_name('input.json'), review.with_name('metrics.json'),
               review.with_name('decision-gate.json'), receipt, receipt.with_name('execution.log'), coverage]
+    # Optional human-facing description. Its presence/content is never a verdict gate.
+    for name in ('case-evaluation.json', 'case-evaluation.md'):
+        if (source / name).is_file():
+            paths.append(source / name)
+    evaluation = summary.get('case_evaluation', {})
+    if isinstance(evaluation, dict) and evaluation.get('answer'):
+        evaluation_answer = bound(evaluation['answer'])
+        if evaluation_answer.is_file():
+            paths.append(evaluation_answer)
     if review_input.get('ui_acceptance', {}).get('required'):
         manifest_path = bound(review_input['frozen_evidence_manifest'])
         manifest = read(manifest_path)
