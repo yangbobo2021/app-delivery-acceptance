@@ -13,7 +13,7 @@ const [requestArg,outputArg,...flags]=process.argv.slice(2),resume=flags.include
 if(!requestArg||!outputArg||flags.some(x=>x!=='--resume'))throw Error('usage: node run_scenarios.mjs request.json NEW-output-dir [--resume]');
 const here=dirname(fileURLToPath(import.meta.url)),v3=resolve(here,'../v3');
 const requestPath=resolve(requestArg),output=resolve(outputArg);
-let supplied=JSON.parse(execFileSync('python3',[new URL('../../scripts/acceptance_definitions.py',import.meta.url).pathname,
+let supplied=JSON.parse(execFileSync('python3',[fileURLToPath(new URL('../../scripts/acceptance_definitions.py',import.meta.url)),
  'scenario-request',requestPath],{encoding:'utf8'}));
 // Old create runs did not carry revision inputs. Preserve their exact frozen request/prompt on resume.
 let legacyCreate=false;
@@ -132,7 +132,7 @@ if(resume&&events.some(x=>x.type==='done'&&x.payload?.status==='success')){
   writeFileSync(join(output,'metrics.json'),JSON.stringify(metrics,null,2)+'\n');
   if(metrics.status!=='success')throw Error(metrics.error);
 }
-const gate=editing?spawnSync('python3',[new URL('../../scripts/acceptance_definitions.py',import.meta.url).pathname,
+const gate=editing?spawnSync('python3',[fileURLToPath(new URL('../../scripts/acceptance_definitions.py',import.meta.url)),
   'scenario-gate',frozen,output],{encoding:'utf8'}):
   spawnSync(process.execPath,[join(v3,'scenarios/scripts/gate.mjs'),frozen,output,'draft','1'],{encoding:'utf8'});
 if(gate.status!==0)throw Error('Scenario structure gate failed: '+(gate.stdout+gate.stderr).slice(-2000));

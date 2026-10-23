@@ -1,3 +1,4 @@
+import {fileURLToPath} from 'node:url';
 import {acceptanceGuard,knowledgeContext,requireWorkspaceLease} from '../acceptance-guard.mjs';
 import {readFileSync,writeFileSync,appendFileSync,mkdirSync,existsSync,unlinkSync} from 'node:fs';
 import {resolve,join} from 'node:path';
@@ -15,7 +16,7 @@ const acceptanceKnowledge=knowledgeContext(acceptanceBinding);
 requireWorkspaceLease(catalog);
 if(resume){if(!existsSync(out))throw Error('repair output missing for resume');}
 else mkdirSync(out,{recursive:false});
-const debug=JSON.parse(execFileSync('python3',[new URL('./debug_case.py',import.meta.url).pathname,
+const debug=JSON.parse(execFileSync('python3',[fileURLToPath(new URL('./debug_case.py',import.meta.url)),
  'create',resolve(catalogArg),resolve(inputArg),join(out,'debug-contract.json')],{encoding:'utf8'}));
 mkdirSync(debug.request_root,{recursive:true});
 const git=(...x)=>execFileSync('git',x,{cwd:root,encoding:'utf8'}).trim();

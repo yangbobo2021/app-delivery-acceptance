@@ -1,3 +1,4 @@
+import {fileURLToPath} from 'node:url';
 import {acceptanceGuard,knowledgeContext,requireWorkspaceLease} from '../acceptance-guard.mjs';
 import {readFileSync,writeFileSync,appendFileSync,mkdirSync,existsSync,unlinkSync} from 'node:fs';
 import {resolve,join} from 'node:path';
@@ -25,7 +26,7 @@ const acceptanceKnowledge=knowledgeContext(acceptanceBinding);
 requireWorkspaceLease(catalog);
 const guide=JSON.parse(readFileSync(resolve(guideArg),'utf8'));
 if(catalog.schema!=='portable-project-catalog-v1')throw Error('Invalid project catalog');
-execFileSync('python3',[new URL('../../scripts/acceptance_definitions.py',import.meta.url).pathname,
+execFileSync('python3',[fileURLToPath(new URL('../../scripts/acceptance_definitions.py',import.meta.url)),
  'verify-case',resolve(inputArg)],{encoding:'utf8'});
 const git=(...args)=>execFileSync('git',args,{cwd:root,encoding:'utf8'}).trim();
 if(git('rev-parse','HEAD')!==catalog.revision)throw Error('Project revision changed');
@@ -38,7 +39,7 @@ if(git('diff','--name-only','HEAD').split('\n').filter(Boolean).some(x=>!allowed
  throw Error('Tracked product/source changes in acceptance workspace');
 if(resume){if(!existsSync(output))throw Error('resume output missing');}
 else mkdirSync(output,{recursive:false});
-const debug=discoveryOnly?null:JSON.parse(execFileSync('python3',[new URL('./debug_case.py',import.meta.url).pathname,
+const debug=discoveryOnly?null:JSON.parse(execFileSync('python3',[fileURLToPath(new URL('./debug_case.py',import.meta.url)),
  'create',catalogPath,resolve(inputArg),join(output,'debug-contract.json')],{encoding:'utf8'}));
 if(debug)mkdirSync(debug.request_root,{recursive:true});
 const fingerprint=createHash('sha256').update(catalogBytes).digest('hex');
@@ -60,7 +61,7 @@ if(resume){
  writeFileSync(join(output,'catalog-binding.json'),bindingText);
 }
 const searchGuidance=readFileSync(new URL('../../references/case-search-guidance.md',import.meta.url),'utf8');
-const reuseScript=new URL('./case_reuse.py',import.meta.url).pathname;
+const reuseScript=fileURLToPath(new URL('./case_reuse.py',import.meta.url));
 const reuseTools=existingOnly?null:JSON.parse(execFileSync('python3',[reuseScript,'start',catalogPath,resolve(inputArg),output],{encoding:'utf8'}));
 const coverageContract=readFileSync(new URL('../../references/coverage-tool-contract.md',import.meta.url),'utf8');
 const uiInstruction=input.ui_acceptance?.required?`本场景另有 UI 可用性判据：${input.ui_acceptance.visual_expectation}。在项目准备确定的实际窗口/视口中，通过真实界面完成业务操作；对操作前、关键交互、成功或错误反馈等与判据相关的状态保存真实截图，并记录窗口尺寸与状态说明。将正式执行截图写入项目声明且由宿主冻结的输出绑定：执行相对路径 ${JSON.stringify(input.ui_acceptance.evidence_execution_relative_paths)}，或运行时环境变量目录 ${JSON.stringify(input.ui_acceptance.evidence_env_dir_keys)}。调试截图不算正式证据。不要用 DOM、坐标或程序判断代替截图的人工视觉审查。若截图无法由正式命令生成，报告限制，不能自称 UI 通过。`:'本场景未声明 UI 视觉验收；不要为非 UI 目标虚构截图要求。';
@@ -102,7 +103,7 @@ ${readFileSync(new URL('../../references/case-discovery-contract.md',import.meta
 公共准备：${JSON.stringify(catalogBrief)}
 项目指南：${JSON.stringify(guideBrief)}
 冻结场景与需求：${JSON.stringify(input)}`:implementationPrompt+`\n\n共用的场景查找标准：\n${searchGuidance}\n生成前复用检查（先完成再修改或运行测试）：\n${reuseContract}\n已有用例结构与引用要求（checkpoint请求使用此结构，仅描述原已有用例）：\n${readFileSync(new URL('../../references/case-discovery-contract.md',import.meta.url),'utf8')}\n宿主复用检查工具：${JSON.stringify(reuseTools)}。先将checkpoint请求写到request_path，再执行checkpoint数组并追加该请求文件路径。成功后才进入测试修改和统一调试；恢复时若record_path已存在则复用冻结记录，不覆盖checkpoint。最终JSON还须包含case_reuse。`)+`\n\n用例说明输出契约（在原JSON中增加case_descriptions，不另输出文档）：\n${displayContract}\n提交前执行契约中的标题自查：只读 name 列表也能看懂各项实际验证的行为；删去不必要的实现步骤，保留区分条件与真实观察边界。`;
-const policyScript=new URL('./existing_case_policy.py',import.meta.url).pathname;
+const policyScript=fileURLToPath(new URL('./existing_case_policy.py',import.meta.url));
 if(existingOnly)execFileSync('python3',[policyScript,'start',catalogPath,output],{encoding:'utf8'});
 if(resume){if(readFileSync(join(output,'prompt.txt'),'utf8')!==prompt)throw Error('resume prompt changed');}
 else writeFileSync(join(output,'prompt.txt'),prompt);
@@ -152,7 +153,7 @@ if(existingOnly){
 }
 if(existingOnly&&result.status==='success'&&existsSync(join(output,'answer.json'))){
  try{
-  const checked=execFileSync('python3',[new URL('./case_discovery_contract.py',import.meta.url).pathname,resolve(inputArg),join(output,'answer.json'),root,join(output,'existing-files.json'),...(discoveryOnly?['--discovery-only']:[])],{encoding:'utf8'});
+  const checked=execFileSync('python3',[fileURLToPath(new URL('./case_discovery_contract.py',import.meta.url)),resolve(inputArg),join(output,'answer.json'),root,join(output,'existing-files.json'),...(discoveryOnly?['--discovery-only']:[])],{encoding:'utf8'});
   writeFileSync(join(output,'case-discovery.json'),checked+'\n');result.discovery_validated=true;
  }catch(e){result.invalid_discovery=true;result.status='error';result.error='Existing case discovery contract failed: '+String(e.stderr??e.message);}
 }

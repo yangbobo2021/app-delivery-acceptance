@@ -1,3 +1,4 @@
+import {fileURLToPath} from 'node:url';
 /** Independent coverage-preparation Agent; project choices are checked by Python gates. */
 import {readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync, realpathSync, copyFileSync} from 'node:fs';
 import {resolve, join, relative, isAbsolute, dirname} from 'node:path';
@@ -28,9 +29,9 @@ for (const key of ['project_root', 'id', 'scope_sha256']) {
 }
 const binding = acceptanceGuard({acceptance: request.acceptance, source_checkout: runtime.workspace,
   test_roots: request.test_roots}, [output, dirname(resolve(request.registry_path))]);
-const script = resolve(new URL('coverage_preparation.py', import.meta.url).pathname);
-const runtimeCheck = resolve(new URL('../../scripts/runtime_preparation.py', import.meta.url).pathname);
-const protocolGuide = resolve(new URL('../../references/project-coverage-protocol.md', import.meta.url).pathname);
+const script = resolve(fileURLToPath(new URL('coverage_preparation.py', import.meta.url)));
+const runtimeCheck = resolve(fileURLToPath(new URL('../../scripts/runtime_preparation.py', import.meta.url)));
+const protocolGuide = resolve(fileURLToPath(new URL('../../references/project-coverage-protocol.md', import.meta.url)));
 const check = (program, args, stdout, stderr) => {
   const child = spawnSync(program, args, {encoding: 'utf8', maxBuffer: 8 * 1024 * 1024});
   writeFileSync(stdout, child.stdout ?? ''); writeFileSync(stderr, child.stderr ?? '');
@@ -76,7 +77,7 @@ const prompt = `你是独立的覆盖率准备 Agent。你的输入是**已经�
 本次项目明确预期能采集的源码：${JSON.stringify(expectedMeasuredSources)}。这是项目目标，不是所有项目的通用覆盖率配额。先检查已有适配器为什么没达到这些目标，再尝试项目适用的替代采集/映射方法；零命中、定向命中和独立读取都须证明这些文件的真实分母与命中。还须轻量验证采集未发生时的状态传播：没有实际原生快照的来源不得把零基线标为实测 0%，收尾失败不能冒充完整采集；记录失败路径证据。不能因为第一次方案失败便停止探索并把目标文件标成 unsupported。若充分尝试后仍无法证明，就如实标 unsupported、保留失败证据和具体限制，不能声称本项目目标已完成。不要改动 partial 的通用含义。
 适用项目知识：${JSON.stringify(knowledge)}
 本次候选 SKILL 的覆盖率协议（优先于机器上另一个已安装版本）：${readFileSync(protocolGuide, 'utf8')}
-本次实际调用的 SKILL 根目录：${resolve(new URL('../..', import.meta.url).pathname)}。宿主探针脚本：${script}。只按这份候选 SKILL 的协议与脚本准备；不要另找机器上同名的已安装 SKILL。
+本次实际调用的 SKILL 根目录：${resolve(fileURLToPath(new URL('../..', import.meta.url)))}。宿主探针脚本：${script}。只按这份候选 SKILL 的协议与脚本准备；不要另找机器上同名的已安装 SKILL。
 已保留的前次失败尝试（只读检查其错误收据和项目适配器快照，不能覆盖）：${JSON.stringify(request.prior_attempts ?? [])}
 交付给宿主的 entry 必须能对本阶段新建的 project-coverage-preparation-v1 profile 执行 verify-preparation、run、finish、verify-report、summarize，尤其应读取 spec.runtime_manifest 与 spec.probe_report，不能假定旧适配器私有的 probe_comparison 等字段必然存在。entry 中的可执行文件和项目适配器路径必须是本次 workspace 中已存在的绝对路径；不要在 entry 留下 {workspace}、{runtime_root} 等仅供探针命令使用的占位符。宿主会在探针后立即调用 verify-preparation；探针自测通过不等于整份准备通过。
 
@@ -132,6 +133,25 @@ try {
       return file === root || file.startsWith(root + '/');
     }) && !(name in adapters));
   if (omitted.length) throw Error('Coverage Agent omitted changed test files from adapter_paths: ' + omitted.join(', '));
+  // Freeze before probing so a rejected preparation remains reproducible after a retry.
+  const artifactAliases = {...(answer.artifact_aliases ?? {})};
+  const snapshot = {};
+  for (const [name, digest] of Object.entries({...sourceHashes, ...adapters})) {
+    const original = resolve(runtime.workspace, name), frozen = resolve(output, 'frozen', name);
+    mkdirSync(dirname(frozen), {recursive: true});
+    copyFileSync(original, frozen);
+    if (hash(readFileSync(frozen)) !== digest) throw Error('Frozen archive copy changed: ' + name);
+    artifactAliases[original] = {path: frozen, sha256: digest};
+    snapshot[name] = {path: frozen, sha256: digest};
+  }
+  writeFileSync(join(output, 'snapshot.json'), JSON.stringify({schema: 'coverage-preparation-snapshot-v1',
+    files: snapshot}, null, 2) + '\n');
+  const verifyAdapters = () => {
+    for (const [name, digest] of Object.entries(adapters)) {
+      if (hash(readFileSync(resolve(runtime.workspace, name))) !== digest)
+        throw Error('Coverage probe changed its frozen adapter: ' + name);
+    }
+  };
   const plan = {...answer.probe_plan, runtime_manifest: runtimePath, runtime_sha256: request.runtime_sha256,
     workspace: runtime.workspace, revision: runtime.revision};
   const planPath = join(output, 'probe-plan.json');
@@ -139,6 +159,7 @@ try {
   check('python3', [script, 'run', planPath, join(output, 'probes')],
     join(output, 'probe-gate.stdout'), join(output, 'probe-gate.stderr'));
   verifyProduct();
+  verifyAdapters();
   const probePath = join(output, 'probes', 'coverage-probes.json');
   const probe = JSON.parse(readFileSync(probePath));
   const dispositions = answer.source_dispositions;
@@ -150,14 +171,6 @@ try {
   const status = probe.status === 'ready' && measured.length &&
     !Object.values(dispositions).some(value => value.kind === 'unsupported') ? 'ready' : 'partial';
   const unmetExpectedSources = expectedMeasuredSources.filter(name => dispositions[name]?.kind !== 'measured');
-  const artifactAliases = {...(answer.artifact_aliases ?? {})};
-  for (const [name, digest] of Object.entries({...sourceHashes, ...adapters})) {
-    const original = resolve(runtime.workspace, name), frozen = resolve(output, 'frozen', name);
-    mkdirSync(dirname(frozen), {recursive: true});
-    copyFileSync(original, frozen);
-    if (hash(readFileSync(frozen)) !== digest) throw Error('Frozen archive copy changed: ' + name);
-    artifactAliases[original] = {path: frozen, sha256: digest};
-  }
   const profile = {schema: 'project-coverage-preparation-v1', entry: answer.entry,
     adapter_files: adapters, tools: answer.tools, source_dispositions: dispositions,
     preparation_status: status,
@@ -174,9 +187,10 @@ try {
   const config = {policy: 'required', protocol: 'project-coverage-v1', prepared,
     prepared_sha256: hash(readFileSync(join(prepared, 'prepared.json'))), inventory_path: request.inventory_path};
   const configPath = join(output, 'coverage-config.json'); writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
-  check('python3', ['-c', `import sys;sys.path.insert(0,${JSON.stringify(resolve(new URL('.', import.meta.url).pathname))});from coverage_protocol import preparation;preparation(__import__('json').load(open(sys.argv[1])))`, configPath],
+  check('python3', ['-c', `import sys;sys.path.insert(0,${JSON.stringify(resolve(fileURLToPath(new URL('.', import.meta.url))))});from coverage_protocol import preparation;preparation(__import__('json').load(open(sys.argv[1])))`, configPath],
     join(output, 'preparation-gate.stdout'), join(output, 'preparation-gate.stderr'));
   verifyProduct();
+  verifyAdapters();
   writeFileSync(join(output, 'handoff.json'), JSON.stringify({schema: 'project-coverage-agent-handoff-v1',
     status, runtime_manifest: runtimePath, runtime_sha256: request.runtime_sha256,
     prepared, prepared_sha256: config.prepared_sha256, probe_report: probePath,

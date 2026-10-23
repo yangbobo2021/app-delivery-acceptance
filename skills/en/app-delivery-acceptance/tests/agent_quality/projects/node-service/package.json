@@ -1,0 +1,7 @@
+{
+  "name": "reservation-receipts-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {"test": "node --test spec/*.test.mjs", "smoke": "node server.mjs --help"},
+  "devDependencies": {"c8": "^10.0.0"}
+}
