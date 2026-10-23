@@ -2,6 +2,7 @@
 import hashlib
 import json
 from pathlib import Path
+from case_evaluation_contract import validate, markdown_description
 
 
 def describe(config, output, prepared, answer_path, run):
@@ -28,25 +29,21 @@ def describe(config, output, prepared, answer_path, run):
             if not directory.exists():
                 run(['node', str(Path(__file__).with_name('run_case_evaluation_v1.mjs')),
                      str(input_path), str(catalog_path), str(answer_path), str(directory)],
-                    log=output / 'case-evaluation-stage.log', timeout=300)
+                    log=output / 'case-evaluation-stage.log', timeout=600)
             metrics = json.loads((directory / 'metrics.json').read_text())
             answer = json.loads((directory / 'answer.json').read_text())
-            if metrics.get('status') != 'success' or not isinstance(answer.get('summary'), str):
+            if metrics.get('status') != 'success':
                 raise ValueError('evaluation Agent did not return a completed description')
-            result.update(status='available', description=answer, answer=str(directory / 'answer.json'))
+            answer = validate(answer, json.loads(input_path.read_text()), json.loads(answer_path.read_text()),
+                              json.loads(catalog_path.read_text())['project_root'], require_target_checks=True)
+            result.update(status='available', description=answer, answer=str(directory / 'answer.json'),
+                          evaluator_contract='case-evaluation-v2')
         except Exception as error:
             result['reason'] = str(error)[:1500]
     report.write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
     lines = ['# 场景关联用例评估', '', '仅供人阅读；不改变执行列表、门禁、修补或正式结论。', '']
     if result['status'] == 'available':
-        description = result['description']
-        lines.extend([description['summary'], '', '覆盖评估：' + str(description.get('coverage', 'uncertain'))])
-        for key, label in [('supported', '支持范围'), ('gaps', '覆盖缺口'),
-                           ('quality_issues', '用例质量'), ('redundancy', '可能重复'),
-                           ('test_assessments', '逐用例说明')]:
-            lines.extend(['', '## ' + label, ''])
-            for item in description.get(key, []):
-                lines.append('- ' + (item if isinstance(item, str) else json.dumps(item, ensure_ascii=False)))
+        lines.extend(markdown_description(result['description']))
     else:
         lines.append('评估说明未生成：' + result.get('reason', result['status']) + '。原执行流程继续。')
     (output / 'case-evaluation.md').write_text('\n'.join(lines) + '\n')

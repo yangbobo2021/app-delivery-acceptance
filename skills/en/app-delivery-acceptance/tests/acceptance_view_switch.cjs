@@ -5,13 +5,14 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const html = fs.readFileSync(process.argv[2], 'utf8');
 assert.doesNotMatch(html, /id="project"|querySelector\('#project'\)/);
-assert.equal((html.match(/<th>/g)||[]).length, 5);
+assert.equal((html.match(/<thead>[\s\S]*?<\/thead>/)[0].match(/<th\b/g)||[]).length, 5);
 assert.doesNotMatch(html, /<th>代码覆盖率<\/th>/);
 const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(x => x[1]).join('\n');
 const nodes = new Map();
 function node(selector) {
   if (!nodes.has(selector)) nodes.set(selector, {
-    value: '', innerHTML: '', textContent: '', hidden: false, listeners: {},
+    value: '', innerHTML: '', textContent: '', hidden: false, listeners: {}, dataset: {},
+    querySelector: node, querySelectorAll: () => [],
     addEventListener(event, handler) { this.listeners[event] = handler; },
   });
   return nodes.get(selector);
@@ -23,7 +24,7 @@ const context = vm.createContext({
   window: {addEventListener() {}},
   location: {href: 'http://localhost/'},
   history: {replaceState() {}},
-  document: {querySelector: node, querySelectorAll: () => []},
+  document: {querySelector: node, querySelectorAll: () => [], getElementById: id=>node('#'+id)},
   setInterval() {},
   fetch(url) { return new Promise(resolve => requests.push({url, resolve})); },
 });
@@ -73,10 +74,11 @@ function reply(index, data, ok = true) {
   assert.match(node('#acceptanceWorkspace').textContent,/本地提交.*尚未推送/);
   assert.match(node('#coverageSummary').innerHTML, /30%/);
   assert.match(node('#resultBalance').textContent, /1 通过/);
-  assert.match(node('#rows').innerHTML, /class="clamp conclusion-preview"/);
-  assert.match(node('#rows').innerHTML, /data-more="展开查看更多" aria-expanded="false"/);
-  assert.match(node('#rows').innerHTML, /href="\/evidence\/fixture.txt"/);
-  assert.equal((node('#rows').innerHTML.match(/<td\b/g)||[]).length, 5);
+  assert.doesNotMatch(node('#rows').innerHTML, /conclusion-preview|展开查看更多/);
+  const detail=vm.runInContext("traceContent([...requirementCards.values()].find(x=>x.type==='verdict'))",context);
+  assert.match(detail.tabs[2][1], /href="\/evidence\/fixture.txt"/);
+  assert.equal((node('#rows').innerHTML.match(/<td\b/g)||[]).length, 4);
+  assert.equal((node('#rows').innerHTML.match(/scope="rowgroup"/g)||[]).length, 1);
   assert.equal((node('#coverageSummary').innerHTML.match(/class="metric"/g)||[]).length,2);
   assert.doesNotMatch(node('#coverageSummary').innerHTML,/80%/);
   node('#coverageVersion').value=JSON.stringify(['project','other-capture']);
@@ -128,5 +130,27 @@ function reply(index, data, ok = true) {
   assert.doesNotMatch(node('#coverageSummary').innerHTML, /60%/);
   assert.match(node('#acceptanceWarning').textContent, /broken index/);
   assert.match(node('#acceptanceId').innerHTML, /AT-b/);
-  console.log('Acceptance ID switch, metrics, evidence row isolation and stale-response checks passed.');
+  // A transient failure within the same ID preserves its last good snapshot.
+  vm.runInContext('refresh()',context);
+  reply(6,payload('AT-a','passed',30));await flush();
+  vm.runInContext('refresh()',context);
+  reply(7,{reason:'temporary read failure'},false);await flush();
+  assert.match(node('#rows').innerHTML,/trace-verdict-passed/);
+  assert.match(node('#coverageSummary').innerHTML,/30%/);
+  assert.match(node('#acceptanceWarning').textContent,/保留最近成功读取的快照/);
+  assert.match(node('#updated').textContent,/最近成功读取：.+本次读取失败/);
+  // Refresh notices leave the open reading snapshot intact.
+  vm.runInContext(`
+   traceDetailKey=[...requirementCards.values()].find(x=>x.type==='scene').key;
+   traceDetailSnapshot=JSON.parse(JSON.stringify(requirementCards.get(traceDetailKey)));
+   traceDetailVersion=JSON.stringify(traceDetailSnapshot);
+  `,context);
+  node('#requirementDialog').open=true;
+  node('#requirementPanel-overview').innerHTML='reading snapshot';
+  vm.runInContext('traceCheckDetailUpdate()',context);
+  assert.equal(node('#traceDetailUpdate').hidden,true);
+  vm.runInContext("requirementCards.get(traceDetailKey).entry.scene.title='Updated scene';traceCheckDetailUpdate()",context);
+  assert.equal(node('#traceDetailUpdate').hidden,false);
+  assert.equal(node('#requirementPanel-overview').innerHTML,'reading snapshot');
+  console.log('Acceptance switch, metrics, detail evidence, snapshot retention, reading stability and stale-response checks passed.');
 })().catch(error => {console.error(error); process.exitCode = 1;});

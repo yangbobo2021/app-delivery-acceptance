@@ -95,8 +95,9 @@ class EvaluationTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        for name in ['input', 'catalog', 'case-answer']:
-            (self.root / (name + '.json')).write_text('{}')
+        (self.root / 'input.json').write_text(json.dumps({'scene': {'description': '余额不足时拒绝取款，余额不变。'}}))
+        (self.root / 'catalog.json').write_text(json.dumps({'project_root': str(self.root)}))
+        (self.root / 'case-answer.json').write_text('{}')
         self.config = {'case_input': str(self.root / 'input.json')}
         self.prepared = {'catalog': str(self.root / 'catalog.json')}
         self.answer = self.root / 'case-answer.json'
@@ -108,9 +109,15 @@ class EvaluationTests(unittest.TestCase):
         def run(command, **kwargs):
             output = Path(command[-1]);output.mkdir()
             (output / 'metrics.json').write_text(json.dumps({'status': 'success'}))
-            (output / 'answer.json').write_text(json.dumps({'summary': 'Description only',
-                'coverage': coverage, 'gaps': ['Missing boundary assertion'], 'quality_issues': [],
-                'redundancy': [], 'supported': [], 'test_assessments': []}))
+            (output / 'answer.json').write_text(json.dumps({'schema': 'case-evaluation-v2',
+                'summary': '当前关联为空，无法验证余额不变。', 'coverage': coverage,
+                'obligations': [{'id': 'O1', 'quote': '余额不足时拒绝取款，余额不变。',
+                    'status': 'unsupported', 'assessment': '当前无关联用例。', 'evidence_ids': []}],
+                'findings': [{'id': 'F1', 'kind': 'gap', 'obligation_ids': ['O1'],
+                    'statement': '当前关联为空。', 'impact': '扣款后再拒绝的错误无法识别。',
+                    'recommendation': '关联能检查余额不变的用例。', 'evidence_ids': []}],
+                'case_assessments': [], 'selection_advice': '补足当前场景关联。',
+                'limitations': ['仅评估当前关联。'], 'evidence': []}))
             return {'exit_code': 0}
         return run
 

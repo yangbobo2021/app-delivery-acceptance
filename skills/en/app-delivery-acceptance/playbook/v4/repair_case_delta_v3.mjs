@@ -39,7 +39,11 @@ ${coverageContract}
 
 场景输入：${JSON.stringify(input)}
 具体反馈：${JSON.stringify(review)}
-操作指南：${JSON.stringify(brief)}`;
+操作指南：${JSON.stringify(brief)}
+
+用例说明输出契约（在原JSON中增加case_descriptions，并依据修复后的实际代码更新）：
+${readFileSync(new URL('../../references/case-display-contract.md',import.meta.url),'utf8')}
+提交前执行契约中的标题自查；标题须反映修复后的实际验证行为，不写成代码步骤摘要，也不夸大观察边界。`;
 const bound=JSON.stringify([inputArg,reviewArg,catalogArg,guideArg].map(p=>({path:resolve(p),
  sha256:createHash('sha256').update(readFileSync(resolve(p))).digest('hex')})),null,2)+'\n';
 if(resume){

@@ -283,6 +283,8 @@ def status_for(kind, folder, request, metrics):
                 return 'running', label + '进行中', ''
             if item.get('status') == 'parked':
                 return 'blocked', label + '已暂停', item.get('error', '')
+        if state.get('stopped_after') == 'case-evaluation' and (folder / 'case-evaluation.json').is_file():
+            return 'queued', '已按请求停在用例评估后，正式执行未开始', ''
         completed = [name for name, item in stages.items() if item.get('status') == 'completed']
         return ('running' if completed else 'queued'), ('已完成 ' + '、'.join(completed[-2:]) if completed else '场景已接收，待项目准备'), ''
     terminal = read_json(folder / 'terminal.json') or {}
@@ -416,6 +418,7 @@ def collect(roots, traces, request_paths=None, artifact_resolver=None, request_o
         elif kind in ('scenario', 'case'):
             reverse_rules = request.get('reverse_rules') or []
         scenes, bindings, case_results, judgment = [], [], [], {'status': 'not_run', 'reason': detail}
+        case_info = {}
         coverage = {'status': 'pending'}
         if kind == 'scenario':
             scenario_data = read_json(folder / 'scenarios.current.json') or {}
@@ -430,7 +433,8 @@ def collect(roots, traces, request_paths=None, artifact_resolver=None, request_o
             if request.get('progress_schema') == 'single-agent-scene-v1':
                 summary = read_json(folder / 'summary.json') or {}
                 stage_data = (read_json(folder / 'state.json') or {}).get('stages', {})
-                case_answer = read_json(folder / 'case/answer.json') or {}
+                case_answer_path = folder / 'case/answer.json'
+                case_answer = read_json(case_answer_path) or {}
                 receipt_path = folder / 'execution/execution.json'
                 review_path = folder / 'review/answer.json'
                 coverage_path = folder / 'coverage-report.json'
@@ -456,7 +460,15 @@ def collect(roots, traces, request_paths=None, artifact_resolver=None, request_o
                     coverage_path = artifact(final_input.get('coverage_result_path')) or coverage_path
                     answer_path = artifact(final_input.get('agent_result_path'))
                     if answer_path:
+                        case_answer_path = answer_path
                         case_answer = read_json(answer_path) or case_answer
+                if isinstance(case_answer.get('case_descriptions'), list):
+                    case_info['case_descriptions'] = case_answer['case_descriptions']
+                from case_presentations import bound_evaluation
+                evaluation = bound_evaluation(read_json(folder / 'case-evaluation.json') or
+                                              summary.get('case_evaluation'), case_answer_path)
+                if evaluation:
+                    case_info['case_evaluation'] = evaluation
                 receipt = read_json(receipt_path) or {}
                 review = read_json(review_path) or {}
                 coverage = read_json(coverage_path) or {'status': 'pending'}
@@ -520,7 +532,7 @@ def collect(roots, traces, request_paths=None, artifact_resolver=None, request_o
                             if request.get('definition_binding_sha256') else {}),
                          'requirements': requirements, 'reverse_rules': reverse_rules,
                          'change': request.get('change') or {}, 'scenarios': scenes,
-                         'bindings': bindings, 'case_results': case_results,
+                         'bindings': bindings, 'case_results': case_results, **case_info,
                          'stage': preview_stage,
                          'judgment': judgment, 'coverage': coverage,
                          'progress_folder': stage['folder'],

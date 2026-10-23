@@ -360,6 +360,10 @@ def main():
         raise ValueError("pipeline input changed; create a new run")
     if state.get("bindings") != bindings:
         raise ValueError("case input, guide or catalog changed; create a new run")
+    # An explicit stop is a host checkpoint, not an execution/review result.
+    # Clear it before continuing so the viewer can show subsequent live work.
+    state.pop('stopped_after', None)
+    state.pop('stopped_at', None)
     save(state_path, state)
     if (output / "catalog.json").is_file():
         from reconcile_pipeline import recover_interrupted_agent
@@ -381,6 +385,8 @@ def main():
     case_dir = output / "case"
 
     def case_step():
+        if load(config['case_input']).get('existing_case_mode'):
+            raise ValueError('Static discovery is not an executable case; use the standalone finder and retain not_executed')
         command = ["node", str(HERE / case_runner(config)),
                    str(Path(config["case_input"]).resolve()), prepared["catalog"],
                    str(Path(config["guide"]).resolve()), str(case_dir)]
@@ -452,6 +458,9 @@ def main():
     evaluation = evaluate_case(config, output, prepared, active_answer_path)
     protect_existing(config, output, catalog)
     if args.stop_after == "case-evaluation":
+        state['stopped_after'] = 'case-evaluation'
+        state['stopped_at'] = datetime.now(timezone.utc).isoformat()
+        save(state_path, state)
         return
     if answer.get("status") == "blocked" or not answer.get("test_command"):
         raise RuntimeError("case Agent did not produce an executable case")

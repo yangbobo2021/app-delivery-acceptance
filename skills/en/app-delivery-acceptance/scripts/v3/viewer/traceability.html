@@ -1,0 +1,11 @@
+<dialog id="requirementDialog" class="requirement-dialog" aria-labelledby="requirementDialogTitle" aria-describedby="requirementDialogId">
+ <header class="requirement-dialog-header"><div class="requirement-dialog-heading"><nav id="traceCrumbs" class="trace-crumbs" aria-label="关联上下文"></nav><h2 id="requirementDialogTitle"></h2><div id="requirementDialogId" class="small"></div></div><button type="button" class="requirement-close" aria-label="关闭详情" autofocus>×</button></header>
+ <div class="requirement-tabs" role="tablist" aria-label="详情内容">
+  <button type="button" class="requirement-tab" id="requirementTab-overview" role="tab" aria-selected="true" aria-controls="requirementPanel-overview" data-requirement-tab="overview">概览</button>
+  <button type="button" class="requirement-tab" id="requirementTab-original" role="tab" aria-selected="false" aria-controls="requirementPanel-original" data-requirement-tab="original" tabindex="-1">关联关系</button>
+  <button type="button" class="requirement-tab" id="requirementTab-source" role="tab" aria-selected="false" aria-controls="requirementPanel-source" data-requirement-tab="source" tabindex="-1">依据与记录</button>
+ </div>
+ <div class="trace-update"><button type="button" id="traceDetailUpdate" hidden>有更新，查看最新</button></div>
+ <div class="requirement-reading"><section class="requirement-content" id="requirementPanel-overview" role="tabpanel" aria-labelledby="requirementTab-overview"></section><section class="requirement-content" id="requirementPanel-original" role="tabpanel" aria-labelledby="requirementTab-original" hidden></section><section class="requirement-content" id="requirementPanel-source" role="tabpanel" aria-labelledby="requirementTab-source" hidden></section></div>
+ <footer class="trace-footer"><button type="button" id="traceBack" disabled>返回上一项</button><div><span id="traceCopyStatus" class="small" aria-live="polite"></span><button type="button" id="traceCopy">复制追问上下文</button></div></footer>
+</dialog>

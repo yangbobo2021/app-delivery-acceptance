@@ -13,13 +13,15 @@ from urllib.parse import parse_qs, urlparse
 from coverage_views import summarize
 from progress_views import collect as collect_progress
 from project_statistics import project_state
+from case_presentations import attach_case_presentations
+from requirement_views import DIALOG_CSS, DIALOG_HTML, DIALOG_SCRIPT
 
 
 HTML = r'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>交付验收追踪</title><style>
-:root{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;color:#243832;background:#f3f6f3}*{box-sizing:border-box}body{margin:0;padding:24px}main{max-width:1600px;margin:auto}h1{font-size:27px;margin:0 0 6px}p{color:#62756d;margin:5px 0 18px}.panel{background:white;border:1px solid #dbe5df;border-radius:16px;padding:18px 20px;margin:16px 0;box-shadow:0 1px 3px #253c3210}.metrics{display:flex;gap:12px;flex-wrap:wrap}.overview{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}.metric{min-width:0;padding:14px;border:1px solid #e2e9e5;border-radius:12px}.metric strong{display:block;font-size:21px}.work-item{border-top:1px solid #e2e9e5;padding:12px 0}.work-item:first-child{border-top:0}.work-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.muted{color:#667970}.tag{display:inline-block;border-radius:7px;background:#e8f1ec;color:#176346;padding:3px 7px;margin:2px 4px 2px 0;font-weight:600;font-size:13px}.pending{background:#fff0ca;color:#775100}.passed{background:#dcf4e4;color:#21613d}.failed{background:#fde3df;color:#a33b31}table{border-collapse:collapse;width:100%;table-layout:fixed}th,td{border-top:1px solid #e2e9e5;text-align:left;vertical-align:top;padding:12px 10px;overflow-wrap:anywhere}th{font-size:13px;color:#667970}td{font-size:14px;line-height:1.5}th:nth-child(1){width:15%}th:nth-child(2){width:22%}th:nth-child(3){width:22%}th:nth-child(4){width:13%}th:nth-child(5){width:13%}th:nth-child(6){width:15%}.title{font-weight:700}.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.clamp.open{display:block}button{border:0;background:none;color:#176346;cursor:pointer;padding:4px 0;font:inherit}button:hover{text-decoration:underline}.small{font-size:12px;color:#667970}.toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}select{padding:7px 10px;border-radius:8px;border:1px solid #cddbd2;background:white}a{color:#176346}details{margin-top:5px}summary{cursor:pointer;color:#176346}@media(max-width:1050px){.overview{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:900px){body{padding:12px}.scroll{overflow:auto}table{min-width:950px}}@media(max-width:560px){.overview{grid-template-columns:1fr}}
+:root{font-family:system-ui,-apple-system,"PingFang SC",sans-serif;color:#243832;background:#f3f6f3}*{box-sizing:border-box}body{margin:0;padding:24px}main{max-width:1600px;margin:auto}h1{font-size:27px;margin:0 0 6px}p{color:#62756d;margin:5px 0 18px}.panel{background:white;border:1px solid #dbe5df;border-radius:16px;padding:18px 20px;margin:16px 0;box-shadow:0 1px 3px #253c3210}.metrics{display:flex;gap:12px;flex-wrap:wrap}.overview{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}.metric{min-width:0;padding:14px;border:1px solid #e2e9e5;border-radius:12px}.metric strong{display:block;font-size:21px}.work-item{border-top:1px solid #e2e9e5;padding:12px 0}.work-item:first-child{border-top:0}.work-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.muted{color:#667970}.tag{display:inline-block;border-radius:7px;background:#e8f1ec;color:#176346;padding:3px 7px;margin:2px 4px 2px 0;font-weight:600;font-size:13px}.pending{background:#fff0ca;color:#775100}.passed{background:#dcf4e4;color:#21613d}.failed{background:#fde3df;color:#a33b31}table{border-collapse:collapse;width:100%;table-layout:fixed}th,td{border-top:1px solid #e2e9e5;text-align:left;vertical-align:top;padding:12px 10px;overflow-wrap:anywhere}th{font-size:13px;color:#667970}td{font-size:14px;line-height:1.5}th:nth-child(1){width:15%}th:nth-child(2){width:22%}th:nth-child(3){width:22%}th:nth-child(4){width:13%}th:nth-child(5){width:13%}th:nth-child(6){width:15%}.title{font-weight:700}.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.clamp.open{display:block}button{border:0;background:none;color:#176346;cursor:pointer;padding:4px 0;font:inherit}button:hover{text-decoration:underline}.small{font-size:12px;color:#667970}.toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap}select{padding:7px 10px;border-radius:8px;border:1px solid #cddbd2;background:white}a{color:#176346}.case-card>details>summary{font-weight:700;color:#243832;line-height:1.6}.case-card>details{margin-top:0}.case-evaluation>details>summary{font-weight:600}.case-card{border-top:1px solid #e2e9e5;margin-top:10px;padding-top:10px}.case-field{margin-top:8px}.case-label{display:block;font-size:12px;font-weight:600;color:#667970}.case-section-title{font-weight:700;margin-bottom:6px}.case-evaluation{margin-top:16px;border-top:2px solid #dbe5df;padding-top:12px}.case-info details{margin-top:10px}.case-info .clamp{white-space:pre-line}details{margin-top:5px}summary{cursor:pointer;color:#176346}@media(max-width:1050px){.overview{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:900px){body{padding:12px}.scroll{overflow:auto}table{min-width:950px}}@media(max-width:560px){.overview{grid-template-columns:1fr}}
 </style></head><body><main><h1>交付验收追踪</h1><p>需求 → 测试场景 → 用例／操作 → 实际执行 → 独立结论。覆盖率来自对应场景尝试的真实采集。</p>
-<section class="panel" id="activePanel" hidden><div class="toolbar"><h2 style="margin:0;flex:1">正在处理</h2><span id="currentWork" class="small"></span></div><div id="progress"></div></section><section class="panel"><h2 style="margin:0 0 12px">验收概览</h2><div id="metrics" class="overview"></div><p class="small">场景指标统一以项目全部场景数为分母。执行过就算已执行，重复执行只计一次；结果保留最近一次已确认结论，换版或准备重跑不会清空结果。接受风险单列，不计通过或待处理 BUG。<span id="resultBalance"></span></p></section><section class="panel"><div class="toolbar"><h2 style="margin:0;flex:1">代码覆盖率</h2><label>分母 <select id="coverageScope"><option value="project">整个项目用户代码</option><option value="changed_files">修改文件</option><option value="changed_lines">提交／PR 修改行</option></select></label></div><div id="coverageSummary" class="metrics"></div><p class="small">由专用工具合并所选场景的兼容报告；切换统计范围同步更新行与分支。缺少报告不推断为零覆盖。</p></section><section class="panel"><div class="toolbar"><h2 style="margin:0;flex:1">追踪关系</h2><label>项目 <select id="project"><option value="">全部项目</option></select></label></div><div class="scroll"><table><thead><tr><th>需求／规则</th><th>测试场景</th><th>用例／操作</th><th>实际执行</th><th>独立结论</th><th>代码覆盖率</th></tr></thead><tbody id="rows"></tbody></table></div></section><p id="updated" class="small"></p></main>
+<section class="panel" id="activePanel" hidden><div class="toolbar"><h2 style="margin:0;flex:1">正在处理</h2><span id="currentWork" class="small"></span></div><div id="progress"></div></section><section class="panel"><h2 style="margin:0 0 12px">验收概览</h2><div id="metrics" class="overview"></div><p class="small">场景指标统一以项目全部场景数为分母。执行过就算已执行，重复执行只计一次；结果保留最近一次已确认结论，换版或准备重跑不会清空结果。接受风险单列，不计通过或待处理 BUG。<span id="resultBalance"></span></p></section><section class="panel"><div class="toolbar"><h2 style="margin:0;flex:1">代码覆盖率</h2><label>分母 <select id="coverageScope"><option value="project">整个项目用户代码</option><option value="changed_files">修改文件</option><option value="changed_lines">提交／PR 修改行</option></select></label></div><div id="coverageSummary" class="metrics"></div><p class="small">由专用工具合并所选场景的兼容报告；切换统计范围同步更新行与分支。缺少报告不推断为零覆盖。</p></section><section class="panel trace-panel"><div class="toolbar"><h2 style="margin:0;flex:1">追踪关系</h2><label>项目 <select id="project"><option value="">全部项目</option></select></label></div><p class="small trace-purpose">从需求追踪关联用例、实际执行与已确认结论。点击名称或状态查看详情。</p><div class="trace-tools"><input type="search" id="traceSearch" aria-label="搜索需求、场景或用例" placeholder="搜索名称或编号"><select id="traceFilter" aria-label="状态筛选"><option value="all">全部状态</option><option value="attention">需要关注</option><option value="not_run">未执行</option><option value="executed">已执行</option><option value="passed">已有通过结论</option><option value="pending_review">等待确认</option><option value="revalidate">待重新验证</option></select><select id="tracePriority" aria-label="重要程度"><option value="all">全部重要程度</option><option>P0</option><option>P1</option><option>P2</option><option>P3</option></select><button type="button" class="trace-clear" id="traceClear">清除筛选</button><select id="traceLocate" aria-label="定位需求或规则"><option value="">定位需求／规则</option></select></div><p class="trace-mobile-hint small">横向滑动查看完整五列关系。</p><div class="scroll trace-scroll" tabindex="0" aria-label="追踪关系表格，可横向滚动"><table><thead><tr><th scope="col">需求／规则</th><th scope="col">测试场景</th><th scope="col">用例／操作</th><th scope="col">实际执行</th><th scope="col">独立结论</th></tr></thead><tbody id="rows"></tbody></table></div><div id="traceShown" class="small" aria-live="polite"></div></section><p id="updated" class="small"></p></main>
 <script>
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const expanded=new Set();
@@ -55,8 +57,8 @@ function render(items){
  const chosen=document.querySelector('#project').value,visible=items.filter(x=>!chosen||x.project.id===chosen);
  const reqs=new Map(),scenes=new Map();
  for(const t of visible){
-  for(const r of t.requirements)reqs.set(t.project.id+':'+r.id,{project:t.project,requirement:r,kind:'original'});
-  for(const r of t.reverse_rules||[])reqs.set(t.project.id+':'+r.id,{project:t.project,requirement:r,kind:'reverse',change:t.change});
+  for(const r of t.requirements)reqs.set(t.project.id+':'+r.id,{project:t.project,requirement:r,kind:'original',presentation:t.requirement_presentations?.[r.id]});
+  for(const r of t.reverse_rules||[])reqs.set(t.project.id+':'+r.id,{project:t.project,requirement:r,kind:'reverse',change:t.change,presentation:t.requirement_presentations?.[r.id]});
   for(const s of t.scenarios){const key=t.project.id+':'+s.id,old=scenes.get(key),attempt=x=>Number(String(x.attempt_id||'').match(/\d+/)?.[0]||0);
    const newerAttempt=t.provisional&&t.progress_kind==='case'&&t.progress_state!=='done'&&old&&attempt(t)>attempt(old.trace);
    const olderThanActive=old?.trace.provisional&&old.trace.progress_kind==='case'&&old.trace.progress_state!=='done'&&attempt(old.trace)>attempt(t);
@@ -79,32 +81,9 @@ function render(items){
  const acceptedRisk=resultScenes.filter(({trace:t})=>t.judgment?.status==='accepted_risk').length;
  const needsAttention=resultScenes.filter(({trace:t})=>['repair_required','blocked','inconclusive'].includes(t.judgment?.status)).length;
  const pendingResults=resultScenes.length-passed-bugs-acceptedRisk-needsAttention;
- let html='';
- for(const [key,{project,requirement:req,kind:sourceKind,change}] of reqs){
-  const entries=grouped.get(key)||[],done=entries.filter(executed).length;
-  const rows=entries.reduce((sum,{trace:t,scenario:s})=>sum+Math.max(1,t.bindings.filter(x=>x.scenario_id===s.id).length),0)||1;
-  const progress=entries.length?`已执行 ${done}/${entries.length} 个场景`:'未执行 · 尚无场景';
-  const source=`<td rowspan="${rows}"><span class="small">${esc(project.label||project.id)}</span><div>${sourceKind==='reverse'?'<span class="tag">白盒逆向 · '+esc(req.status||'')+'</span>':sourceKind==='scenario'?'<span class="tag">直接场景</span>':'<span class="tag">原始需求</span>'}</div><div class="title">${esc(req.id)}</div><span class="tag ${done===0?'pending':''}">${progress}</span>${block(req.text||'需求或规则文本缺失')}${req.origin?`<div class="small">来源：${esc(req.origin.reference)} · 定义版本 ${esc(req.version||'历史未登记')}</div>${(req.external_refs||[]).map(x=>`<div class="small">外部引用：${esc(x.locator)} @ ${esc(x.revision)}</div>`).join('')}`:''}${sourceKind==='reverse'?`<div class="small">${block('独立依据：'+(req.contract_source||req.basis_kind||''))}</div><div class="small">提交：${esc((change?.base_revision||'').slice(0,8))} → ${esc((change?.head_revision||'').slice(0,8))}</div>`:`<div class="small">${esc(req.source||'')}</div>`}</td>`;
-  if(!entries.length){html+=`<tr>${source}<td class="muted">尚无测试场景</td><td colspan="4" class="muted">尚未执行</td></tr>`;continue}
-  let first=true;
-  for(const {trace:t,scenario:s} of entries){
-   const results=new Map(t.case_results.map(x=>[x.binding_id,x]));
-   let bindings=t.bindings.filter(x=>x.scenario_id===s.id);
-   if(!bindings.length)bindings=[{id:'',title:'尚未准备用例／操作',kind:'pending'}];
-   for(const [index,b] of bindings.entries()){const r=results.get(b.id);
-    const stageLabel={frozen_definitions:'冻结场景定义',prepared:'用例准备中',local_debug_executed:'本地调试已执行，待冻结',awaiting_review:'待独立审查',scenario_approved:'场景设计已独立审查',scenario_self_checked:'场景已内部自审',reviewed:'执行已独立审查'}[t.stage]||t.stage||'未标记';
-    const span=` rowspan="${bindings.length}"`;
-    const scene=index===0?`<td${span}><span class="tag">${esc(s.priority)}</span>${s.kind==='WHITE_BOX'?'<span class="tag">白盒</span>':''}<span class="small">${esc(s.id)} · ${esc(stageLabel)}</span><div class="title">${esc(s.title)}</div>${block(s.description)}</td>`:'';
-    const ui=t.judgment.ui_review;
-    const uiBlock=ui?`<div class="small">UI：${esc({passed:'视觉通过',failed:'视觉缺陷',unverified:'未验证',not_applicable:'不适用'}[ui.status]||ui.status)} · ${esc(ui.reason||'')}${(ui.screenshots||[]).map(x=>`<div><a href="${esc(x.url)}" target="_blank" rel="noopener">查看冻结截图：${esc(x.label)}</a></div>`).join('')}</div>`:'';
-    const conclusion=index===0?`<td${span}>${status(t.judgment.status)}${block(t.judgment.reason||'')}${uiBlock}</td><td${span}>${cover(t.coverage)}</td>`:'';
-    html+=`<tr>${first?source:''}${scene}<td><span class="small">${esc(b.origin||'')} · ${esc(b.kind||'')}</span><div class="title">${esc(b.title)}</div>${b.test_file?`<div class="small">${esc(b.test_file)}</div>`:''}${b.procedure?block(b.procedure):''}</td><td>${status(executed({trace:t,scenario:s})?'executed':r?.status||'not_run')}${r?.evidence_url?`<div><a href="${esc(r.evidence_url)}" target="_blank" rel="noopener">查看原始日志</a></div>`:''}<div class="small">${esc(t.attempt_id)}</div></td>${conclusion}</tr>`;
-    first=false;
-   }
-  }
- }
- document.querySelector('#rows').innerHTML=html||'<tr><td colspan="6">暂无数据</td></tr>';
- clipButtons();
+ renderTraceTable(reqs,grouped);
+ const locate=document.querySelector('#traceLocate');
+ if(locate){const current=locate.value;locate.innerHTML='<option value="">定位需求／规则</option>'+[...reqs].map(([key,v])=>`<option value="${esc(key)}">${esc(v.presentation?.title||v.requirement.title||v.requirement.id)}</option>`).join('');locate.value=current;}
  const metric=(label,value,denominator)=>`<div class="metric"><span>${label}</span><strong>${value}/${denominator}</strong><span class="small">${denominator?Math.round(value/denominator*100)+'%':'暂无分母'}</span></div>`;
  document.querySelector('#metrics').innerHTML=metric('已有场景的需求／规则',linked,[...reqs.values()].filter(r=>r.kind==='original'||r.requirement.status!=='needs_confirmation').length)+metric('已执行场景',executedScenes,total)+
   metric('通过场景',passed,total)+metric('发现 BUG 场景',bugs,total)+metric('接受风险场景',acceptedRisk,total)+metric('需修复／受阻场景',needsAttention,total)+
@@ -124,8 +103,13 @@ function renderCoverage(){
  }).join('')||'<span class="muted">暂无可计算的执行数据</span>';
 }
 async function refresh(){try{const data=await(await fetch('/api/traces',{cache:'no-store'})).json();traces=data.traces;previews=data.progress?.previews||[];stages=data.progress?.stages||[];coverageRows=data.coverage;projectRows=data.project_state?.traces||null;const select=document.querySelector('#project'),current=select.value,options=[...new Map([...traces,...previews].map(x=>[x.project.id,x.project.label||x.project.id])).entries()];select.innerHTML='<option value="">全部项目</option>'+options.map(([id,label])=>`<option value="${esc(id)}">${esc(label)}</option>`).join('');select.value=current;render(projectRows||[...previews,...traces]);renderProgress(stages);renderCoverage();document.querySelector('#updated').textContent='最后更新：'+new Date().toLocaleString()}catch(e){document.querySelector('#updated').textContent='读取失败：'+e.message}}
+initRequirementDialog();
 document.querySelector('#project').addEventListener('change',()=>{render(projectRows||[...previews,...traces]);renderProgress(stages);renderCoverage()});document.querySelector('#coverageScope').addEventListener('change',renderCoverage);refresh();setInterval(refresh,5000);
 </script></body></html>'''
+
+HTML = HTML.replace('</style>', DIALOG_CSS + '</style>', 1).replace(
+    '</main>', '</main>' + DIALOG_HTML, 1).replace(
+    'const expanded=new Set();', 'const expanded=new Set();\n' + DIALOG_SCRIPT, 1)
 
 
 def coverage_inputs(traces, progress, trace_folders=None):
@@ -183,8 +167,10 @@ def serve(roots, port):
                     traces.append(trace)
                     trace_folders.append(str(path.parent.parent if path.parent.name.startswith('attempt-') else path.parent))
                 progress = collect_progress(roots, traces)
+                state = project_state(traces, progress)
+                attach_case_presentations(state["traces"])
                 raw, mime = json.dumps({"traces": traces, "progress": progress,
-                                        "project_state": project_state(traces, progress),
+                                        "project_state": state,
                                         "coverage": summarize(coverage_inputs(traces, progress, trace_folders))},
                                        ensure_ascii=False).encode(), "application/json; charset=utf-8"
             elif parsed.path == "/api/evidence":

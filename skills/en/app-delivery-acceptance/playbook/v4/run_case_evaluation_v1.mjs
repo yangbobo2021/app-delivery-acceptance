@@ -1,6 +1,8 @@
 // Human-facing description only. The host never uses this answer as a gate.
 import {readFileSync,writeFileSync,appendFileSync,mkdirSync,existsSync,unlinkSync} from 'node:fs';
-import {resolve,join} from 'node:path';
+import {resolve,join,dirname} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {performance} from 'node:perf_hooks';
 import {createAgentRuntime} from '../v3/runtime-path.mjs';
@@ -17,17 +19,19 @@ mkdirSync(output,{recursive:false});
 const binding={scene:input.scene.id,input_sha256:createHash('sha256').update(readFileSync(inputArg)).digest('hex'),
   answer_sha256:createHash('sha256').update(readFileSync(answerArg)).digest('hex')};
 writeFileSync(join(output,'input.json'),JSON.stringify({input,answer,binding},null,2)+'\n');
-const prompt=`你是用例评估Agent，只生成供人阅读的场景关联用例评估，不作产品验收判定，不参与任何执行控制。
-只读所选实际测试代码与必要Fixture/辅助函数，核对冻结需求、场景的条件、操作、预期与用例组的共同贡献。
-给出覆盖充分/部分/缺口/无法判断的描述和依据；分别说明覆盖不足、用例质量问题（含过度约束）和可能重复的范围。
-不能把附加消息文案约束和缺少关键业务断言混为一谈。相似名称、命中同一行和局部测试拼接均不足以证明完整链路。
-不得改代码、生成或查找一批替代用例、运行测试、修补、删除关联、过滤执行列表、调整场景或授权执行。
-前一个Agent的调试观察可作背景，明确本地调试与后续正式证据不同；无执行时不捏造。不能直接接受前一个Agent的覆盖声称。
-你的描述无论指出何种问题，都不会阻止后续执行；由用户阅读决策。不要返回passed/product_bug/repair_required等正式判定。
-只输出JSON：{"summary":"简明评估","coverage":"sufficient|partial|gap|uncertain","supported":["有依据的支持范围"],"gaps":["未支持或待确认项"],"quality_issues":["质量风险及其影响"],"redundancy":["可能重复的范围及理由，仅供参考"],"test_assessments":[{"test":"文件和测试项标识","contribution":"实际条件、步骤、断言与场景预期的对应依据","limitations":"限制"}]}。
-不创建自己的覆盖率统计或将静态评估冒充业务执行结果。源码工作区：${catalog.project_root}
-冻结输入：${JSON.stringify(input)}
-用例Agent结果：${JSON.stringify(answer)}`;
+const here=dirname(fileURLToPath(import.meta.url));
+const contract=readFileSync(resolve(here,'../../references/case-evaluation-contract.md'),'utf8');
+const context=JSON.parse(execFileSync('python3',[join(here,'case_evaluation_contract.py'),resolve(inputArg),resolve(answerArg)],{encoding:'utf8'}));
+writeFileSync(join(output,'context.json'),JSON.stringify(context,null,2)+'\n');
+const prompt=`你是用例评估 Agent，只评估当前场景关联用例的设计充分性、质量和取舍，供用户阅读，不作产品验收判定或执行控制。
+只读所选实际测试及必要 Fixture/辅助函数。不得改代码、查找或生成替代用例、运行测试、修补、删除关联、过滤执行列表或调整场景。
+前一 Agent 的调试观察仅作背景，不能接受其覆盖声称或冒充本次运行证据；无执行不捏造。不要输出 passed/product_bug/repair_required。
+遵循以下完整契约。提交前自查：每个必要缺口是否来自当前场景；有没有把可选增强当成缺口；重复判断是否对照双方实际断言；引用的路径、行号与连续原文是否准确；结论与逐项支持是否一致。无需追求问题数量。
+${contract}
+源码工作区：${catalog.project_root}
+宿主用例标识与可引用的当前场景文本：${JSON.stringify(context)}
+冻结输入（关联需求用于理解，不能替代当前场景范围）：${JSON.stringify(input)}
+用例 Agent 结果（待核对，不能直接采信）：${JSON.stringify(answer)}`;
 writeFileSync(join(output,'prompt.txt'),prompt);
 const agent=createAgentRuntime({directory:output});
 const result={agent_runtime:agent.metadata,binding,started_at:new Date().toISOString()};

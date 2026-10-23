@@ -1,5 +1,6 @@
 """Read-only project statistics: execution facts and confirmed results are separate."""
 from copy import deepcopy
+import json
 from datetime import datetime, timezone
 
 CONFIRMED = {'passed', 'product_bug', 'accepted_risk', 'repair_required', 'blocked', 'inconclusive'}
@@ -31,6 +32,19 @@ def confirmed_result(trace):
         return False
     # A draft/provisional Reviewer answer is not a confirmed result.
     return not trace.get('provisional') or trace.get('judgment_confirmed') is True
+
+
+def viewer_record(trace, scene_id):
+    """Copy actual record fields for reading; never infer per-test execution."""
+    bindings = [b for b in trace.get('bindings', []) if b.get('scenario_id') == scene_id]
+    ids = {b['id'] for b in bindings}
+    fields = ('project', 'attempt_id', 'generated_at', 'stage', 'judgment', 'current_links',
+              'definition_binding_sha256', 'judgment_confirmed_at', 'progress_folder')
+    record = {key: deepcopy(trace[key]) for key in fields if key in trace}
+    record['bindings'] = deepcopy(bindings)
+    record['case_results'] = deepcopy([r for r in trace.get('case_results', []) if r.get('binding_id') in ids])
+    record['execution_records'] = deepcopy(trace.get('execution_records_by_scene', {}).get(scene_id, []))
+    return record
 
 
 def project_state(traces, progress):
@@ -75,6 +89,17 @@ def project_state(traces, progress):
             row['requirements'] = deepcopy(current['requirements'])
             row['reverse_rules'] = deepcopy(current['reverse_rules'])
         row['execution_known'] = bool(by_execution)
+        # Preserve the exact attempts behind the aggregate row. Catalog entries
+        # and a new preparation are not additional executions.
+        history, seen = [], set()
+        for candidate, _, _ in sorted(by_execution, key=key, reverse=True):
+            record = viewer_record(candidate, scene_id)
+            identity = json.dumps(record, sort_keys=True, ensure_ascii=False)
+            if identity not in seen:
+                seen.add(identity)
+                history.append(record)
+        row['execution_history'] = history
+        row['judgment_record'] = viewer_record(chosen[0], scene_id) if chosen else None
         row['provisional'] = False
         row['judgment'] = deepcopy(chosen[0]['judgment']) if chosen else {
             'status': 'pending_review' if by_execution else 'not_run',

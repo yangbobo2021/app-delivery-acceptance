@@ -20,6 +20,9 @@ from project_statistics import project_state
 from coverage_views import summarize
 from serve import HTML, coverage_inputs
 from evidence_store import resolve as resolve_artifact, verify_import_trace
+from static_case_views import static_case_associations, attach_static_associations
+from case_presentations import attach_case_presentations
+from requirement_views import attach_requirement_presentations
 
 SKIP = {"checkout", "worktrees", "node_modules", ".git", ".acceptance", ".acceptance-local", "__pycache__"}
 
@@ -178,11 +181,21 @@ class ProjectView:
             workspace = local / 'workspace'
             for case in cases.get('cases', []):
                 files.extend(inside(workspace, item['path']) for item in case.get('files', []))
+        static_tests = shared / 'tests.json'
+        if static_tests.is_file():
+            try:
+                value = read(static_tests)
+                if value.get('schema') == 'static-existing-tests-v1':
+                    files.extend(inside(local / 'workspace', test['file']) for test in value.get('tests', []))
+            except (ValueError, OSError, KeyError, TypeError):
+                pass  # The loader reports malformed optional associations in warnings.
         from evidence_store import index
         for item in index(self.root, selected).values():
             kind, name = item['storage'].split(':', 1)
             files.append(inside(local if kind == 'local' else shared, name))
         files.extend([Path(__file__), Path(__file__).with_name('coverage_views.py'),
+                      Path(__file__).with_name('static_case_views.py'),
+                      Path(__file__).with_name('case_presentations.py'),
                       Path(__file__).parents[2] / 'playbook/v4/coverage_protocol.py',
                       Path(__file__).parents[1] / 'coverage-istanbul/provider.mjs',
                       Path(__file__).parents[1] / 'coverage-istanbul/evidence-transport.mjs'])
@@ -545,6 +558,16 @@ class ProjectView:
         payload.update(traces=traces, progress=progress,
                        project_state=project_state(all_traces, current_progress_for_catalog(progress) if catalog.is_file() else progress),
                        coverage=measured)
+        # Associations are independent of which execution attempt is displayed.
+        # In particular, catalog-only scenes must retain their unexecuted state.
+        if catalog.is_file():
+            try:
+                associations = static_case_associations(shared, local, selected, catalog_ids)
+                attach_static_associations(payload['project_state']['traces'], associations)
+            except (ValueError, OSError, KeyError, TypeError) as error:
+                payload['warnings'].append('静态用例关联读取失败；执行记录保持不变：' + str(error))
+        attach_case_presentations(payload['project_state']['traces'], shared)
+        attach_requirement_presentations(payload['project_state']['traces'], shared)
         # Coverage-only captures replace no business judgment. Attach each proved
         # capture only to its actual scene/revision, retaining the original time.
         from coverage_views import artifact_mapping
@@ -620,7 +643,7 @@ class ProjectView:
 
 def project_html():
     html = HTML.replace('<section class="panel" id="activePanel"',
-        '<section class="panel"><div class="toolbar"><label>验收测试 ID <select id="acceptanceId" disabled><option value="">正在读取验收列表…</option></select></label>'
+        '<section class="panel"><div class="toolbar"><label>验收测试 ID <select id="acceptanceId" aria-label="验收测试 ID" disabled><option value="">正在读取验收列表…</option></select></label>'
         '<span id="acceptanceListStatus" class="small"></span><span id="acceptanceScope" class="small"></span><span id="currentAcceptance" class="small"></span></div><p id="acceptanceWorkspace" class="small"></p><p id="acceptanceWarning" class="small"></p></section>'
         '<section class="panel" id="activePanel"', 1)
     html = html.replace('分母 <select id="coverageScope">', '统计范围 <select id="coverageScope">')
@@ -631,8 +654,6 @@ def project_html():
     # A project view already selects one acceptance within one project root.
     html = html.replace('<label>项目 <select id="project"><option value="">全部项目</option></select></label>', '')
     html = html.replace('<th>独立结论</th><th>代码覆盖率</th>', '<th>独立结论</th>')
-    html = html.replace('colspan="4"', 'colspan="3"').replace('colspan="6"', 'colspan="5"')
-    html = html.replace('</style>', 'th:nth-child(1){width:18%}th:nth-child(2){width:22%}th:nth-child(3){width:26%}th:nth-child(4){width:14%}th:nth-child(5){width:20%}.conclusion-preview.clamp{display:block;max-height:4.5em}.conclusion-preview.clamp.open{max-height:none}</style>', 1)
     html = html.replace('<p id="acceptanceWarning" class="small"></p>',
         '<p id="acceptanceWarning" class="small">正在读取已保存的验收资料……</p>')
     html = html.replace("场景指标统一以项目全部场景数为分母。", "场景指标以所选交付测试的完整冻结场景集合为分母。")
@@ -646,19 +667,6 @@ window.addEventListener('unhandledrejection',event=>{
  if(warning)warning.textContent='视图读取失败：'+String(event.reason);
 });
 </script><script>''', 1)
-    cover_start = html.index('function cover(c){')
-    cover_end = html.index('function render(items){', cover_start)
-    html = html[:cover_start] + r'''function conclusionBlock(t,s,uiBlock=''){
- const key=JSON.stringify(['conclusion',document.querySelector('#acceptanceId').value,t.project.id,s.id]),open=expanded.has(key);
- const links=Object.entries(t.current_links||{}).map(([label,url])=>`<div><a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a></div>`).join('');
- const applicability={matches_current:'与当前定义一致；产品版本仍按实际记录',equivalent_by_assessment:'经 Agent 对照判定定义等价；保留原执行版本',needs_revalidation:'当前定义已变，需复验',unknown:'尚无可核对的当前定义结论'}[t.definition_applicability]||'';
- return `${status(t.judgment.status)}${uiBlock}<div class="small">${esc(applicability)}</div><div class="clamp conclusion-preview${open?' open':''}"><div>${esc(t.judgment.reason||'')}</div>${links}</div><button type="button" data-expand="${esc(key)}" data-more="展开查看更多" aria-expanded="${open}" onclick="toggleBlock(this)">${open?'收起':'展开查看更多'}</button>`;
-}
-''' + html[cover_end:]
-    html = html.replace("${status(t.judgment.status)}${block(t.judgment.reason||'')}${uiBlock}</td><td${span}>${cover(t.coverage)}</td>", '${conclusionBlock(t,s,uiBlock)}</td>')
-    html = html.replace("button.textContent=expanded.has(key)?'收起':'展开'", "button.textContent=expanded.has(key)?'收起':button.dataset.more||'展开';button.setAttribute('aria-expanded',String(expanded.has(key)))")
-    html = html.replace('${esc(b.test_file)}</div>', '${block(b.test_file)}</div>')
-    html = html.replace("${b.test_file?", "${t.workspace_case?`<div class=\"small\">${t.workspace_case.integration_status==='committed_to_pr_branch'?'项目回归入口：':'用例入口：'}${esc(t.workspace_case.command.join(' ')||'历史证据审计，未纳入自动回归')}</div>${block(t.workspace_case.files.map(f=>f.path).join('\\n'))}<div class=\"small\">${t.workspace_case.integration_status==='committed_to_pr_branch'?'已提交至 PR 分支；':''}此处保留原确认结论和历史执行绑定。</div>`:''}${b.test_file?", 1)
     start = html.index('function renderCoverage(){')
     end = html.index('async function refresh(){', start)
     html = html[:start] + r'''
@@ -683,7 +691,7 @@ document.querySelector('#coverageVersion').addEventListener('change',()=>{select
     start = html.index('async function refresh(){')
     end = html.index("document.querySelector('#project').addEventListener", start)
     html = html[:start] + r'''
-let refreshSequence=0,refreshInFlight=false,inventoryReady=false,inventoryInFlight=false;
+let refreshSequence=0,refreshInFlight=false,inventoryReady=false,inventoryInFlight=false,loadedAcceptanceId='',lastLoadedAt='';
 const initialId=new URL(location.href).searchParams.get('acceptance_id')||'';
 async function loadAcceptances(){
  if(inventoryInFlight)return;inventoryInFlight=true;
@@ -720,34 +728,36 @@ async function refresh(){
   document.querySelector('#acceptanceWarning').textContent=(data.warnings||[]).join(' ');
   traces=data.traces;previews=data.progress?.previews||[];stages=data.progress?.stages||[];
   coverageRows=data.coverage;projectRows=data.project_state?.traces||[];
+  traceComplete=!!data.denominator_complete;loadedAcceptanceId=data.acceptance_id;
   render(projectRows);renderProgress(stages);renderCoverage();
   if(!data.denominator_complete){document.querySelector('#metrics').innerHTML='<span class="muted">项目场景清单不完整，暂不计算项目场景比例。</span>';document.querySelector('#resultBalance').textContent='';}
-  document.querySelector('#updated').textContent='最后更新：'+new Date().toLocaleString();
+  lastLoadedAt=new Date().toLocaleString();document.querySelector('#updated').textContent='最后更新：'+lastLoadedAt;
  }catch(e){
   if(seq!==refreshSequence)return;
-  document.querySelector('#acceptanceWorkspace').textContent='';
-  traces=[];previews=[];stages=[];coverageRows=[];projectRows=[];
-  render([]);renderProgress([]);renderCoverage();
-  document.querySelector('#acceptanceWarning').textContent='当前验收读取失败，已清空上一验收数据：'+e.message;
-  document.querySelector('#updated').textContent='读取失败：'+e.message;
+  if(loadedAcceptanceId!==requested){
+   traces=[];previews=[];stages=[];coverageRows=[];projectRows=[];
+   render([]);renderProgress([]);renderCoverage();
+  }
+  document.querySelector('#acceptanceWarning').textContent='当前验收读取失败：'+e.message+(loadedAcceptanceId===requested?'。保留最近成功读取的快照，更新前请核对时间。':'。当前未加载数据。');
+  document.querySelector('#updated').textContent=(loadedAcceptanceId===requested?'最近成功读取：'+lastLoadedAt+'；本次读取失败：':'读取失败：')+e.message;
  }finally{if(seq===refreshSequence)refreshInFlight=false;}
 }
 document.querySelector('#acceptanceId').addEventListener('change',()=>{
- refreshSequence++;refreshInFlight=false;
+ refreshSequence++;refreshInFlight=false;loadedAcceptanceId='';lastLoadedAt='';traceComplete=false;traceReset();
  selectedCoverageKey='';
  document.querySelector('#acceptanceWorkspace').textContent='';
  document.querySelector('#acceptanceScope').textContent='';
  document.querySelector('#acceptanceWarning').textContent='';
  document.querySelector('#updated').textContent='正在读取所选验收资料……';
  traces=[];previews=[];stages=[];coverageRows=[];projectRows=[];
- render([]);renderProgress([]);renderCoverage();refresh();
+ render([]);renderProgress([]);renderCoverage();document.querySelector('#metrics').innerHTML='<span class="muted">正在读取所选验收资料……</span>';document.querySelector('#resultBalance').textContent='';refresh();
 });
 ''' + html[end:]
     html = html.replace("document.querySelector('#project').value", "''")
     html = html.replace("document.querySelector('#project').addEventListener('change',()=>{render(projectRows||[...previews,...traces]);renderProgress(stages);renderCoverage()});", '')
     html = html.replace("document.querySelector('#coverageScope').addEventListener('change',renderCoverage)",
                         "document.querySelector('#coverageScope').addEventListener('change',()=>{renderCoverage();render(projectRows||[]);})")
-    html = html.replace('refresh();setInterval(refresh,5000);', 'loadAcceptances();setInterval(refresh,5000);setInterval(loadAcceptances,30000);')
+    html = html.replace('refresh();setInterval(refresh,5000);', 'initRequirementDialog();loadAcceptances();setInterval(refresh,5000);setInterval(loadAcceptances,30000);')
     return html
 
 

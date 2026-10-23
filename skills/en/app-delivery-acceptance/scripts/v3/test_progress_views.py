@@ -26,6 +26,23 @@ class ProgressViewTests(unittest.TestCase):
         self.scene = {'id': 'SC-1', 'requirement_id': 'REQ-1', 'title': 'Add task',
                       'description': 'The task is saved', 'priority': 'P0'}
 
+    def test_explicit_stop_after_evaluation_is_not_displayed_as_running(self):
+        folder = self.root / 'stopped-case'
+        save(folder / 'request.frozen.json', {'progress_schema': 'single-agent-scene-v1',
+             'project': self.project, 'scene': self.scene, 'requirements': [self.requirement], 'case_catalog': []})
+        state = {'stopped_after': 'case-evaluation', 'stages': {
+            'prepare': {'status': 'completed'}, 'case': {'status': 'completed'}}}
+        save(folder / 'state.json', state)
+        save(folder / 'case-evaluation.json', {'status': 'unavailable'})
+        progress = collect([], [], request_paths=[folder / 'request.frozen.json'])
+        self.assertEqual(progress['stages'][0]['state'], 'queued')
+        self.assertIn('正式执行未开始', progress['stages'][0]['detail'])
+        self.assertEqual(project_state([], progress)['projects'][0]['executed_count'], 0)
+        state['stages']['execution'] = {'status': 'running'}
+        save(folder / 'state.json', state)
+        progress = collect([], [], request_paths=[folder / 'request.frozen.json'])
+        self.assertEqual(progress['stages'][0]['state'], 'running')
+
     def debug_fixture(self, exit_code=0):
         """Synthetic bound receipt only; no project command is executed."""
         folder = self.root / '.acceptance-local/AT-fixture/workflows/case'
