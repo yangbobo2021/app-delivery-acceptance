@@ -21,6 +21,8 @@ from acceptance_store import initialize, read_knowledge, publish_catalog, read, 
 from acceptance_definitions import binding, scene_input
 from acceptance_workspace import workspace_lease, finish_scene
 from case_discovery_contract import validate
+from case_identity import verify as verify_identity, MARKER
+from existing_case_policy import verify as verify_policy
 
 
 def identity_checks(answer, expected, workspace):
@@ -117,7 +119,7 @@ def run_project(spec, gold, output, mode):
               'workspace_policy': 'single-acceptance-v1', 'source_checkout': str(root)}
     catalog = {'schema': 'portable-project-catalog-v1', **config, 'project_root': str(workspace),
         'revision': git(workspace, 'rev-parse', 'HEAD'), 'components': [], 'test_roots': [],
-        'source_roots': [], 'write_roots': [], 'coverage': {'policy': 'off'},
+        'source_roots': [], 'write_roots': sorted({str(Path(p).parent) for p in spec['source_hashes'] if str(Path(p).parent) != '.'}), 'coverage': {'policy': 'off'},
         'source_hashes': spec['source_hashes'], 'runner_hints': []}
     save(local / 'catalog.json', catalog)
     save(local / 'guide.json', {'summary': 'Discover test locations and commands from the project itself.',
@@ -145,10 +147,13 @@ def run_project(spec, gold, output, mode):
                 metrics = read(folder / 'metrics.json')
                 if row['exit_code'] != 0 or metrics.get('status') != 'success' or not metrics.get('discovery_validated'):
                     raise ValueError('Native finder did not return a validated result')
-                canonical = validate(read(folder / 'answer.json'), value, workspace,
-                                     read(folder / 'existing-files.json'), discovery_only=mode == 'discovery')
+                canonical = read(folder / 'answer.json')
+                verify_policy(catalog, read(folder / 'existing-files.json'), canonical)
+                verify_identity(canonical, workspace, scene_id=scene['id'], acceptance_id=at)
+                canonical = validate(canonical, value, workspace, discovery_only=mode == 'discovery')
                 row['identity_errors'] = identity_checks(canonical, gold[spec['id']][scene['id']], workspace)
-                row['source_unchanged'] = all(digest(workspace / p) == sha for p, sha in spec['source_hashes'].items())
+                row['source_unchanged'] = all(hashlib.sha256(b''.join(line for line in (workspace / p).read_bytes().splitlines(keepends=True) if not MARKER.fullmatch(line.decode('utf-8').rstrip('\r\n')))).hexdigest() == sha for p, sha in spec['source_hashes'].items())
+                row['case_ids'] = [c['id'] for c in canonical['case_descriptions']]
                 row['checks_passed'] = not row['identity_errors'] and row['source_unchanged']
                 row['runtime'] = metrics['agent_runtime']
             except (ValueError, OSError, KeyError) as error:
@@ -180,6 +185,7 @@ def main():
     args.output.mkdir(parents=True)
     implementation = {str(p.relative_to(SKILL)): digest(p) for p in [
         SKILL / 'playbook/v4/run_case_guided_v6.mjs', SKILL / 'playbook/v4/case_discovery_contract.py',
+        SKILL / 'playbook/v4/case_identity.py', SKILL / 'playbook/v4/existing_case_policy.py',
         SKILL / 'references/case-discovery-contract.md', SKILL / 'references/case-display-contract.md',
         SKILL / 'references/case-search-guidance.md']}
     metadata = {'implementation': implementation, 'suite_sha256': digest(suite_root / 'suite.json'),

@@ -15,6 +15,7 @@ from acceptance_store import initialize, read_knowledge, publish_catalog, read, 
 from acceptance_definitions import binding, scene_input
 from acceptance_workspace import workspace_lease, finish_scene
 from run_case_discovery_forward import git, run_bounded
+from case_identity import verify as verify_identity
 
 # Expectations and mutations remain in this harness, outside Agent workspaces.
 CASES = [
@@ -94,8 +95,11 @@ def run_case(spec, output):
             actions=[c['action'] for c in report.get('decisions',[])]
             found=read(folder/'case-reuse-discovery.json')['discovery']['case_descriptions']
             row['found_cases']=[c['source'] for c in found];row['final_cases']=answer.get('case_descriptions',[])
-            if spec['expect']=='reuse' and (not found or not actions or any(a!='reuse' for a in actions) or changed):
-                errors.append('Complete existing support should be reused without editing tests')
+            identities=verify_identity(answer,workspace,scene_id='SC-1',acceptance_id=at)
+            row['case_ids']=[c['id'] for c in answer['case_descriptions']]
+            non_id_changes=set(git(workspace,'diff','--name-only','HEAD').splitlines())-set(identities['patches'])
+            if spec['expect']=='reuse' and (not found or not actions or any(a!='reuse' for a in actions) or non_id_changes):
+                errors.append('Complete existing support should be reused with only host ID annotations')
             if spec['expect']=='supplement' and (not found or not any(a in ('extend','new') for a in actions) or not changed):
                 errors.append('Partial existing support should be retained/extended and its gap filled')
             if spec['expect']=='new' and (found or 'new' not in actions or not changed):
@@ -141,6 +145,7 @@ def main():
     with (args.output/'preflight.json').open('w') as stream:
         subprocess.run(['node',str(SKILL/'playbook/agent-preflight.mjs')],check=True,stdout=stream)
     files=['playbook/v4/run_case_guided_v6.mjs','playbook/v4/case_reuse.py','playbook/v4/case_discovery_contract.py',
+           'playbook/v4/case_identity.py','playbook/v4/existing_case_policy.py',
            'references/case-search-guidance.md','references/case-reuse-contract.md','references/case-discovery-contract.md',
            'references/case-display-contract.md','tests/run_case_reuse_forward.py']
     report={'schema':'case-reuse-forward-results-v1','implementation':{name:digest(SKILL/name) for name in files},'rows':[]}

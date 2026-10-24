@@ -20,9 +20,9 @@ const debug=JSON.parse(execFileSync('python3',[fileURLToPath(new URL('./debug_ca
  'create',resolve(catalogArg),resolve(inputArg),join(out,'debug-contract.json')],{encoding:'utf8'}));
 mkdirSync(debug.request_root,{recursive:true});
 const git=(...x)=>execFileSync('git',x,{cwd:root,encoding:'utf8'}).trim();
-const roots=(catalog.write_roots??catalog.test_roots).map(x=>x.replace(/\/$/,'')+'/');
+const roots=(catalog.write_roots??catalog.test_roots).map(x=>x.replace(/\/$/,''));
 const changed=git('diff','--name-only','HEAD').split('\n').filter(Boolean);
-if(git('rev-parse','HEAD')!==catalog.revision||changed.some(x=>!roots.some(root=>x.startsWith(root))))throw Error('source revision changed');
+if(git('rev-parse','HEAD')!==catalog.revision||changed.some(x=>!roots.some(root=>x===root||x.startsWith(root+'/'))))throw Error('source revision changed');
 const brief={acceptance_knowledge:acceptanceKnowledge,revision:catalog.revision,test_roots:catalog.test_roots,runner_hints:catalog.runner_hints,
  guide_summary:guide.summary,fixture_isolation:guide.fixture_isolation,
  environment_contract:(guide.environment_contract??[]).filter(x=>x.must_match&&x.must_match!=='无')};
@@ -76,4 +76,11 @@ writeFileSync(join(out,'answer.txt'),raw+'\n');try{writeFileSync(join(out,'answe
 const metrics={agent_runtime:agent.metadata,model:agent.metadata.model,effort:agent.metadata.effort,seconds:(performance.now()-t)/1000,tool_calls:calls,status:done?.status,usage:done?.usage,
  ...(resume?{resumed_from_session:resumeSession}:{}),
  head_after:git('rev-parse','HEAD'),tracked_changes:git('diff','--name-only','HEAD')};
+if(metrics.status==='success'&&existsSync(join(out,'answer.json'))){
+ try{
+  if(JSON.parse(readFileSync(join(out,'answer.json'),'utf8')).case_identity)throw Error('Agent must not manufacture host identity reports');
+  execFileSync('python3',[fileURLToPath(new URL('./case_identity.py',import.meta.url)),resolve(catalogArg),resolve(inputArg),out],{encoding:'utf8',maxBuffer:16*1024*1024});
+  metrics.identities_validated=true;
+ }catch(e){metrics.status='error';metrics.error='Case identity finalization failed: '+String(e.stderr??e.message);}
+}
 writeFileSync(join(out,'metrics.json'),JSON.stringify(metrics,null,2)+'\n');console.log(JSON.stringify(metrics));

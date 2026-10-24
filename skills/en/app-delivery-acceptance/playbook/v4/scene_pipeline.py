@@ -225,7 +225,7 @@ def collect_files(root, answer, catalog):
         raise ValueError("Agent did not declare test files")
     untracked = git(root, "ls-files", "--others", "--exclude-standard").splitlines()
     changed = git(root, "diff", "--name-only", "HEAD").splitlines()
-    roots = tuple(x.rstrip("/") + "/" for x in catalog.get("write_roots", []))
+    roots = tuple(x.rstrip("/") for x in catalog.get("write_roots", []))
     all_names = sorted(set(declared) | set(untracked) | set(changed) |
                        set(catalog.get('coverage_test_files', {})))
     for name in all_names:
@@ -233,7 +233,7 @@ def collect_files(root, answer, catalog):
         if not path.is_relative_to(root) or not path.is_file():
             raise ValueError("test artifact missing/outside worktree: " + name)
         if name in set(untracked) | set(changed):
-            if not name.startswith(roots):
+            if not any(name == scope or name.startswith(scope + '/') for scope in roots):
                 raise ValueError("Agent changed a file outside declared test roots: " + name)
     return all_names
 

@@ -90,6 +90,20 @@ def main():
         errors.append("selected test files missing")
     before = receipt.get("test_file_sha256_before", {})
     after = receipt.get("test_file_sha256_after", {})
+    if request.get('agent_result_path'):
+        try:
+            answer = json.loads(Path(request['agent_result_path']).read_text())
+            if answer.get('case_identity'):
+                from case_identity import verify as verify_identity
+                # Coverage may execute a verified import adapter; identity binds the
+                # original file, whose adapter preimage was checked above.
+                identity_hashes = dict(before)
+                for name, adapter in (build or {}).get('test_import_adapters', {}).items():
+                    identity_hashes[name] = adapter['original_sha256']
+                verify_identity(answer, root, scene_id=request.get('scene', {}).get('id'),
+                                acceptance_id=request.get('acceptance', {}).get('id'), receipt_hashes=identity_hashes)
+        except (KeyError, OSError, ValueError) as error:
+            errors.append('invalid selected case identity: ' + str(error))
     if receipt:
         if set(before) != set(paths) | extra_bound or set(after) != set(paths) | extra_bound:
             errors.append("test-file receipt does not bind exactly the selected files")

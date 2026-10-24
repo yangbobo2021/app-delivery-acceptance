@@ -29,7 +29,16 @@ def snapshot(catalog):
 
 
 def verify(catalog, baseline, answer=None):
-    if snapshot(catalog) != baseline:
+    expected = json.loads(json.dumps(baseline))
+    if answer is not None and answer.get('case_identity'):
+        from case_identity import verify as verify_identity
+        report = verify_identity(answer, catalog['project_root'])
+        for name, patch in report['patches'].items():
+            item = expected['files'].get(name)
+            if not item or item.get('sha256') != patch['before_sha256'] or item.get('mode') != patch['mode']:
+                raise ValueError('ID annotation does not match finder startup bytes/mode')
+            item['sha256'] = patch['after_sha256']
+    if snapshot(catalog) != expected:
         raise ValueError('existing_only forbids source/test changes, additions or deletions')
     if answer is not None:
         for name in answer.get('test_files', []):

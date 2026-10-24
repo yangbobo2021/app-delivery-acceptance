@@ -63,6 +63,17 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(len(self.git('worktree','list','--porcelain').split('worktree '))-1,2)
         self.assertFalse((self.out/'checkout').exists())
 
+    def test_exact_test_file_scope_accepts_id_comment_without_allowing_sibling_files(self):
+        root=self.create();name='root_case.fixture';path=root/name
+        path.write_text('# @case-id: fixture\ncase correct\n')
+        catalog=self.catalog(root);catalog['test_roots']=[name];catalog['write_roots']=[name]
+        verify_frozen_workspace(self.config,catalog)
+        from scene_pipeline import collect_files
+        self.assertEqual(collect_files(root,{'test_files':[name]},catalog),[name])
+        sibling=root/(name+'.other');sibling.write_text('unrelated file\n')
+        with self.assertRaisesRegex(ValueError,'outside'):verify_frozen_workspace(self.config,catalog)
+        with self.assertRaisesRegex(ValueError,'outside'):collect_files(root,{'test_files':[name]},catalog)
+
     def test_process_lock_and_persistent_interruption_owner(self):
         self.create()
         with workspace_lease(self.config,self.out,scene=True):

@@ -83,3 +83,7 @@ Use these definitions in every overview, JSON summary and scene row; see [the st
 Project result retention does not certify a new revision: preserve the real version/receipt/review sources, keep coverage scoped to its actual collection, and use the existing same-version completion gate for a release or PR-wide acceptance claim. Do not rewrite frozen evidence or rerun cases merely to make counters reconcile.
 
 Do not call partial verification full acceptance. A requirement is accepted only when its scene list sufficiently covers the requirement, every admitted scene has a credible passed execution and independent judgment on the current frozen version, and no related blockers or exclusions are hidden. Under v4 the scene list has internal self-check rather than independent approval; disclose that assurance level when claiming sufficiency. Report product BUGs, test repairs, missing evidence, untested scope and coverage limits separately. A white-box/source rule cannot be passed merely because the implementation contains it.
+
+### 用例永久身份
+
+查找已有用例、实现和差量修复统一遵守 [用例 ID 合同](references/case-display-contract.md#永久用例-id关联后由宿主统一落地)。实际采用的测试项由宿主补充普通源码 ID 注释，在正式执行前核对身份和引用；查找 Agent 本身仍不得改代码。`existing_only` 只例外允许经过宿主精确补丁校验的 ID 注释，不允许测试逻辑、配置或文件集合变更。保留项目共享 `.acceptance/case-identities.json` 和候选代码中的注释，跨场景、跨验收复用 ID；评估、复审和结果归档沿用该身份，旧凭证不改写。生成器和修复器保留现有标记，不复制 ID 给新测试。源码注释语法或独立声明无法可靠定位时明确报告限制。

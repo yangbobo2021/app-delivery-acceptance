@@ -570,6 +570,16 @@ def v4_result_files(source):
     paths = [source / name for name in ['request.frozen.json', 'state.json', 'summary.json']]
     paths += [answer, review, review.with_name('input.json'), review.with_name('metrics.json'),
               review.with_name('decision-gate.json'), receipt, receipt.with_name('execution.log'), coverage]
+    identity = read(answer).get('case_identity')
+    if identity:
+        identity_path = bound(identity['path'])
+        if digest(identity_path) != identity['sha256']:
+            raise ValueError('case identity report changed before archive')
+        original_answer = answer.with_name('answer.agent.json')
+        if digest(original_answer) != read(identity_path)['raw_answer_sha256']:
+            raise ValueError('original Agent answer changed before archive')
+        paths.append(identity_path)
+        paths.append(original_answer)
     # Optional human-facing description. Its presence/content is never a verdict gate.
     for name in ('case-evaluation.json', 'case-evaluation.md'):
         if (source / name).is_file():

@@ -1,0 +1,451 @@
+{
+  "schema": "case-identity-acceptance-results-v1",
+  "date": "2026-10-23",
+  "feature_verdict": "passed",
+  "environment": {
+    "os": "macOS",
+    "agent": "codex",
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "other_os": "Linux and Windows not natively tested in this change"
+  },
+  "automatic": {
+    "full_regression": 574,
+    "modules": 56,
+    "focused_identity_latest": 20,
+    "node_tests": 25,
+    "all_passed": true,
+    "count_note": "Focused tests overlap with the full regression; the final documentation-example test also passed in the focused suite."
+  },
+  "implementation": {
+    "playbook/v4/case_identity.py": "1ea588384cbd9f6b406a069554aa08e53c793d050ecc80e15e1ccaaeccf76900",
+    "playbook/v4/run_case_guided_v6.mjs": "72a5e2cf3dfb9fbb1ed2b509bc0bd4f5ec8deb05ee79b33c3b2d3ed334aa0bf1",
+    "playbook/v4/repair_case_delta_v3.mjs": "b6aac7c3fefb3bd10b07e9216d05ef263ae299b77ea123a002cebff34ec2a749",
+    "playbook/v4/existing_case_policy.py": "d8249237f554f0238fac9b937e2f0ee5b0e06e8e0217afe4ca91f82684ae479a",
+    "playbook/v4/review_handoff_gate_v2.py": "55c99c418e438064ce080ee29fee94b81b6aa1eb06de33006382172ffdffb85a",
+    "playbook/v4/scene_pipeline.py": "e549aef0620ba3abfd653fe61c10365b5df18aa4a5f08537bf3b6c594330fe5f",
+    "scripts/acceptance_workspace.py": "23542624d6680efb8dd98cdb82f565f8d2eb1bd8a078dee6ed47795818625700",
+    "scripts/acceptance_store.py": "6afd3e2c301b92dafcf1ff021ffafb5bfbf6af9e3dc6c1a58058634357c11ac8",
+    "references/case-display-contract.md": "ec3e222f39800e55b562bb73b02272a5b0a0cde1c318e38a4138badbc1ad1e2f"
+  },
+  "native_reuse_and_generation": [
+    {
+      "id": "settings-a",
+      "expected": "new",
+      "checks_passed": true,
+      "case_ids": [
+        "TC-f7ba16a1-fd59-4237-93a4-478875bbe102"
+      ],
+      "output": "/private/tmp/case-id-acceptance/reuse-r1/settings-a/.acceptance-local/AT-reuse-settings-a/workflows/SC-1",
+      "runtime": {
+        "schema": "acceptance-agent-runtime-v1",
+        "agent": "codex",
+        "model": "gpt-6.1-sol",
+        "effort": "high",
+        "service": {
+          "provider": "openai",
+          "base_url": null
+        },
+        "model_source": "caller",
+        "sdk": {
+          "package": "@openai/codex-sdk",
+          "version": "0.162.1"
+        },
+        "implementation_sha256": "c7034429dc55c460e5f35cb3120b1cb44af0017aae3f77fd7fd7e668bddb491c"
+      },
+      "confirmation_exit": 0,
+      "mutation_runs": [
+        {
+          "file": "src/settings.py",
+          "exit_code": 1,
+          "log": "/private/tmp/case-id-acceptance/reuse-r1/settings-a/.acceptance-local/AT-reuse-settings-a/mutation-0.log"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "accounts-c",
+      "expected": "supplement_new",
+      "checks_passed": true,
+      "case_ids": [
+        "TC-0b4d12f7-0393-4286-8383-ad9b25c27308",
+        "TC-933dde4d-2b6a-4848-b175-701ede782e74"
+      ],
+      "output": "/private/tmp/case-id-acceptance/reuse-r1/accounts-c/.acceptance-local/AT-reuse-accounts-c/workflows/SC-1",
+      "runtime": {
+        "schema": "acceptance-agent-runtime-v1",
+        "agent": "codex",
+        "model": "gpt-6.1-sol",
+        "effort": "high",
+        "service": {
+          "provider": "openai",
+          "base_url": null
+        },
+        "model_source": "caller",
+        "sdk": {
+          "package": "@openai/codex-sdk",
+          "version": "0.162.1"
+        },
+        "implementation_sha256": "c7034429dc55c460e5f35cb3120b1cb44af0017aae3f77fd7fd7e668bddb491c"
+      },
+      "confirmation_exit": 0,
+      "mutation_runs": [
+        {
+          "file": "ledger.py",
+          "exit_code": 1,
+          "log": "/private/tmp/case-id-acceptance/reuse-r1/accounts-c/.acceptance-local/AT-reuse-accounts-c/mutation-0.log"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "web-session-a",
+      "expected": "reuse",
+      "checks_passed": true,
+      "case_ids": [
+        "TC-57073f27-7dcd-4a45-8f5c-d3c03a40c94f",
+        "TC-83705404-6031-40f1-9eee-df565c622c91"
+      ],
+      "output": "/private/tmp/case-id-acceptance/reuse-r1/web-session-a/.acceptance-local/AT-reuse-web-session-a/workflows/SC-1",
+      "runtime": {
+        "schema": "acceptance-agent-runtime-v1",
+        "agent": "codex",
+        "model": "gpt-6.1-sol",
+        "effort": "high",
+        "service": {
+          "provider": "openai",
+          "base_url": null
+        },
+        "model_source": "caller",
+        "sdk": {
+          "package": "@openai/codex-sdk",
+          "version": "0.162.1"
+        },
+        "implementation_sha256": "c7034429dc55c460e5f35cb3120b1cb44af0017aae3f77fd7fd7e668bddb491c"
+      },
+      "confirmation_exit": 0,
+      "mutation_runs": [
+        {
+          "file": "src/session.mjs",
+          "exit_code": 1,
+          "log": "/private/tmp/case-id-acceptance/reuse-r1/web-session-a/.acceptance-local/AT-reuse-web-session-a/mutation-0.log"
+        },
+        {
+          "file": "src/session.mjs",
+          "exit_code": 1,
+          "log": "/private/tmp/case-id-acceptance/reuse-r1/web-session-a/.acceptance-local/AT-reuse-web-session-a/mutation-1.log"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "preview-a",
+      "expected": "reuse",
+      "checks_passed": true,
+      "case_ids": [
+        "TC-af2413f5-d066-43df-a54f-6f2f6d312a8b"
+      ],
+      "output": "/private/tmp/case-id-acceptance/reuse-r1/preview-a/.acceptance-local/AT-reuse-preview-a/workflows/SC-1",
+      "runtime": {
+        "schema": "acceptance-agent-runtime-v1",
+        "agent": "codex",
+        "model": "gpt-6.1-sol",
+        "effort": "high",
+        "service": {
+          "provider": "openai",
+          "base_url": null
+        },
+        "model_source": "caller",
+        "sdk": {
+          "package": "@openai/codex-sdk",
+          "version": "0.162.1"
+        },
+        "implementation_sha256": "c7034429dc55c460e5f35cb3120b1cb44af0017aae3f77fd7fd7e668bddb491c"
+      },
+      "confirmation_exit": 0,
+      "mutation_runs": [
+        {
+          "file": "bin/preview.sh",
+          "exit_code": 1,
+          "log": "/private/tmp/case-id-acceptance/reuse-r1/preview-a/.acceptance-local/AT-reuse-preview-a/mutation-0.log"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "accounts-a",
+      "expected": "reuse",
+      "checks_passed": true,
+      "case_ids": [
+        "TC-fdeff57d-00cb-4719-b057-5f37ddd8f14e",
+        "TC-2671948a-ad4f-494a-b1a1-26cdcf1c5a2e"
+      ],
+      "output": "/private/tmp/case-id-acceptance/reuse-r2/accounts-a/.acceptance-local/AT-reuse-accounts-a/workflows/SC-1",
+      "runtime": {
+        "schema": "acceptance-agent-runtime-v1",
+        "agent": "codex",
+        "model": "gpt-6.1-sol",
+        "effort": "high",
+        "service": {
+          "provider": "openai",
+          "base_url": null
+        },
+        "model_source": "caller",
+        "sdk": {
+          "package": "@openai/codex-sdk",
+          "version": "0.162.1"
+        },
+        "implementation_sha256": "c7034429dc55c460e5f35cb3120b1cb44af0017aae3f77fd7fd7e668bddb491c"
+      },
+      "confirmation_exit": 0,
+      "mutation_runs": [
+        {
+          "file": "ledger.py",
+          "exit_code": 1,
+          "log": "/private/tmp/case-id-acceptance/reuse-r2/accounts-a/.acceptance-local/AT-reuse-accounts-a/mutation-0.log"
+        }
+      ],
+      "errors": []
+    }
+  ],
+  "native_finder": {
+    "implementation": {
+      "playbook/v4/run_case_guided_v6.mjs": "397c4ea6fc3e366ecc6a03572c47f68a04cd6b25f0f439311b19c93544ae4992",
+      "playbook/v4/case_discovery_contract.py": "5b04954c3954582bb6acda28d8812b291eda9bb36b002c6025fcd21a8b1c428b",
+      "playbook/v4/case_identity.py": "4cb4f7db4fe5acfe784780843256aa03dbdf1f523d739e1dafd4816c2b1e2664",
+      "playbook/v4/existing_case_policy.py": "d8249237f554f0238fac9b937e2f0ee5b0e06e8e0217afe4ca91f82684ae479a",
+      "references/case-discovery-contract.md": "01afc40c42dcae0539aba5149831e3489b2413456a50ac1b2b9316677dc080fa",
+      "references/case-display-contract.md": "ec3e222f39800e55b562bb73b02272a5b0a0cde1c318e38a4138badbc1ad1e2f",
+      "references/case-search-guidance.md": "af30eeac049edf5f99bb87e77a197e3341f03a4e7e3ae858a76446599d77420f"
+    },
+    "suite_sha256": "936075133b452edbbd86ad236fc69f07eb8d0e857796913db7d3a9e6c11b5a1d",
+    "gold_sha256": "0f41d54c83408eda24668f0dd76c02bd73159f791f4a4d65b06b1043b1daedcd",
+    "rows": [
+      {
+        "project": "python-ledger",
+        "scene": "SC-BALANCE",
+        "mode": "discovery",
+        "output": "/private/tmp/case-id-acceptance/finder-r2/python-ledger/.acceptance-local/AT-finder-python-ledger/workflows/SC-BALANCE",
+        "semantic_review": "required; identity checks do not judge prose or completeness",
+        "exit_code": 0,
+        "seconds": 74.7,
+        "identity_errors": [],
+        "source_unchanged": true,
+        "case_ids": [
+          "TC-26d2e218-e881-43f3-b4b3-7762f8b76339",
+          "TC-26593adf-33fa-4752-9ebe-b4807552e187"
+        ],
+        "checks_passed": true,
+        "runtime": {
+          "schema": "acceptance-agent-runtime-v1",
+          "agent": "codex",
+          "model": "gpt-6.1-sol",
+          "effort": "high",
+          "service": {
+            "provider": "openai",
+            "base_url": null
+          },
+          "model_source": "caller",
+          "sdk": {
+            "package": "@openai/codex-sdk",
+            "version": "0.162.1"
+          },
+          "implementation_sha256": "c7034429dc55c460e5f35cb3120b1cb44af0017aae3f77fd7fd7e668bddb491c"
+        }
+      },
+      {
+        "project": "python-ledger",
+        "scene": "SC-NONE",
+        "mode": "discovery",
+        "output": "/private/tmp/case-id-acceptance/finder-r2/python-ledger/.acceptance-local/AT-finder-python-ledger/workflows/SC-NONE",
+        "semantic_review": "required; identity checks do not judge prose or completeness",
+        "exit_code": 0,
+        "seconds": 78.68,
+        "identity_errors": [],
+        "source_unchanged": true,
+        "case_ids": [],
+        "checks_passed": true,
+        "runtime": {
+          "schema": "acceptance-agent-runtime-v1",
+          "agent": "codex",
+          "model": "gpt-6.1-sol",
+          "effort": "high",
+          "service": {
+            "provider": "openai",
+            "base_url": null
+          },
+          "model_source": "caller",
+          "sdk": {
+            "package": "@openai/codex-sdk",
+            "version": "0.162.1"
+          },
+          "implementation_sha256": "c7034429dc55c460e5f35cb3120b1cb44af0017aae3f77fd7fd7e668bddb491c"
+        }
+      },
+      {
+        "project": "javascript-web",
+        "scene": "SC-LOGOUT",
+        "mode": "discovery",
+        "output": "/private/tmp/case-id-acceptance/finder-r2/javascript-web/.acceptance-local/AT-finder-javascript-web/workflows/SC-LOGOUT",
+        "semantic_review": "required; identity checks do not judge prose or completeness",
+        "exit_code": 0,
+        "seconds": 84.68,
+        "identity_errors": [],
+        "source_unchanged": true,
+        "case_ids": [
+          "TC-d74645f1-7e3f-47ba-8a06-27bf1daa1dca",
+          "TC-6387dca3-6be3-4ae6-a407-8f3244b3d2a7"
+        ],
+        "checks_passed": true,
+        "runtime": {
+          "schema": "acceptance-agent-runtime-v1",
+          "agent": "codex",
+          "model": "gpt-6.1-sol",
+          "effort": "high",
+          "service": {
+            "provider": "openai",
+            "base_url": null
+          },
+          "model_source": "caller",
+          "sdk": {
+            "package": "@openai/codex-sdk",
+            "version": "0.162.1"
+          },
+          "implementation_sha256": "c7034429dc55c460e5f35cb3120b1cb44af0017aae3f77fd7fd7e668bddb491c"
+        }
+      },
+      {
+        "project": "shell-cli",
+        "scene": "SC-PREVIEW",
+        "mode": "discovery",
+        "output": "/private/tmp/case-id-acceptance/finder-r2/shell-cli/.acceptance-local/AT-finder-shell-cli/workflows/SC-PREVIEW",
+        "semantic_review": "required; identity checks do not judge prose or completeness",
+        "exit_code": 0,
+        "seconds": 80.34,
+        "identity_errors": [],
+        "source_unchanged": true,
+        "case_ids": [
+          "TC-ea4bb2ae-730b-48b7-828b-6ff73751d1fd"
+        ],
+        "checks_passed": true,
+        "runtime": {
+          "schema": "acceptance-agent-runtime-v1",
+          "agent": "codex",
+          "model": "gpt-6.1-sol",
+          "effort": "high",
+          "service": {
+            "provider": "openai",
+            "base_url": null
+          },
+          "model_source": "caller",
+          "sdk": {
+            "package": "@openai/codex-sdk",
+            "version": "0.162.1"
+          },
+          "implementation_sha256": "c7034429dc55c460e5f35cb3120b1cb44af0017aae3f77fd7fd7e668bddb491c"
+        }
+      }
+    ],
+    "implementation_unchanged": true
+  },
+  "native_root_cross_scene": {
+    "schema": "case-id-root-forward-v1",
+    "implementation": {
+      "playbook/v4/run_case_guided_v6.mjs": "72a5e2cf3dfb9fbb1ed2b509bc0bd4f5ec8deb05ee79b33c3b2d3ed334aa0bf1",
+      "playbook/v4/case_identity.py": "1ea588384cbd9f6b406a069554aa08e53c793d050ecc80e15e1ccaaeccf76900",
+      "playbook/v4/existing_case_policy.py": "d8249237f554f0238fac9b937e2f0ee5b0e06e8e0217afe4ca91f82684ae479a",
+      "playbook/v4/scene_pipeline.py": "e549aef0620ba3abfd653fe61c10365b5df18aa4a5f08537bf3b6c594330fe5f",
+      "scripts/acceptance_workspace.py": "23542624d6680efb8dd98cdb82f565f8d2eb1bd8a078dee6ed47795818625700"
+    },
+    "rows": [
+      {
+        "scene_id": "SC1",
+        "status": "passed",
+        "ids": [
+          "TC-2df11d44-0824-4244-bf08-62ba7fce49dd",
+          "TC-db3fe186-b850-4201-aa55-9010a7060817"
+        ],
+        "behavior_exit_code": 0,
+        "output": "/private/tmp/case-id-acceptance/root-r2/project/.acceptance-local/AT-ID-root/workflows/SC1"
+      },
+      {
+        "scene_id": "SC2",
+        "status": "passed",
+        "ids": [
+          "TC-2df11d44-0824-4244-bf08-62ba7fce49dd",
+          "TC-db3fe186-b850-4201-aa55-9010a7060817"
+        ],
+        "behavior_exit_code": 0,
+        "output": "/private/tmp/case-id-acceptance/root-r2/project/.acceptance-local/AT-ID-root/workflows/SC2"
+      }
+    ],
+    "implementation_unchanged": true
+  },
+  "native_pipelines": [
+    {
+      "fixture": "existing",
+      "identity_status": "passed",
+      "independent_verdict": "repair_required",
+      "evaluation_status": "available",
+      "ids": [
+        "TC-2ecc24fc-6854-4770-955e-1614258fe2a2",
+        "TC-fdb12920-1625-49c1-b178-8c65db7e4e3c"
+      ],
+      "flow": "/tmp/case-id-acceptance/pipeline-r1/existing/.acceptance-local/AT-ID-existing/workflows/full",
+      "receipt": "/private/tmp/case-id-acceptance/pipeline-r1/existing/.acceptance-local/AT-ID-existing/workflows/full/execution/execution.json"
+    },
+    {
+      "fixture": "new",
+      "identity_status": "passed",
+      "independent_verdict": "passed",
+      "evaluation_status": "available",
+      "ids": [
+        "TC-ea16aaff-32c9-4956-a6ee-b4df4d3ee7ba"
+      ],
+      "flow": "/tmp/case-id-acceptance/pipeline-r1/new/.acceptance-local/AT-ID-new/workflows/full",
+      "receipt": "/private/tmp/case-id-acceptance/pipeline-r1/new/.acceptance-local/AT-ID-new/workflows/full/execution/execution.json"
+    }
+  ],
+  "native_repair": {
+    "status": "passed",
+    "prior_ids": [
+      "TC-ea16aaff-32c9-4956-a6ee-b4df4d3ee7ba"
+    ],
+    "final_ids": [
+      "TC-6b1ef8af-fa6b-481d-997a-41f0bc490aaa",
+      "TC-ea16aaff-32c9-4956-a6ee-b4df4d3ee7ba"
+    ],
+    "metrics_status": "success",
+    "output": "/private/tmp/case-id-acceptance/pipeline-r1/new/.acceptance-local/AT-ID-new/workflows/repair-identity"
+  },
+  "offline_view": [
+    {
+      "project": "existing",
+      "offline_status": "passed",
+      "ids": [
+        "TC-2ecc24fc-6854-4770-955e-1614258fe2a2",
+        "TC-fdb12920-1625-49c1-b178-8c65db7e4e3c"
+      ]
+    },
+    {
+      "project": "new",
+      "offline_status": "passed",
+      "ids": [
+        "TC-ea16aaff-32c9-4956-a6ee-b4df4d3ee7ba"
+      ]
+    }
+  ],
+  "diagnostic_rounds": {
+    "reuse-r1": "First accounts-a failed before annotation because the CLI imported a nonexistent guard function; fixed and rerun successfully as reuse-r2. Remaining behavior assertions passed. This round is diagnostic because implementation changed during work.",
+    "finder-r1": "Assertions passed; diagnostic because referenced implementation changed during work.",
+    "root-r1": "Both scenes passed; diagnostic because marker-scope refinement changed implementation during work."
+  },
+  "evidence_root": "/tmp/case-id-acceptance",
+  "limitations": [
+    "Only actually associated declarations receive IDs.",
+    "Source markers remain in the isolated candidate workspace until normal test integration.",
+    "Unsupported comment syntax or ambiguous declarations block rather than silently bind an ID.",
+    "Command receipts do not establish individual per-case pass status.",
+    "The existing-only fixture independently returned repair_required for a pre-existing exception-type assertion; test logic was not changed to force acceptance."
+  ]
+}

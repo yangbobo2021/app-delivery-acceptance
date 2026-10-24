@@ -129,7 +129,7 @@ def verify_frozen_workspace(config, catalog):
         file = inside(root, name)
         if not file.is_file() or digest(file) != expected:
             raise ValueError('frozen product source changed: ' + name)
-    allowed = tuple(name.rstrip('/') + '/' for name in catalog.get('write_roots', catalog.get('test_roots', [])))
+    allowed = tuple(name.rstrip('/') for name in catalog.get('write_roots', catalog.get('test_roots', [])))
     components = {item['path']: item['revision'] for item in catalog.get('components', [])}
     for prefix, revision in [('', catalog['revision']), *components.items()]:
         repo = inside(root, prefix)
@@ -141,7 +141,7 @@ def verify_frozen_workspace(config, catalog):
             full = prefix + '/' + name if prefix else name
             if not prefix and full in components:
                 continue
-            if not full.startswith(allowed):
+            if not any(full == scope or full.startswith(scope + '/') for scope in allowed):
                 raise ValueError('workspace change outside declared test roots: ' + full)
 
 

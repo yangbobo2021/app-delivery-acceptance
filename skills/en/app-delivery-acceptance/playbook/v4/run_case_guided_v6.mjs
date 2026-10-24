@@ -34,8 +34,8 @@ for(const part of catalog.components??[]){
  if(execFileSync('git',['rev-parse','HEAD'],{cwd:resolve(root,part.path),encoding:'utf8'}).trim()!==part.revision)
   throw Error('Component revision changed: '+part.path);
 }
-const allowedRoots=(catalog.write_roots??catalog.test_roots).map(x=>x.replace(/\/$/,'')+'/');
-if(git('diff','--name-only','HEAD').split('\n').filter(Boolean).some(x=>!allowedRoots.some(root=>x.startsWith(root))))
+const allowedRoots=(catalog.write_roots??catalog.test_roots).map(x=>x.replace(/\/$/,''));
+if(git('diff','--name-only','HEAD').split('\n').filter(Boolean).some(x=>!allowedRoots.some(root=>x===root||x.startsWith(root+'/'))))
  throw Error('Tracked product/source changes in acceptance workspace');
 if(resume){if(!existsSync(output))throw Error('resume output missing');}
 else mkdirSync(output,{recursive:false});
@@ -143,9 +143,9 @@ result.head_after=git('rev-parse','HEAD');result.tracked_changes=git('diff','--n
 result.status_after=git('status','--short','--untracked-files=all');
 result.components_after=(catalog.components??[]).map(part=>({path:part.path,
  revision:execFileSync('git',['rev-parse','HEAD'],{cwd:resolve(root,part.path),encoding:'utf8'}).trim()}));
-const writeRoots=(catalog.write_roots??catalog.test_roots).map(x=>x.replace(/\/$/,'')+'/');
+const writeRoots=(catalog.write_roots??catalog.test_roots).map(x=>x.replace(/\/$/,''));
 const changed=result.tracked_changes.split('\n').filter(Boolean);
-if(result.head_after!==catalog.revision||changed.some(x=>!writeRoots.some(root=>x.startsWith(root)))||
+if(result.head_after!==catalog.revision||changed.some(x=>!writeRoots.some(root=>x===root||x.startsWith(root+'/')))||
  result.components_after.some((part,i)=>part.revision!==catalog.components[i].revision))result.invalid_source_change=true;
 if(existingOnly){
  try{execFileSync('python3',[policyScript,'verify',catalogPath,output],{encoding:'utf8'});}
@@ -162,6 +162,19 @@ if(!existingOnly&&result.status==='success'&&existsSync(join(output,'answer.json
   const checked=JSON.parse(execFileSync('python3',[reuseScript,'verify',catalogPath,resolve(inputArg),output],{encoding:'utf8'}));
   result.reuse_validated=checked.status==='available';
  }catch(e){result.invalid_reuse=true;result.status='error';result.error='Case reuse contract failed: '+String(e.stderr??e.message);}
+}
+if(result.status==='success'&&!result.parse_error&&!result.invalid_source_change&&existsSync(join(output,'answer.json'))){
+ try{
+  const rawAnswer=JSON.parse(readFileSync(join(output,'answer.json'),'utf8'));
+  if(rawAnswer.case_identity)throw Error('Agent must not manufacture host identity reports');
+  execFileSync('python3',[fileURLToPath(new URL('./case_identity.py',import.meta.url)),catalogPath,resolve(inputArg),output],{encoding:'utf8',maxBuffer:16*1024*1024});
+  result.identities_validated=true;
+  if(!existingOnly)execFileSync('python3',[reuseScript,'verify',catalogPath,resolve(inputArg),output],{encoding:'utf8'});
+  if(existingOnly){
+   execFileSync('python3',[policyScript,'verify',catalogPath,output],{encoding:'utf8'});
+   writeFileSync(join(output,'case-discovery.json'),readFileSync(join(output,'answer.json')));
+  }
+ }catch(e){result.status='error';result.error='Case identity finalization failed: '+String(e.stderr??e.message);}
 }
 writeFileSync(join(output,'metrics.json'),JSON.stringify(result,null,2)+'\n');
 console.log(JSON.stringify({scene:input.scene.id,status:result.status,seconds:result.seconds,tool_calls:tools,
