@@ -31,6 +31,7 @@ const binding = acceptanceGuard({acceptance: request.acceptance, source_checkout
   test_roots: request.test_roots}, [output, dirname(resolve(request.registry_path))]);
 const script = resolve(fileURLToPath(new URL('coverage_preparation.py', import.meta.url)));
 const runtimeCheck = resolve(fileURLToPath(new URL('../../scripts/runtime_preparation.py', import.meta.url)));
+const toolContract = resolve(fileURLToPath(new URL('../../references/coverage-tool-contract.md', import.meta.url)));
 const protocolGuide = resolve(fileURLToPath(new URL('../../references/project-coverage-protocol.md', import.meta.url)));
 const check = (program, args, stdout, stderr) => {
   const child = spawnSync(program, args, {encoding: 'utf8', maxBuffer: 8 * 1024 * 1024});
@@ -76,14 +77,22 @@ const prompt = `你是独立的覆盖率准备 Agent。你的输入是**已经�
 项目覆盖率输入：${JSON.stringify(request)}
 本次项目明确预期能采集的源码：${JSON.stringify(expectedMeasuredSources)}。这是项目目标，不是所有项目的通用覆盖率配额。先检查已有适配器为什么没达到这些目标，再尝试项目适用的替代采集/映射方法；零命中、定向命中和独立读取都须证明这些文件的真实分母与命中。还须轻量验证采集未发生时的状态传播：没有实际原生快照的来源不得把零基线标为实测 0%，收尾失败不能冒充完整采集；记录失败路径证据。不能因为第一次方案失败便停止探索并把目标文件标成 unsupported。若充分尝试后仍无法证明，就如实标 unsupported、保留失败证据和具体限制，不能声称本项目目标已完成。不要改动 partial 的通用含义。
 适用项目知识：${JSON.stringify(knowledge)}
+覆盖率工具强制规约（同样适用于项目适配器与独立读取器）：${readFileSync(toolContract, 'utf8')}
 本次候选 SKILL 的覆盖率协议（优先于机器上另一个已安装版本）：${readFileSync(protocolGuide, 'utf8')}
 本次实际调用的 SKILL 根目录：${resolve(fileURLToPath(new URL('../..', import.meta.url)))}。宿主探针脚本：${script}。只按这份候选 SKILL 的协议与脚本准备；不要另找机器上同名的已安装 SKILL。
 已保留的前次失败尝试（只读检查其错误收据和项目适配器快照，不能覆盖）：${JSON.stringify(request.prior_attempts ?? [])}
+真实宿主调用方：${resolve(fileURLToPath(new URL('run_coverage.py', import.meta.url)))} 与 ${resolve(fileURLToPath(new URL('coverage_protocol.py', import.meta.url)))}；必要时只读核对各操作的实际 request/response 形状。
+collect、adapter、direct 是独立进程，不继承对方设置的环境变量；必要上下文用各自 argv 的占位符或冻结项目配置传递，不能依赖交互式调试 shell 的临时 export。
+路径类型必须按真实接口区分：verify-preparation 的 request.prepared 是 prepared.json 文件；run 收到的冻结会话中 prepared 是目录；finish 先读取 request.request 指向的会话文件，再从该会话的 prepared 目录加载 prepared.json。报告的 prepared 必须原样保留冻结会话的目录值，prepared_sha256 才是该目录下 manifest 文件的摘要；不要把加载用的 manifest 文件路径回填为报告 prepared。不得用自造请求替代实际宿主形状来证明兼容。
 交付给宿主的 entry 必须能对本阶段新建的 project-coverage-preparation-v1 profile 执行 verify-preparation、run、finish、verify-report、summarize，尤其应读取 spec.runtime_manifest 与 spec.probe_report，不能假定旧适配器私有的 probe_comparison 等字段必然存在。entry 中的可执行文件和项目适配器路径必须是本次 workspace 中已存在的绝对路径；不要在 entry 留下 {workspace}、{runtime_root} 等仅供探针命令使用的占位符。宿主会在探针后立即调用 verify-preparation；探针自测通过不等于整份准备通过。
 
 写入项目测试目录内的适配器/配置/探针助手（不可写产品源码），并只使用上面运行环境的已验证执行器调用轻量**非业务**探针。adapter_paths 必须列全这些项目脚本、配置和必要夹具，也必须包含本阶段修改过的全部受版本控制测试文件，即便其中某个文件只是自检助手；每个路径都必须位于请求声明的 test_roots 内；项目根目录的依赖清单或源码不能填入 adapter_paths，它们分别由运行环境和源码清单绑定。宿主会冻结适配器哈希及归档副本。**绝对不要修改 .acceptance/knowledge、任何 INDEX.md 或共享验收知识；只在回答中提出 knowledge_candidate，待探针与宿主核验通过后由宿主发布。**每条不同进程/测试入口路由分别准备零命中和非零命中探针。宿主在每个 collect 前已经创建 {raw_dir}，collect 只能向其中写入原生数据，不得再用 exist_ok=False 创建它。adapter/direct 必须只读 {raw_dir}，所有派生文件只能写到 {probe_dir} 的其他位置或 stdout；宿主会检查 raw 目录在两个 reader 后逐字节不变。零命中必须有非空原生数据及非零分母而 covered=0；非零命中须有 covered>0。每个探针先采集原生数据，再让项目适配器与专用工具直接从同一原生数据独立输出规范化 JSON，二者源码路径、指标、数值须一致。直接工具读取命令不得调用适配器。若某部分无法验证，标记 unsupported 并给出真实尝试依据，不能把它称为 measured。保留首次异常和重试原始资料；探针只证明采集链路，不得算业务覆盖率。
 
+特别检查最终 argv 与实际 cwd 下的源码路径。项目适配器与独立读取器均须调用专用工具公开支持的报告/统计入口，并在 tools 与 knowledge_candidate 中注明实际入口；即使读取了工具内部 parser 或原生 arcs，自行计算分母、分支出口或命中也不符合规约。复用旧适配器前先核查这一点，不能只修到脚本可启动。跨文件计数和范围统计也由工具生成，适配器不得自行累计各文件的计数再称为工具汇总；选择范围后调用工具报告该范围的原生 totals。
+
 先逐条读取适用项目知识，检查已有项目测试适配器是否仍适用于本次 runtime 和源码版本；可复用时沿用并做最小修正，不重复探索已经有依据的工具路线或安装方法。你只需用一条最小命令确认适配器可启动；完整的各路由零/非零探针由宿主在你回答后统一执行并独立复核，不要在 Agent 内提前重复跑整套探针。若现有资料失效，记录具体差异，再做必要探索。
+
+若当前项目已有仍适用的完整探针计划，可以输出 probe_plan_path（本 ID workflows 下计划文件的完整绝对路径）替代重复输出 probe_plan 对象。不要用省略号缩写可执行路径。宿主只复用命令定义，不复用旧通过结果；新准备会重新执行全部探针，并要求计划的运行时、workspace 和 revision 绑定一致。
 
 最后只输出 JSON 对象，形如：{"adapter_paths":["项目相对路径"],"entry":["执行器","项目适配器"],"tools":[{"name":"...","version":"...","role":"..."}],"source_dispositions":{"项目相对源码":{"kind":"measured|unsupported|non_executable","reason":"..."}},"probe_plan":{"schema":"project-coverage-probe-plan-v1","routes":[{"id":"route-id","source_paths":["项目相对源码"],"zero":{"collect":["执行器","脚本","{raw_dir}"],"adapter":["执行器","适配器脚本","{raw_dir}"],"direct":["执行器","直接工具脚本","{raw_dir}"]},"nonzero":{...}}]},"limitations":["..."],"knowledge_candidate":"跨验收可复用的步骤、失败排查与新电脑重建方法；不能包含本机路径/秘密/探针通过结论"}。三个 probe 命令均为 argv，首项必须是本次 runtime.json 验证的可执行文件绝对路径；可用 {raw_dir}、{probe_dir}、{workspace} 占位。adapter/direct 向 stdout 输出 coverage-probe-normalized-v1 JSON：{"schema":"coverage-probe-normalized-v1","components":[{"id":"...","source_paths":["..."],"metrics":{"line":{"status":"measured","covered":0,"total":1},"branch":{"status":"unavailable","reason":"..."}}}]}。不要把空原生数据在 source-map 转换后意外出现的 100% 当作零命中通过。`;
 writeFileSync(join(output, 'prompt.txt'), prompt);
@@ -92,7 +101,7 @@ const result = {schema: 'project-coverage-agent-run-v1', agent_runtime:agent.met
   effort:agent.metadata.effort, started_at: new Date().toISOString(), runtime_sha256: request.runtime_sha256};
 const start = performance.now(); let done, error, tools = 0; const texts = [];
 try {
-  for await (const event of agent.run(prompt, {cwd: resolve(runtime.workspace),
+  for await (const event of agent.run(prompt, {jsonOutput:true,cwd: resolve(runtime.workspace),
     model: result.model, effort: result.effort,
     permissions: {fileWrite: 'allow', shellExecute: 'allow', networkAccess: 'allow'}})) {
     appendFileSync(join(output, 'agent.jsonl'), JSON.stringify(event) + '\n');
@@ -152,7 +161,21 @@ try {
         throw Error('Coverage probe changed its frozen adapter: ' + name);
     }
   };
-  const plan = {...answer.probe_plan, runtime_manifest: runtimePath, runtime_sha256: request.runtime_sha256,
+  let planDraft=answer.probe_plan;
+  if(answer.probe_plan_path){
+    const reusable=resolve(answer.probe_plan_path);
+    const workflowRoot=resolve(binding.project_root,'.acceptance-local',binding.id,'workflows');
+    if(!isAbsolute(answer.probe_plan_path)||!realpathSync(reusable).startsWith(realpathSync(workflowRoot)+'/'))
+      throw Error('Reused probe plan must belong to this acceptance workflows');
+    if(planDraft)throw Error('Provide probe_plan or probe_plan_path, not both');
+    planDraft=JSON.parse(readFileSync(reusable));
+    if(planDraft.runtime_manifest!==runtimePath||planDraft.runtime_sha256!==request.runtime_sha256||
+       planDraft.workspace!==runtime.workspace||planDraft.revision!==runtime.revision)
+      throw Error('Reused probe plan runtime/workspace/revision binding differs');
+    writeFileSync(join(output,'reused-probe-plan.json'),JSON.stringify({path:reusable,sha256:hash(readFileSync(reusable)),
+      disposition:'Command definitions reused; all probes executed again for this preparation'},null,2)+'\n');
+  }
+  const plan = {...planDraft, runtime_manifest: runtimePath, runtime_sha256: request.runtime_sha256,
     workspace: runtime.workspace, revision: runtime.revision};
   const planPath = join(output, 'probe-plan.json');
   writeFileSync(planPath, JSON.stringify(plan, null, 2) + '\n');

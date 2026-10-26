@@ -83,6 +83,22 @@ class DefinitionLifecycleTests(unittest.TestCase):
         self.assertEqual(read(frozen['history'])['requirements'][0]['text'], 'The result shall be three')
         self.assertIn('R3', frozen['change']['missing_scenario_target_ids'])
 
+    def test_explicit_legacy_adoption_retains_history_and_rechecks_context(self):
+        legacy = {'schema': 'acceptance-catalog-v1', 'project': {'id': 'fixture'},
+                  'requirements': [{'id': 'R1', 'text': 'The result shall be three'}],
+                  'scenarios': [{'id': 'S1', 'requirement_id': 'R1',
+                                 'description': 'Call result and observe three'}]}
+        prior = publish_catalog(self.root, self.at, legacy)
+        original = Path(prior['history']).read_bytes()
+        frozen = self.freeze()
+        adopted = load_binding(self.binding)
+        self.assertEqual(Path(prior['history']).read_bytes(), original)
+        self.assertEqual(adopted['previous_catalog_sha256'], digest(prior['history']))
+        self.assertTrue(frozen['change']['execution_context_changed'])
+        self.assertEqual(frozen['change']['rerun_scene_ids'], ['S1', 'S2'])
+        self.assertEqual(frozen['change']['coverage_check_scene_ids'], ['S1', 'S2'])
+        validate(self.root, self.at)
+
     def prepare(self):
         spec = self.local / 'workflows/prep-input.json'
         save(spec, {'schema': 'portable-project-prep-v1', 'acceptance': self.acceptance,

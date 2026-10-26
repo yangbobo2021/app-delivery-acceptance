@@ -42,3 +42,5 @@ python3 <skill>/scripts/runtime_preparation.py verify <new-workflow-output>/runt
 ## 两轮验收方式
 
 第一轮以新 ID 执行运行环境 Agent 后，检查 Agent 的知识读取、命令计划、实际安装目录、可执行文件、版本、依赖哈希、smoke 与失败收据；再由宿主独立运行 `verify`。完成知识索引后结束该 ID。第二轮在同一冻结项目版本建立另一 ID 与全新 local 工作树，读取上一轮发布的知识再启动同一 Agent；检查 `knowledge_used` 和读取凭证包含共享 recipe、命令复用依据、探索/错误尝试与用时，并确认新清单只引用第二轮 runtime、依赖和 smoke 证据。安装耗时未必下降，衡量重点是少做重复选型和排错且准备质量不降。两轮的首次异常与复测都保留在各自 ID 的 workflow 中。
+
+运行准备 Agent 的输入保留冻结工作区的组件、源码范围及 test_roots；多项目仓库按这些目标目录选择依赖和 smoke，不因仓库根目录存在其他项目而切换目标。OpenCode JSON 结果通过原生结构化提交传给宿主，参见 [运行时合同](agent-runtime.md#opencode-json-result-delivery)。

@@ -36,3 +36,15 @@
 普通 `existing_only` 模式仍须按统一调试入口实际运行，并保留既有结果字段和收据。显式 `existing_case_mode: discover_only` 只进行静态查找，使用同一选择契约，返回 `status: not_executed`，`observations`、`evidence_paths` 为空；`test_command` 可给出已有入口作为建议，也可为空，绝不构成实际执行。只读模式不能由模型自行切换到执行，不进入正式场景执行状态机。不存在用例、无法执行和已执行失败是不同事实。
 
 关联后的永久身份按 [用例 ID 合同](case-display-contract.md#永久用例-id关联后由宿主统一落地)处理。查找 Agent 本身仍只读；宿主先核对查找引用与启动字节，再仅添加 ID 注释、调整引用行号及文件哈希。静态查找仍是 not_executed，添加注释不构成执行。
+
+### 避免引文转写误差
+
+`quote` 应由实际文件的行切片直接构造，再由 JSON 序列化器转义；解释写在相应说明字段，不手抄、改缩进或把换行替换成文字 `\n`。例如对已经选好的证据定位：
+
+```python
+for evidence in request["case_discovery"]["evidence"]:
+    lines = (workspace / evidence["file"]).read_text().splitlines()
+    evidence["quote"] = "\n".join(lines[evidence["line_start"] - 1:evidence["line_end"]])
+```
+
+行范围和语义依据仍由 Agent 阅读后选择，原有范围、长度、源码哈希与关联门禁照常核对。

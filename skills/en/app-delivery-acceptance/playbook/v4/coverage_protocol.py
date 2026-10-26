@@ -76,7 +76,10 @@ def invoke(profile, operation, request, output, mapping=None):
                                 cwd=root if root.is_dir() else output.parent,
                                 text=True, capture_output=True, timeout=180)
         if result.returncode:
-            raise ValueError("project coverage " + operation + " failed: " + (result.stderr or result.stdout)[-1800:])
+            diagnostic = result.stderr or result.stdout
+            if not diagnostic and output.is_file():
+                diagnostic = output.read_text(errors="replace")
+            raise ValueError("project coverage " + operation + " failed: " + diagnostic[-1800:])
     if not output.is_file():
         raise ValueError("project coverage operation produced no response: " + operation)
     return read(output)

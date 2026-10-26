@@ -42,7 +42,7 @@ export async function runSingleAgent({folder,cwd,root,request,change,inventory,r
    const timer=setTimeout(()=>abort.abort('reverse time limit'),Number(process.env.REVERSE_TIME_LIMIT_MS??480000));
    const texts=[];let done,error,toolUses=0;const started=performance.now();
    try{
-    for await(const event of adapter.run(prompt,{cwd,model:metrics.model,effort:metrics.effort,
+    for await(const event of adapter.run(prompt,{jsonOutput:true,cwd,model:metrics.model,effort:metrics.effort,
       abortSignal:abort.signal,permissions:{fileWrite:'deny',shellExecute:'allow',networkAccess:'deny'}})){
      appendFileSync(join(folder,'agent-selfcheck.jsonl'),JSON.stringify(event)+'\n');
      if(event.type==='text'&&typeof event.payload?.content==='string')texts.push(event.payload.content);

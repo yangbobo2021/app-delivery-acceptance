@@ -38,7 +38,7 @@ const result={agent_runtime:agent.metadata,binding,started_at:new Date().toISOSt
 const start=performance.now(),texts=[];let done;
 try{
   writeFileSync(join(output,'runner.pid'),String(process.pid)+'\n');
-  for await(const event of agent.run(prompt,{cwd:catalog.project_root,model:agent.metadata.model,effort:agent.metadata.effort,
+  for await(const event of agent.run(prompt,{jsonOutput:true,cwd:catalog.project_root,model:agent.metadata.model,effort:agent.metadata.effort,
     permissions:{fileWrite:'deny',shellExecute:'allow',networkAccess:'deny'}})){
     appendFileSync(join(output,'agent.jsonl'),JSON.stringify(event)+'\n');
     if(event.type==='text'&&typeof event.payload?.content==='string')texts.push(event.payload.content);

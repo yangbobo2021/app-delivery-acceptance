@@ -31,6 +31,8 @@
 
 每个最终业务测试项恰有一条 decision。`reuse`、`extend` 必须指向已有用例及相同的真实文件和声明标识；`reuse` 保留被引用的原测试正文不变；`extend` 对已存在的测试补断言或必要辅助能力。`new` 不得伪装为复用，`existing_case_ids` 为空且最终来源为 `generated`。目标只来自当前场景，不引入相邻需求。已有项可以支撑多个目标，多个互补项可以共同承担一个目标。
 
+`not_selected.case_id` 只引用冻结 checkpoint 的 `discovery.case_descriptions[].id`（与 `existing_case_ids` 使用同一个 ID 集合）；它不引用文件名，也不引用 `case_discovery.excluded_candidates`。已排除候选的理由已在 checkpoint 保存，不再复制到 `not_selected`。若检查点只有 C1 且最终直接复用 C1，则 `not_selected` 必须为 `[]`。提交前从 record_path 读取实际 ID 集合，核对 selected 与 not_selected 恰好覆盖该集合且互不重叠。
+
 找到但未采用的项必须解释，不因选择少量新项悄悄丢掉已有支持。跳过或条件启用的真实测试仍记录为已有支持，其当前可运行性与验证边界单独说明，不能借此声称未找到。最终无法就绪时可以没有 decisions，须保留 checkpoint 和具体原因；不能称已完成场景测试。
 
 ## 搜索结果复用与升级
@@ -44,3 +46,9 @@
 checkpoint 核对被引用的原文件并保存 `case-reuse-discovery.json` 及选定原文快照；最终核对复用身份、声明范围、目标双向引用和决策列表，另存绑定最终回答的 `case-reuse.json`。原 `answer.json` 不重写。存档属于该场景的用例准备记录，不是正式执行凭证；差量修复后的最终代码仍由原独立评估和执行复审核对，不把早期复用计划当成修复后仍充分的证明。
 
 宿主在复用检查完成后按 [用例 ID 合同](case-display-contract.md#永久用例-id关联后由宿主统一落地)添加普通 ID 注释。该精确注释补丁不改变 reuse 的业务正文；复用报告随后绑定最终结果哈希。Agent 保留已有标记，新测试不复制别人的 ID。
+
+若原生结构化提交仍只漏掉固定的 `case_reuse.schema`，宿主可沿用原 Case 会话请求一次模型结构补正：禁止非提交工具、禁止重跑，原答另存，且比较完整 JSON 值只允许补上该固定标记。任何业务内容变化、再次遗漏或补正失败均拒绝；不适用于缺少用例、观察、引用、选择理由等实质内容。
+
+提交前可将完整候选对象写到宿主给定 `final_request_path`，调用 `final_check` 并追加此路径。它在当前租约下只读执行最终相同的结构、身份和源码引用检查，不写入 answer 或确认结论；按错误修正候选后原样提交，宿主仍再次校验。`source.title` 使用引用行段中连续出现的声明名，不把类名与方法名拼成源码中未出现的限定字符串。
+
+只读最终预检也检查源码注释条件：即使用例 origin 为 existing，实际声明前尚无永久 ID 时，仍须在 source.id_comment 提供项目语言可用的安全模板（例如 Python 使用 `# {id}`，由宿主填入完整标记）。预检不生成 ID、不插入注释，最终身份登记仍由宿主完成。

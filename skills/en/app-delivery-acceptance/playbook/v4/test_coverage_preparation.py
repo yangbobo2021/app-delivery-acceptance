@@ -106,6 +106,29 @@ class CoveragePreparationTest(unittest.TestCase):
                                ['src/unit.fixture'], verify_runtime=False, mapping=mapping)
         self.assertEqual(result['status'], 'ready')
 
+    def test_valid_but_mutated_native_data_retains_integrity_diagnosis(self):
+        plan = self.make_plan(0)
+        script = self.root / 'zero.py'
+        script.write_text(script.read_text() + "\nif kind=='adapter': (raw/'native.json').write_text(json.dumps({'covered':0,'total':9,'mutated':True}))\n")
+        with patch('coverage_preparation._runtime', return_value=self.runtime):
+            report = run_plan(plan, self.root / 'probes')
+        self.assertEqual(report['routes'][0]['probes']['zero']['status'], 'failed')
+        proof = json.loads((self.root / 'probes/synthetic/zero/native-integrity.json').read_text())
+        file = str(self.root / 'probes/synthetic/zero/raw/native.json')
+        self.assertEqual(proof['changed'], [file])
+        self.assertNotEqual(proof['before'][file], proof['after'][file])
+
+    def test_failing_reader_mutation_is_recorded_before_error_exit(self):
+        plan = self.make_plan(0)
+        script = self.root / 'zero.py'
+        script.write_text(script.read_text() + "\nif kind=='adapter':\n (raw/'native.json').write_text('changed')\n raise SystemExit(3)\n")
+        with patch('coverage_preparation._runtime', return_value=self.runtime):
+            report = run_plan(plan, self.root / 'probes')
+        self.assertEqual(report['routes'][0]['probes']['zero']['status'], 'failed')
+        proof = json.loads((self.root / 'probes/synthetic/zero/native-integrity.json').read_text())
+        self.assertEqual(proof['reader'], 'adapter')
+        self.assertEqual(len(proof['changed']), 1)
+
 
 if __name__ == '__main__':
     unittest.main()

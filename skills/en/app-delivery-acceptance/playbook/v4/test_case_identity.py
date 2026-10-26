@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 
-from case_identity import finalize, load, save, verify, rebuilt
+from case_identity import finalize, load, save, verify, rebuilt, preflight_annotations
 from existing_case_policy import snapshot, verify as policy_verify
 from case_evaluation_contract import context
 
@@ -31,6 +31,19 @@ class IdentityTests(unittest.TestCase):
                                'evidence':[{'file':'checks/test_example.py','line_start':3,'line_end':6,'quote':'def test_first'}]},
             'case_reuse': {'decisions':[{'case_id':'C1','existing_case_ids':['old-C1']},{'case_id':'C2','existing_case_ids':[]}]}}
         self.output = self.base / 'out'; self.output.mkdir(); save(self.output/'answer.json',self.answer)
+
+    def test_preflight_rejects_missing_annotation_without_source_or_id_mutation(self):
+        from unittest.mock import patch
+        before = self.path.read_bytes()
+        raw = deepcopy(self.answer)
+        raw['case_descriptions'][0]['source'].pop('id_comment')
+        with patch('case_identity.uuid.uuid4', side_effect=AssertionError('preflight must not allocate IDs')):
+            with self.assertRaisesRegex(ValueError, 'source.id_comment'):
+                preflight_annotations(self.catalog, raw)
+            preflight_annotations(self.catalog, self.answer)
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertFalse((self.project/'.acceptance/case-identities.json').exists())
+        self.assertEqual(load(self.output/'answer.json'), self.answer)
 
     def stamp(self):
         return finalize(self.catalog,self.input,self.output)

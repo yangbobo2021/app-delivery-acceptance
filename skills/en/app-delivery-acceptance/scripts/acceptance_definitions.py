@@ -171,8 +171,10 @@ def compare(previous, candidate, assessment=None):
         if semantic and group == 'scenarios' and after:
             affected.add(ident)
     context_changed = bool(previous and previous.get('context') != candidate.get('context'))
-    execution_context_changed = bool(previous and execution_context(previous['context']) !=
-                                     execution_context(candidate['context']))
+    # Explicit adoption of a legacy catalog has no verified business-context
+    # binding. Retain its history and conservatively recheck every adopted scene.
+    execution_context_changed = bool(previous and (previous.get('schema') != SCHEMA or
+                                     execution_context(previous['context']) != execution_context(candidate['context'])))
     if context_changed:
         analysis = True
     if execution_context_changed:

@@ -40,7 +40,7 @@ const ports={
   const t=performance.now();const call={role,started_at:new Date().toISOString()};metrics.calls.push(call);persist();
   const texts=[];let done,error,token;
   try{
-   for await(const event of adapter.run(prompt,{cwd,model,effort,abortSignal:signal,
+   for await(const event of adapter.run(prompt,{jsonOutput:true,cwd,model,effort,abortSignal:signal,
      ...(options.resume===false?{}:{resume:options.resume}),
      permissions:{fileWrite:'deny',shellExecute:'deny',networkAccess:'deny'}})){
     appendFileSync(join(folder,'agent-events.jsonl'),JSON.stringify(event)+'\n');

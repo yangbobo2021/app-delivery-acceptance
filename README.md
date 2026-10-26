@@ -2,7 +2,7 @@
 
 **交付前，验证每条需求是否真正实现。**
 
-交给 Codex 或 Claude Code 一条需求，得到真实测试、独立复审和可追溯的验收结果。
+交给 Codex、Claude Code 或 OpenCode 一条需求，得到真实测试、独立复审和可追溯的验收结果。
 
 [开始第一个 Demo](#跑通第一个-demo) · [预览验收结果](#先看结果) · [查看测试集](#测试集与识别结果)
 
@@ -26,7 +26,9 @@
 
 ## 跑通第一个 Demo
 
-**准备环境：** macOS / Linux，Python 3、Git、Node.js >=22 与 npm；Codex 或 Claude Code 已能调用模型。首次会下载依赖并多次调用模型。[环境与排障说明](skills/en/app-delivery-acceptance/README.md#使用环境)
+**准备环境：** macOS / Linux，Python 3、Git、Node.js >=22 与 npm；Codex、Claude Code 或 OpenCode 已能调用模型。首次会下载依赖并多次调用模型。[环境与排障说明](skills/en/app-delivery-acceptance/README.md#使用环境)
+
+OpenCode 适配在当前源码版本提供；下方 `v0.1` 发布版本的安装示例不包含本次新增适配。使用当前源码的 OpenCode 用户需将该 Skill 挂载到 `.opencode/skills/app-delivery-acceptance`，并按[运行配置](skills/en/app-delivery-acceptance/references/agent-runtime.md)传完整模型 ID 和现有认证环境。
 
 ### 第 1 步：安装 Skill
 

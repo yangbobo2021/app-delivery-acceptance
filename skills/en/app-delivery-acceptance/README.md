@@ -22,7 +22,7 @@
 
 ## 使用环境
 
-支持 macOS/Linux；需要 Python 3、Git、Node.js >=22 和 npm，以及当前 Agent（Codex 或 Claude Code）可用的认证和模型访问。启动前由调用者明确提供当前 ACCEPTANCE_AGENT、实际模型与服务环境；内部任务和独立复审使用所选 Agent 的不同会话，详见 [Agent 运行配置](references/agent-runtime.md)。首次下载需要能访问 npm 包源，Skill 目录须可写。基础运行时缺失或版本不足时明确报错，不自动安装或切换系统 Node；原生 Windows 暂不支持。
+支持 macOS/Linux；需要 Python 3、Git、Node.js >=22 和 npm，以及当前 Agent（Codex、Claude Code 或 OpenCode）可用的认证和模型访问。启动前由调用者明确提供当前 ACCEPTANCE_AGENT、实际模型与服务环境；内部任务和独立复审使用所选 Agent 的不同会话，详见 [Agent 运行配置](references/agent-runtime.md)。OpenCode 使用 `ACCEPTANCE_AGENT=opencode`、完整的 `ACCEPTANCE_MODEL=provider/model` 和当前 `PATH` 上的既有 CLI，保留原生配置及认证环境。首次下载需要能访问 npm 包源，Skill 目录须可写。基础运行时缺失或版本不足时明确报错，不自动安装或切换系统 Node；原生 Windows 暂不支持。
 
 Agent 在模型流程或 SPEX 回填前运行：
 

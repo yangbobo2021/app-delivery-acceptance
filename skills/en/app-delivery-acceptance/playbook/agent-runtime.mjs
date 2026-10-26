@@ -5,6 +5,7 @@ import {homedir} from 'node:os';
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
+import {resolveOpenCodeRuntime,createOpenCodeAdapter,sensitiveValues,normalizeOpenCodeEvents} from './opencode-runtime.mjs';
 const require=createRequire(import.meta.url);
 const parseToml=text=>require('smol-toml').parse(text);
 
@@ -24,11 +25,12 @@ function serviceUrl(value) {
 
 function resolveRuntimeConfig({env=process.env, home=homedir(), cwd=process.cwd(), model, effort}={}) {
   const agent=env.ACCEPTANCE_AGENT;
-  if (!['codex','claude-code'].includes(agent))
-    throw Error('Set ACCEPTANCE_AGENT to the calling Agent: codex or claude-code. No Agent fallback is performed.');
+  if (!['codex','claude-code','opencode'].includes(agent))
+    throw Error('Set ACCEPTANCE_AGENT to the calling Agent: codex, claude-code or opencode. No Agent fallback is performed.');
   let inherited={}, selectedModel=model||env.ACCEPTANCE_MODEL, provider, baseUrl;
   let selectedEffort=effort||env.ACCEPTANCE_EFFORT;
   let modelSource=model?'stage override':env.ACCEPTANCE_MODEL?'caller':'agent configuration';
+  let opencode;
   if (agent==='codex') {
     const config=objectFile(join(env.CODEX_HOME||join(home,'.codex'),'config.toml'),parseToml);
     const profileName=env.ACCEPTANCE_CODEX_PROFILE||config.profile;
@@ -42,7 +44,7 @@ function resolveRuntimeConfig({env=process.env, home=homedir(), cwd=process.cwd(
     for (const key of ['model_provider','model_providers','preferred_auth_method'])
       if (effective[key]!==undefined) inherited[key]=effective[key];
     baseUrl=env.OPENAI_BASE_URL||effective.model_providers?.[provider]?.base_url;
-  } else {
+  } else if (agent==='claude-code') {
     const settingsFiles=[join(env.CLAUDE_CONFIG_DIR||join(home,'.claude'),'settings.json'),
       join(cwd,'.claude/settings.json'),join(cwd,'.claude/settings.local.json')];
     const settingsEnv=Object.assign({},...settingsFiles.map(path=>objectFile(path).env||{}));
@@ -56,12 +58,16 @@ function resolveRuntimeConfig({env=process.env, home=homedir(), cwd=process.cwd(
     provider=enabled(effective.CLAUDE_CODE_USE_BEDROCK)?'bedrock':enabled(effective.CLAUDE_CODE_USE_VERTEX)?'vertex':
       enabled(effective.CLAUDE_CODE_USE_FOUNDRY)?'foundry':'anthropic';
     baseUrl=effective.ANTHROPIC_BASE_URL;
+  } else {
+    opencode=resolveOpenCodeRuntime({env,cwd,model:selectedModel,effort:selectedEffort});
+    provider=opencode.service.provider;baseUrl=opencode.service.base_url;
   }
   if (typeof selectedModel!=='string'||!selectedModel.trim())
     throw Error('Current model is unknown. The calling Agent must pass ACCEPTANCE_MODEL; no model is silently substituted.');
   const metadata={schema:'acceptance-agent-runtime-v1',agent,model:selectedModel,effort:selectedEffort||null,
-    service:{provider,base_url:serviceUrl(baseUrl)},model_source:modelSource};
-  return {metadata,inherited};
+    service:{provider,base_url:serviceUrl(baseUrl)},model_source:modelSource,
+    ...(opencode?{opencode:opencode.binding}:{})};
+  return {metadata,inherited,opencode};
 }
 
 export function resolveAgentRuntime(options) { return resolveRuntimeConfig(options).metadata; }
@@ -70,7 +76,7 @@ export function bindAgentRuntime(directory, metadata, {resume=false}={}) {
   const path=join(resolve(directory),'agent-runtime.json');
   if (existsSync(path)) {
     const old=objectFile(path);
-    for (const key of ['agent','model','effort','service','sdk','implementation_sha256'])
+    for (const key of ['agent','model','effort','service','sdk','implementation_sha256','opencode'])
       if (JSON.stringify(old[key])!==JSON.stringify(metadata[key]))
         throw Error('Agent/model/service differs from this attempt. Preserve it and start a new attempt; session IDs cannot cross Agents.');
     return old;
@@ -99,18 +105,26 @@ export function claudePrompt(prompt) {
 }
 
 export function createAgentRuntime({directory,resume=false,model,...resolution}={}) {
-  const {metadata,inherited}=resolveRuntimeConfig({model,...resolution});
-  const sdk=metadata.agent==='codex'?'@openai/codex-sdk':'@anthropic-ai/claude-agent-sdk';
+  const {metadata,inherited,opencode}=resolveRuntimeConfig({model,...resolution});
+  const sdk={codex:'@openai/codex-sdk','claude-code':'@anthropic-ai/claude-agent-sdk',opencode:'@opencode-ai/sdk'}[metadata.agent];
   const sdkPackage=objectFile(fileURLToPath(new URL(`./node_modules/${sdk}/package.json`,import.meta.url)));
   if (!sdkPackage.version) throw Error('Selected Agent SDK is missing; run scripts/ensure_runtime.py');
   metadata.sdk={package:sdk,version:sdkPackage.version};
-  metadata.implementation_sha256=createHash('sha256').update(readFileSync(fileURLToPath(import.meta.url))).digest('hex');
+  const implementation=createHash('sha256').update(readFileSync(fileURLToPath(import.meta.url)));
+  if (opencode) for (const path of ['./opencode-runtime.mjs','./opencode-config.mjs'])
+    implementation.update(readFileSync(new URL(path,import.meta.url)));
+  metadata.implementation_sha256=implementation.digest('hex');
   if (directory) bindAgentRuntime(directory,metadata,{resume});
   return {
     metadata,
     async *run(prompt, options={}) {
       if (options.model&&options.model!==metadata.model) throw Error('Model differs from bound Agent runtime');
-      let adapter;
+      let adapter,readStructuredOutput;
+      const jsonOutput=options.jsonOutput;
+      const jsonResultSchema=options.jsonResultSchema;
+      delete (options={...options}).jsonOutput;
+      delete options.jsonResultSchema;
+      if (options.effort&&options.effort!==metadata.effort) throw Error('Effort differs from bound Agent runtime');
       if (metadata.agent==='codex') {
         const {CodexAdapter}=await import('@sublang/cligent/adapters/codex');
         const {Codex}=await import('@openai/codex-sdk');
@@ -123,13 +137,17 @@ export function createAgentRuntime({directory,resume=false,model,...resolution}=
               config:{...inherited,...options?.config}});
           }
         }})});
-      } else {
+      } else if (metadata.agent==='claude-code') {
         const {ClaudeCodeAdapter}=await import('@sublang/cligent/adapters/claude-code');
         const {query}=await import('@anthropic-ai/claude-agent-sdk');
         adapter=new ClaudeCodeAdapter({loadSdk:async()=>({query:({prompt,options})=>
           query({prompt:claudePrompt(prompt),options:{...options,env:{...inherited,...options.env},
             settingSources:[],strictMcpConfig:true,mcpServers:{},
             disallowedTools:[...new Set([...(options.disallowedTools??[]),'Agent','Skill'])]}})})});
+      } else {
+        const mapped=await createOpenCodeAdapter(opencode,metadata,prompt,{...options,jsonOutput,jsonResultSchema});
+        adapter=mapped.adapter;prompt=mapped.prompt;options=mapped.options;
+        readStructuredOutput=mapped.readStructuredOutput;
       }
       // Model-only stages receive no file/tool access in Claude as well as no write/shell/network.
       const policy=options.permissions;
@@ -139,16 +157,17 @@ export function createAgentRuntime({directory,resume=false,model,...resolution}=
       else if (metadata.agent==='claude-code'&&policy?.fileWrite==='deny')
         options={...options,allowedTools:['Read','Glob','Grep']};
       // A fresh adapter invocation starts a fresh session unless this stage explicitly resumes its own.
-      if (options.effort&&options.effort!==metadata.effort) throw Error('Effort differs from bound Agent runtime');
       const secrets=Object.entries({...process.env,...inherited})
         .filter(([key,value])=>/(TOKEN|KEY|PASSWORD|SECRET|AUTH)/i.test(key)&&typeof value==='string'&&value.length>8)
         .map(([,value])=>value);
+      secrets.push(...(opencode?.secrets??[]),...sensitiveValues(opencode?.environment));
       for (const provider of Object.values(inherited.model_providers??{}))
         for (const value of Object.values(provider.http_headers??{}))
           if (typeof value==='string'&&value.length>8) secrets.push(value,value.replace(/^Bearer /i,''));
       const redact=value=>secrets.reduce((text,secret)=>text.replaceAll(secret,'[REDACTED]'),value);
       try {
-        for await (const event of adapter.run(prompt,{...options,model:metadata.model,effort:metadata.effort??undefined}))
+        const events=adapter.run(prompt,{...options,model:metadata.model,effort:opencode?undefined:metadata.effort??undefined});
+        for await (const event of opencode?normalizeOpenCodeEvents(events,{readStructuredOutput}):events)
           yield JSON.parse(redact(JSON.stringify(event)));
       } catch (error) { throw Error(redact(error.message)); }
     },

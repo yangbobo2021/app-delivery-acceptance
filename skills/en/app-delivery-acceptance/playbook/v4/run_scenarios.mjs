@@ -114,7 +114,7 @@ if(resume&&events.some(x=>x.type==='done'&&x.payload?.status==='success')){
   const tick=performance.now(),texts=[];let done,error,tools=0;
   try{
     const task=resume?'继续同一需求的场景生成。核对已完成的内部自审，只提交尚未完成的最终场景 JSON。':prompt;
-    for await(const event of agent.run(task,{cwd:root,model:metrics.model,effort:metrics.effort,
+    for await(const event of agent.run(task,{jsonOutput:true,cwd:root,model:metrics.model,effort:metrics.effort,
       ...(resume?{resume:session}:{}),permissions:{fileWrite:'deny',shellExecute:'deny',networkAccess:'deny'}})){
       appendFileSync(eventsPath,JSON.stringify(event)+'\n');
       if(event.type==='text'&&typeof event.payload?.content==='string')texts.push(event.payload.content);

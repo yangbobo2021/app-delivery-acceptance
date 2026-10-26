@@ -16,7 +16,7 @@ import unittest
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parents[1] / "scripts/v3"))
-from coverage_protocol import PROTOCOL, preparation, sha, verify_report
+from coverage_protocol import PROTOCOL, preparation, sha, verify_report, invoke
 from coverage_registry import activate, ensure_active
 from run_coverage import run_coverage
 import coverage_views
@@ -111,6 +111,15 @@ class ProjectCoverageProtocolTest(unittest.TestCase):
                 "scenarios": [{"id": "SCENE-1"}],
                 "coverage": {**json.loads(report.read_text()), "report_path": str(report),
                              "capture_end": "2026-01-01T00:00:00+00:00"}}
+
+    def test_silent_adapter_failure_preserves_returned_diagnostic(self):
+        self.adapter.write_text("import json,sys\nfrom pathlib import Path\nPath(sys.argv[3]).write_text(json.dumps({'status':'invalid','checks':{'entry_bound':False}}))\nraise SystemExit(2)\n")
+        profile = {**self.profile, 'adapter_files': {'tools/stub.py': sha(self.adapter)}}
+        output = self.base / 'failed-operation.json'
+        with self.assertRaises(ValueError) as error:
+            invoke(profile, 'verify-preparation', {'prepared': str(self.prepared / 'prepared.json')}, output)
+        self.assertIn('entry_bound', str(error.exception))
+        self.assertFalse(json.loads(output.read_text())['checks']['entry_bound'])
 
     def test_unregistered_language_uses_frozen_recorder_and_retains_history(self):
         first = self.collect()

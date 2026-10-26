@@ -145,7 +145,7 @@ async function repairSelectedCode(attempt){
  const index=metrics.calls.length+1,call={role:'repairer',phase:'case_code',attempt,started_at:new Date().toISOString(),prompt_characters:prompt.length};
  metrics.calls.push(call);save('metrics.json',metrics);writeFileSync(join(folder,`prompt-${index}.txt`),prompt);
  let done,error;const texts=[],t=performance.now();
- for await(const event of adapters.repairer.run(prompt,{cwd,model:metrics.model,effort:metrics.effort,
+ for await(const event of adapters.repairer.run(prompt,{jsonOutput:true,cwd,model:metrics.model,effort:metrics.effort,
    permissions:{fileWrite:'deny',shellExecute:'deny',networkAccess:'deny'}})){
   appendFileSync(join(folder,`agent-${index}.jsonl`),JSON.stringify(event)+'\n');
   if(event.type==='text'&&typeof event.payload?.content==='string')texts.push(event.payload.content);
@@ -172,7 +172,7 @@ const ports={
   const index=metrics.calls.length+1,call={role,phase,attempt,started_at:new Date().toISOString(),prompt_characters:prompt.length};
   metrics.calls.push(call);save('metrics.json',metrics);writeFileSync(join(folder,`prompt-${index}.txt`),prompt);
   let done,error;const texts=[],t=performance.now();
-  try{for await(const event of adapters[role].run(prompt,{cwd,model:metrics.model,effort:metrics.effort,abortSignal:signal,
+  try{for await(const event of adapters[role].run(prompt,{jsonOutput:true,cwd,model:metrics.model,effort:metrics.effort,abortSignal:signal,
       permissions:{fileWrite:'deny',shellExecute:'deny',networkAccess:'deny'}})){
     appendFileSync(join(folder,`agent-${index}.jsonl`),JSON.stringify(event)+'\n');
     if(event.type==='text'&&typeof event.payload?.content==='string')texts.push(event.payload.content);

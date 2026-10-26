@@ -183,7 +183,9 @@ def validate(answer, input_value, catalog, captured, output):
     for row in unused:
         cid = row.get('case_id')
         if cid not in existing or cid in excluded or cid in selected or not isinstance(row.get('reason'), str) or not row['reason'].strip():
-            raise ValueError('Found but unselected cases need unique reasons')
+            raise ValueError('Found but unselected cases need unique reasons: ' + repr(cid) +
+                             '; expected unselected checkpoint case IDs from ' + repr(sorted(set(existing) - selected)) +
+                             '; excluded_candidates and filenames are not case IDs')
         excluded.add(cid)
     if selected | excluded != set(existing):
         raise ValueError('Existing associated cases disappeared without a selection reason')
@@ -217,7 +219,10 @@ def cli(mode, catalog_path, input_path, output_path, request_path=None):
         return {'schema': 'case-reuse-tools-v1', 'checkpoint': [sys.executable, str(Path(__file__).resolve()),
             'checkpoint', str(Path(catalog_path).resolve()), str(Path(input_path).resolve()), str(output)],
             'request_path': str(output / 'reuse-discovery-request.json'),
-            'record_path': str(captured_path)}
+            'record_path': str(captured_path),
+            'final_check': [sys.executable, str(Path(__file__).resolve()), 'check',
+                            str(Path(catalog_path).resolve()), str(Path(input_path).resolve()), str(output)],
+            'final_request_path': str(output / 'final-candidate.json')}
     baseline = read(baseline_path)
     if baseline.pop('binding') != identity:
         raise ValueError('Reuse startup binding differs')
@@ -234,6 +239,17 @@ def cli(mode, catalog_path, input_path, output_path, request_path=None):
         save(captured_path, value)
         return {'status': 'captured', 'record_path': str(captured_path),
                 'existing_cases': len(value['discovery']['case_descriptions'])}
+    if mode == 'check':
+        candidate_path = owned_path(output, request_path)
+        captured = read(captured_path)
+        if captured.get('binding') != identity:
+            raise ValueError('Reuse checkpoint input/catalog changed')
+        candidate = read(candidate_path)
+        validate(candidate, input_value, catalog, captured, output)
+        from case_identity import preflight_annotations
+        preflight_annotations(catalog, candidate)
+        return {'status': 'valid', 'read_only': True, 'candidate_sha256': sha(candidate_path.read_bytes()),
+                'meaning': 'Structural/source reference preflight only; final submission is checked again'}
     if mode == 'verify':
         answer_path = output / 'answer.json'
         answer = read(answer_path)
@@ -248,7 +264,7 @@ def cli(mode, catalog_path, input_path, output_path, request_path=None):
         report['binding'] = {**identity, 'answer_sha256': sha(answer_path.read_bytes())}
         save(output / 'case-reuse.json', report)
         return {'status': report['status'], 'record_path': str(output / 'case-reuse.json')}
-    raise ValueError('Expected start, checkpoint or verify')
+    raise ValueError('Expected start, checkpoint, check or verify')
 
 
 if __name__ == '__main__':

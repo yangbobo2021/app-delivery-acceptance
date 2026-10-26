@@ -13,12 +13,14 @@
 - `tools`：实际验证过的 `{name, version, role}`；准备资料记录实际命令/API及官方文档依据。安装包名称或版本标签不能代替验证。
 - `spec.project_root / revision / components / source_hashes`：实际执行工作区、完整冻结版本与全部源码范围。静态资源仍在清单内。
 - 新准备的 `spec.runtime_manifest / runtime_sha256 / probe_report / probe_report_sha256`：绑定本次验收的运行时环境和独立覆盖率探针报告。后续用例每次执行前复核环境、依赖、执行器、源码、适配器及探针字节；任一变化须重新准备。旧归档中不存在这些字段的历史准备保持可读，不将旧结果伪装成本轮运行环境验证。
-- `spec.inventory_path / inventory_sha256 / registry_path`：不可变范围清单及其摘要、持续证据索引。两个路径必须是绝对路径，保证准备与用例从不同工作目录调用时仍指向同一文件。`registry_path` 的父目录必须是当前 ID 的 `workflows` 下的专用尝试目录，供后续用例调试精确授权；不能直接把索引放在 `workflows` 根目录。
+- `spec.inventory_path / inventory_sha256 / registry_path`：不可变范围清单及其摘要、持续证据索引。两个路径必须是绝对路径，保证准备与用例从不同工作目录调用时仍指向同一文件。`registry_path` 的父目录必须是当前 ID 的 `workflows` 下的专用尝试目录，供后续用例调试精确授权；首次采集之前索引文件可以不存在，但声明的父目录必须存在；不能直接把索引放在 `workflows` 根目录。
 - `source_dispositions`：逐一覆盖源码清单，说明 `measured / non_executable / unsupported` 及具体依据，不能删掉不支持的范围。
 - `preparation_evidence`：真实工具链探针、原生零命中单位及配置等 `{path, sha256}`。合成探针仅证明工具能力，不能作为业务验收或业务覆盖率。
 - `preparation_status`：新准备为 `ready` 或 `partial`。某条执行路由探针失败，或者源码被标为 `unsupported` 时不能写 `ready`；失败的首次探针原始资料保留。`blocked` 留在 Agent 阶段结果中，不激活准备。
 - `artifact_aliases`：为归档预先保存的源码、适配器及离线复算必需的构建产物副本。原绝对路径必须位于项目根目录内，映射到 workflows 内的冻结副本；值可为路径字符串，或 `{ "path": 绝对路径, "sha256": 哈希 }`。源码/适配器副本必须与冻结清单同哈希；其他构建产物必须采用带哈希描述并在归档时复核。不得复制运行依赖、密钥或业务数据库。
 - 若项目工具只有其他原生口径（例如语句、块等），可在 component 中用自定指标名保存 `{ "status": "measured", "label": "口径名称", "tool_output": "原生工具输出" }`；通用视图按名称原样显示，不把这种统计换算为行或分支覆盖率。行、分支及三个范围仍按各自证据报告 `unavailable` 或 `incomplete`，不从原生百分比推导。
+
+`spec.components` 是 Git 组件路径到修订的映射，可为空对象；它不是覆盖率报告的指标组件数组。报告的 `components` 应按冻结 `source_hashes` 声明指标范围，不能因为没有 Git 子模块而输出空的覆盖率范围。
 
 每次改变源码、工具、适配器、配置或统计范围都新建准备目录与 catalog，保留旧资料。prep spec 的 `coverage_test_files` 声明所有适配器及必要测试夹具；宿主冻结哈希并自动绑定到每次调试和正式执行。
 覆盖率准备 Agent 修改过的受版本控制测试文件，即使只是自检助手，也必须列入 `adapter_paths` 并冻结。宿主在运行探针之前核对工作区的测试树变更清单；遗漏文件时准备失败，避免正式用例才因未绑定文件被拦下。
@@ -30,6 +32,8 @@
 若本项目有明确预期可测的源码，请求可给 `expected_measured_sources`（冻结 `source_hashes` 中的路径）。Agent 须针对这些文件验证已有方法、尝试修正或替代，并给出零命中、定向命中及独立读取依据；不能把首次工具失败直接当作项目不支持。`handoff.json` 同时列出目标与 `unmet_expected_sources`，供宿主核对本项目准备目标。它不改变 `partial` 的通用含义，其他项目可以按自己的范围接受部分采集。准备探针通过后，宿主还须使用实际用例入口检查 `run → finish → verify-report → summarize`，确认目标源码在真实用例的同次原生数据中有可信指标，然后才宣称该项目目标已实现。
 
 复测请求可附 `prior_attempts` 路径，由 Agent 只读失败收据与适配器快照，不覆盖前次资料。宿主在探针后立即调用项目入口 `verify-preparation`；既有适配器若还依赖旧版私有准备字段，必须在项目测试目录内更新后重试，不能因探针通过而跳过完整准备验证。
+
+准备 Agent 的实际输入同时包含完整的 [覆盖率工具规约](coverage-tool-contract.md)。项目适配器与独立读取器均应使用专用工具的原生报告或受支持统计入口；读取工具内部 parser、原始行或 arcs 后自行计算分母与命中仍不符合规约。宿主检查最终 argv、运行 cwd 和源码路径绑定，并以真实零/非零探针及完整准备验证决定是否就绪。
 
 首次准备失败不等于项目无法采集。调用方先查看失败收据和已冻结的适配器，再用新尝试目录及 `prior_attempts` 交给同一职责的 Agent 做有依据的最小修正，复用已验证环境，不重新安装或推翻已有路线。连续两次修正后先衡量进展、用户影响和替代入口；有明确小缺口且正在收敛时才继续，避免无界重试。仍失败的路由与范围保留为具体限制；不得改成 `ready`、擅自关闭用户要求的覆盖率，或用人工修好的适配器冒充 Agent 自主准备成功。宿主在运行探针之前冻结源码、适配器和哈希清单，失败尝试也可复现；后续探针及完整准备核验仍须确认活跃文件没有改变。
 
@@ -48,8 +52,8 @@ catalog 的 `coverage` 使用：
 | 操作 | 请求与响应 |
 | --- | --- |
 | `verify-preparation` | 请求 `prepared` 指向 manifest 文件；实测准备能力、版本与冻结资料，响应 `status: valid`。 |
-| `run` | 请求为宿主冻结的执行会话，含 `cwd, output, scene_id, command, env, files, coverage, prepared, prepared_sha256`。以成熟工具运行原业务命令，保持业务断言和退出码，在本轮输出内保存原生数据并可靠收尾。 |
-| `finish` | 请求 `request, receipt, output`，分别指冻结会话、真实收据与输出目录。生成下面的规范化报告。不能把测试失败变成成功。 |
+| `run` | 请求为宿主冻结的执行会话，含 `cwd, output, scene_id, command, env, files, coverage, prepared, prepared_sha256`。以成熟工具运行原业务命令，保持业务断言和退出码：适配器进程实际返回业务命令的退出码，并把业务 stdout/stderr 透传给宿主冻结日志；只在 response JSON 记录 exit_code 而返回 0 不符合约定。在本轮输出内保存原生数据并可靠收尾。 |
+| `finish` | 请求 `request, receipt, output`，分别指冻结会话 JSON **文件**、真实收据与输出目录。读取该会话后，其 `prepared` 是准备**目录**，manifest 位于 `<prepared>/prepared.json`；不要把目录直接当 JSON 文件打开。生成下面的规范化报告，不能把测试失败变成成功。 |
 | `verify-report` | 请求 `report`；从绑定原生资料用相同专用工具重算并核对报告，响应 `status: valid`。不能只检查汇总 JSON 自身。 |
 | `summarize` | 请求 `reports, inventory`。检查兼容性后由专用工具合并和筛选，响应 `tools, scopes`；三个 scope 为 `project, changed_files, changed_lines`。 |
 
@@ -57,7 +61,9 @@ catalog 的 `coverage` 使用：
 
 ## 报告与统计
 
-`coverage-report.json` schema 为 `project-tool-coverage-report-v1`，protocol 为 `project-coverage-v1`。必需 `prepared, prepared_sha256, scene_id, revision, source_hashes, tools, collection_relation: same_run, status, receipt_path, execution_sha256, raw_evidence, components`。收据必须绑定实际覆盖率会话及其 SHA256，场景、版本、准备和执行 argv 必须一致。原生数据逐一记录 `{path, sha256}`；适配器可增加原生数据角色等元数据。
+`coverage-report.json` schema 为 `project-tool-coverage-report-v1`，protocol 为 `project-coverage-v1`。必需 `prepared, prepared_sha256, scene_id, revision, source_hashes, tools, collection_relation: same_run, status, receipt_path, execution_sha256, raw_evidence, components`。报告的 `prepared` 必须与冻结执行会话的 `prepared` 目录字符串一致，`prepared_sha256` 是该目录下 `prepared.json` 的字节摘要；加载 manifest 时使用的文件路径不能替换报告的目录身份。
+
+收据必须绑定实际覆盖率会话及其 SHA256，场景、版本、准备和执行 argv 必须一致。原生数据逐一记录 `{path, sha256}`；适配器可增加原生数据角色等元数据。
 
 每个 component 包含 `id, label, source_paths, line, branch`，源路径必须属于冻结清单。行和分支分别保存工具给出的 `status, covered, total, pct`；不能计算的指标保存 `status: unavailable` 和具体 `reason`。禁止通用脚本或 UI 自行构造覆盖率单位与统计数字。混合语言保留各自 component 和分支口径，无法可靠合并时不制造总百分比。数据缺失、强制终止或收尾丢失必须明确 `incomplete`，保留真实已采部分及缺口。
 
@@ -78,3 +84,5 @@ catalog 的 `coverage` 使用：
 覆盖率补采不需要伪造 trace。现有 `project-context.json` 的 `acceptance` 与 `coverage_registries` 可登记补采索引，视图只把通过来源校验的真实采集附到同场景、同版本业务行。完整场景清单仍是统计分母。验证包括实际浏览器页面、三个范围、行/分支、工具版本、旧业务结论保留，以及暂移原采集目录后从归档同哈希依赖读取；验证后恢复目录，不删除旧证据。
 
 旧 `istanbul-source-v1` 的实现与报告保留在明确的 legacy 路径，仅用于已存在的准备/历史读取。新项目使用本协议，不把旧示例当作工具选择白名单或必备运行时。
+
+准备 Agent 可用 `probe_plan_path` 明确引用本 ID workflows 内已有完整计划，以避免重复录入长路径。宿主检查相同 runtime、workspace 和 revision，保存引用哈希并在新准备重新执行全部探针；它不复用旧的通过结果。也可继续输出完整 `probe_plan` 对象，两者互斥，任何实际 argv 都不能使用省略号。

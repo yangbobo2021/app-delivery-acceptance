@@ -78,7 +78,7 @@ const ports={
   const call={role,phase:instruction.phase,round,started_at:new Date().toISOString(),prompt_characters:prompt.length};metrics.calls.push(call);save();
   const t=performance.now(),texts=[];let done,error;
   try{
-   for await(const event of adapters[role].run(prompt,{cwd,model,effort,abortSignal:signal,
+   for await(const event of adapters[role].run(prompt,{jsonOutput:true,cwd,model,effort,abortSignal:signal,
      permissions:{fileWrite:'deny',shellExecute:'deny',networkAccess:'deny'}})){
     appendFileSync(join(folder,`agent-${metrics.calls.length}.jsonl`),JSON.stringify(event)+'\n');
     if(event.type==='text'&&typeof event.payload?.content==='string')texts.push(event.payload.content);

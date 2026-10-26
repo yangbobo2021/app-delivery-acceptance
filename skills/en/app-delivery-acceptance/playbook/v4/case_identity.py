@@ -129,6 +129,38 @@ def verify(answer, root, *, scene_id=None, acceptance_id=None, receipt_hashes=No
     return report
 
 
+def preflight_annotations(catalog, answer):
+    """Read-only source/annotation checks; never allocate IDs or write files."""
+    root = Path(catalog['project_root']).resolve()
+    cases = answer.get('case_descriptions', [])
+    roots = catalog.get('write_roots', catalog.get('test_roots', []))
+    seen = set()
+    markers(catalog, {c.get('source', {}).get('file') for c in cases})
+    for case in cases:
+        src = case['source']; name = src['file']; path = source_path(root, name)
+        if name not in answer.get('test_files', []) or roots and not any(Path(name).is_relative_to(Path(r)) for r in roots):
+            raise ValueError('case identity annotation outside selected test roots: ' + name)
+        lines = path.read_text(encoding='utf-8-sig').splitlines()
+        start, end = src.get('line_start'), src.get('line_end')
+        if type(start) is not int or type(end) is not int or not 1 <= start <= end <= len(lines):
+            raise ValueError('case identity declaration range invalid: ' + name)
+        body = '\n'.join(lines[start-1:end]); title = src.get('title')
+        if not title or title not in body and title not in (name, path.name):
+            raise ValueError('case identity declaration title not found: ' + name)
+        if any(MARKER.fullmatch(line) for line in lines[start-1:end]):
+            raise ValueError('source range includes another ID: start after its marker: ' + name)
+        if case.get('id') in seen:
+            raise ValueError('duplicate local case reference')
+        seen.add(case.get('id'))
+        marked = start > 1 and MARKER.fullmatch(lines[start-2])
+        if not marked:
+            if start == 1 and lines[0].startswith('#!'):
+                raise ValueError('preserve script shebang: ' + name)
+            if src.get('id_comment') not in COMMENTS:
+                raise ValueError('source.id_comment needs a safe template containing {id} for unmarked declaration ' +
+                                 name + '; allowed templates: ' + repr(sorted(COMMENTS)))
+
+
 def finalize(catalog, input_value, output):
     output = Path(output).resolve(); root = Path(catalog['project_root']).resolve()
     answer_path = output / 'answer.json'; raw = load(answer_path)
@@ -137,6 +169,7 @@ def finalize(catalog, input_value, output):
         return verify(raw, root, scene_id=scene, acceptance_id=at)
     if (output / 'case-identities.pending.json').exists() or (output / 'answer.agent.json').exists():
         raise ValueError('interrupted case identity finalization: recover recorded preimages before retry')
+    preflight_annotations(catalog, raw)
     registry_path = Path(input_value['acceptance']['project_root']) / '.acceptance' / 'case-identities.json'
     registry = load(registry_path) if registry_path.exists() else {'schema': 'project-case-identities-v1', 'cases': {}}
     if registry.get('schema') != 'project-case-identities-v1':

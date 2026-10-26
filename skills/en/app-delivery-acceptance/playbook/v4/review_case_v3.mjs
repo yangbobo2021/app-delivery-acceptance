@@ -38,7 +38,7 @@ if(input.ui_acceptance?.required){
  if(imageInputs.length>24)throw Error('UI scene has more than 24 distinct frozen images; select representative states in the case');
 }
 const uiInstruction=input.ui_acceptance?.required?`本场景包含 UI 可用性验收。下列 ${imageInputs.length} 张不同内容的冻结图片以多模态输入直接附在本消息后，并与相同顺序的绝对路径一一对应：${JSON.stringify(imageInputs.map(x=>x.path))}。相同像素的其他冻结路径复用已附图片：${JSON.stringify(imageAliases)}。必须直接观察这些图片像素，分别判断用户任务能否完成，以及关键状态下控件和内容是否无遮挡/裁切、可读、布局和基本视觉完成度是否合理。按冻结场景的视觉判据和项目依据审查；没有设计稿时核对排版层次、间距、对齐、字体与控件的一致性，不能因为当前项目一直使用裸默认样式就自动放行，但不强加具体品牌、配色或像素规格。在回答中新增 ui_review={"status":"passed|failed|unverified","screenshot_paths":["实际观察的冻结图片绝对路径"],"reason":"具体视觉观察和项目依据"}。若没有附图、图片不可读或缺窗口/状态上下文，用 unverified，整体返回 repair_required 或 inconclusive。不能从源码、DOM、文件存在或自己的想象声称看过图片。若像素清楚证明视觉缺陷，即使业务命令退出码为 0，仍可用 product_bug 和 product finding；此时 ui_review 必须 failed，指出可复现状态和缺陷，不以纯主观偏好判 BUG。`:'本场景未声明 UI 视觉验收；ui_review={"status":"not_applicable","screenshot_paths":[],"reason":"目标不涉及 UI"}。';
-const prompt=`你是独立测试审查者，判断一个场景的测试结论是否可靠。不能沿用实现者的 passed_local 自评。所有需求、场景和范围都在本任务输入中；无需读取项目外的测试 SKILL 或 Playbook。只读检查：选用的测试断言能否识别该场景的错误实现，预期是否来自需求与独立夹具，是否运行真实产品路径，冻结日志与观察是否支撑全部判据，失败究竟来自产品还是测试。若有逐行覆盖率，核对它来自本次冻结用例；覆盖率不能替代业务判断。${uiInstruction}
+const prompt=`你是独立测试审查者，判断一个场景的测试结论是否可靠。不能沿用实现者的 passed_local 自评。所有需求、场景和范围都在本任务输入中；无需读取项目外的测试 SKILL 或 Playbook。只读检查：选用的测试断言能否识别该场景的错误实现，预期是否来自需求与独立夹具，是否运行真实产品路径，冻结日志与观察是否支撑全部判据，失败究竟来自产品还是测试。若有逐行覆盖率，核对它来自本次冻结用例；覆盖率不能替代业务判断。输出中的 coverage 字段主要说明业务判据支持及缺口；若另行描述代码覆盖率状态或数字，必须读取本次冻结的 coverage_result_path 并依据专用工具报告及子进程采集范围核对，不能把某个父进程的 no-data/module-not-imported 警告直接当作全部子进程均未采集的证据。${uiInstruction}
 
 调度器已做确定性门禁：本次冻结重跑的版本、组件、测试文件哈希、日志哈希和证据路径均通过，门禁结果为 ${JSON.stringify(gate)}。不重复计算文件哈希、不扫描整仓，不重新运行测试。先读目标测试代码和执行摘要，必要时再读少量相关产品路径与原始观察。读取大型 JSON 证据时，先列记录标签和键，再只抽取判定所需字段；单次命令输出尽量不超过 12 KB，不打印完整嵌套响应、状态快照或大日志。若有明确疑点，可以扩大读取并说明原因。只审查给定场景。先把每条会导致失败的预期追溯到原始需求或独立确认的合同：生成场景本身不构成新增合同，用户确认原文也不等于确认生成后的附加策略。区分用于证明原文违约的测试方法与原文未限定的交互、额外字段处理、同步时机、输出完整性或展示格式；允许各种满足原文的实现。缺乏独立依据时保留实际观察，不能因“场景明确要求”或补上失败断言就判产品 BUG；旧的产品判定也不能充当预期依据。区分缺口所在层次：若只是测试代码额外要求无关字段、顺序、响应结构或内部机制不变，原场景仍可按原文判定，则返回 repair_required 和 case_code/case_design finding，明确移除超额约束并保留必要业务断言，交给有限修补；不要把能修测试解决的缺口标为 contract。只有冻结场景自身引入额外业务策略，或修补必须选择原文未定的业务行为时，才用 scenario/contract finding 停下等待场景/合同新版本。若输入包含 previous_review，只核对具体缺口与新证据，保留已通过的检查，除非发生冲突。
 
@@ -73,7 +73,7 @@ try{
  writeFileSync(join(output,'runner.pid'),String(process.pid)+'\n');
  const task=resume?'继续对同一冻结场景作独立审查；先核对先前已读证据及已收到的冻结图片，只完成剩余判断。最终仅输出原任务要求的 JSON。':
    imageInputs.length?[{type:'text',text:prompt},...imageInputs.map(item=>({type:'local_image',path:item.path}))]:prompt;
- for await(const event of agent.run(task,{cwd:checkout,model:result.model,effort:result.effort,
+ for await(const event of agent.run(task,{jsonOutput:true,cwd:checkout,model:result.model,effort:result.effort,
    ...(resume?{resume:resumeSession}:{}),
    permissions:{fileWrite:'deny',shellExecute:'allow',networkAccess:'deny'}})){
   appendFileSync(join(output,'agent.jsonl'),JSON.stringify(event)+'\n');

@@ -18,6 +18,8 @@ const prompt=`你负责一次性项目测试准备补充，只发现项目运行
 
 最终只输出 JSON：{"runner_command_hint":["程序","参数"],"environment_contract":[{"name":"变量名","purpose":"用途","must_match":"与哪个服务/测试路径共享或无"}],"fixture_isolation":"每次尝试如何隔离状态","existing_test_examples":["相对路径"],"smoke_command_hint":["程序","参数"],"source_basis":[{"path":"项目内相对路径","why":"依据"}],"coverage_tools":[{"role":"collector|converter|source_map|statistics","name":"工具名","version":"实测版本或未记录","invocation":"实际命令或API","supported_metrics":["lines","branches"],"basis":"项目证据或明确未知"}],"uncertainties":["..."],"summary":"一两句话"}。发现不了的字段用空数组或明确不确定，不要猜测。此结果只作为后续Agent的项目级操作路标，不是验收预期证据。
 
+source_basis 只引用工作区内已经读取的真实文件，path 是不带注释的精确相对路径。项目外运行环境/覆盖率 manifest 只能在 coverage_tools.basis 等说明字段引用，不能伪装成项目内 source_basis 路径。可核对的已冻结项目文件：${JSON.stringify([...new Set([...(catalog.source_paths??[]),...Object.keys(catalog.binding_files??{}),...Object.keys(catalog.coverage_test_files??{})])])}。
+
 覆盖率强制执行规约：
 ${coverageContract}
 
@@ -28,7 +30,7 @@ const result={agent_runtime:agent.metadata,model:agent.metadata.model,effort:age
  catalog_sha256:createHash('sha256').update(bytes).digest('hex'),prompt_characters:prompt.length};
 const t=performance.now(),texts=[];let done,error,tools=0;
 try{
- for await(const event of agent.run(prompt,{cwd:resolve(catalog.project_root),model:result.model,effort:result.effort,
+ for await(const event of agent.run(prompt,{jsonOutput:true,cwd:resolve(catalog.project_root),model:result.model,effort:result.effort,
   permissions:{fileWrite:'deny',shellExecute:'allow',networkAccess:'deny'}})){
   appendFileSync(join(output,'agent.jsonl'),JSON.stringify(event)+'\n');
   if(event.type==='text'&&typeof event.payload?.content==='string')texts.push(event.payload.content);
@@ -50,3 +52,5 @@ try{
 result.seconds=(performance.now()-t)/1000;result.tool_calls=tools;result.finished_at=new Date().toISOString();
 writeFileSync(join(output,'metrics.json'),JSON.stringify(result,null,2)+'\n');
 console.log(JSON.stringify({status:result.status,seconds:result.seconds,tool_calls:tools,usage:result.usage,error:result.error}));
+
+if(result.status!=='success')process.exitCode=2;

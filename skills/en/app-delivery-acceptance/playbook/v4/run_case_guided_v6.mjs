@@ -71,7 +71,7 @@ const implementationPrompt=`你负责一个验收场景的“用例实现与本�
 
 只以给定需求与场景为目标。相关需求仅提供上下文。动手前用不超过三句话列出：本场景最重要的错误实现假设、能让正确与错误实现得出不同结果的输入，以及独立观察方法。尤其面对“资源可用、状态正确、数据一致”等判据，考虑仅凭浅层格式、状态码或非空值检查会放过什么；选择真实消费方仍无法使用的反例，而不是仅提供明显无效的值。不要强制使用某语言、格式或项目特定反例。先找一个最小但可判定的测试路径：真实输入、操作、可观察断言和隔离环境；先让它实际运行，再补足场景内尚未覆盖的不同错误机理。不要把同一机理的值与状态做无意义笛卡尔积；场景明确要求的每个状态和每类错误仍须覆盖，可用有依据的代表组合，先写覆盖清单。每个业务断言都要能追溯到原需求或冻结场景；本次新写断言应删除仅由当前实现习惯推断出的默认状态、数字文本写法、字段或输出顺序等额外约束；已有断言未被当前场景提及不代表错误，不得因此删除或放宽，同时保留数值、身份和状态的必要检查。测试结束后的清理异常也必须如实反映在命令退出码与结论中，不能自报通过。依据已有用例检查结果复用或补充，新测试放项目常规测试目录。若判据涉及说明是否具体、易懂或准确等语义，自动用例保留完整原始文本和对应状态，只断言可机械判定的事实；不要用关键词、当前文案或永远失败的断言冒充语义判定，交由独立审查判断。进入页面后先用当前 DOM 或截图识别所处状态，再选择定位器；不要假定上一场景的页面状态恒定。对尚未出现的元素先用约 5 秒的小超时检查，失败后检查页面，不要等待整场测试超时。测试失败时先分清环境、测试导航、产品或合同；修正具体原因后才重跑。不要反复运行同一失败命令，也不要靠删除断言、跳过测试或 mock 产品响应制造通过。若三次有针对性重跑后仍未完成，诚实输出 blocked 和已验证部分。
 
-外部调度器会自动校验仓库与组件版本、文件变更并冻结重跑；不要自己扫描或哈希整仓，也不要自建审查凭证。你只需保留场景每项判据的真实执行观察，并给出可重跑的命令、环境变量和测试文件。test_command 必须是原始业务用例命令（例如 node e2e/run-case.mjs），不能返回 run_coverage.py、run_evidence_v2.py 等采集包装命令；调度器会自动且只包装一次。本地调试仍须按覆盖率规约通过统一入口执行；不要把本地调试目录和请求包装成最终业务命令。如果统一调试入口因 Agent 运行环境无法启动原生应用，而公共准备已有该环境可运行的证据，且测试代码、命令、必要状态隔离与静态检查均已完成，可返回 host_ready：清楚记录本地未执行的业务判据与环境错误，交由调度器在正式宿主执行和独立复审；绝不能称本地通过或产品失败。若公共准备也不能运行，或测试命令仍不可执行，返回 blocked。test_files 必须列出本场景新增的所有非忽略测试与夹具文件，包括借用的配置和服务脚本；可额外列入依赖的已有测试文件。只输出 JSON 对象：{"status":"passed_local|product_failure|needs_contract|host_ready|blocked","test_files":["相对路径"],"test_command":["命令","参数"],"test_env":{"变量名":"值"},"observations":["真实观察"],"evidence_paths":["路径"],"limitations":["..."],"reason":"一句话"}。本地通过仍需独立审查。
+外部调度器会自动校验仓库与组件版本、文件变更并冻结重跑；不要自己扫描或哈希整仓，也不要自建审查凭证。你只需保留场景每项判据的真实执行观察，并给出可重跑的命令、环境变量和测试文件。test_command 将在固定的 workspace 根目录运行，不继承你调试 shell 临时 cd 的目录；文件路径和测试模块必须在该根目录可解析，不能只因从测试子目录可运行就认为宿主也可导入。统一入口报错后先读取该次 execution/stdout.log、stderr.log 与真实业务退出码，再定位环境或证据问题。test_command 必须是原始业务用例命令（例如 node e2e/run-case.mjs），不能返回 run_coverage.py、run_evidence_v2.py 等采集包装命令；调度器会自动且只包装一次。本地调试仍须按覆盖率规约通过统一入口执行；不要把本地调试目录和请求包装成最终业务命令。如果统一调试入口因 Agent 运行环境无法启动原生应用，而公共准备已有该环境可运行的证据，且测试代码、命令、必要状态隔离与静态检查均已完成，可返回 host_ready：清楚记录本地未执行的业务判据与环境错误，交由调度器在正式宿主执行和独立复审；绝不能称本地通过或产品失败。若公共准备也不能运行，或测试命令仍不可执行，返回 blocked。test_files 必须列出本场景新增的所有非忽略测试与夹具文件，包括借用的配置和服务脚本；可额外列入依赖的已有测试文件。只输出 JSON 对象：{"status":"passed_local|product_failure|needs_contract|host_ready|blocked","test_files":["相对路径"],"test_command":["命令","参数"],"test_env":{"变量名":"值"},"observations":["真实观察"],"evidence_paths":["路径"],"limitations":["..."],"reason":"一句话"}。本地通过仍需独立审查。
 
 覆盖率强制执行规约：
 ${coverageContract}
@@ -102,7 +102,7 @@ ${discoveryOnly?'没有调试/覆盖率执行授权。':`覆盖率规约：${cov
 ${readFileSync(new URL('../../references/case-discovery-contract.md',import.meta.url),'utf8')}
 公共准备：${JSON.stringify(catalogBrief)}
 项目指南：${JSON.stringify(guideBrief)}
-冻结场景与需求：${JSON.stringify(input)}`:implementationPrompt+`\n\n共用的场景查找标准：\n${searchGuidance}\n生成前复用检查（先完成再修改或运行测试）：\n${reuseContract}\n已有用例结构与引用要求（checkpoint请求使用此结构，仅描述原已有用例）：\n${readFileSync(new URL('../../references/case-discovery-contract.md',import.meta.url),'utf8')}\n宿主复用检查工具：${JSON.stringify(reuseTools)}。先将checkpoint请求写到request_path，再执行checkpoint数组并追加该请求文件路径。成功后才进入测试修改和统一调试；恢复时若record_path已存在则复用冻结记录，不覆盖checkpoint。最终JSON还须包含case_reuse。`)+`\n\n用例说明输出契约（在原JSON中增加case_descriptions，不另输出文档）：\n${displayContract}\n提交前执行契约中的标题自查：只读 name 列表也能看懂各项实际验证的行为；删去不必要的实现步骤，保留区分条件与真实观察边界。`;
+冻结场景与需求：${JSON.stringify(input)}`:implementationPrompt+`\n\n共用的场景查找标准：\n${searchGuidance}\n生成前复用检查（先完成再修改或运行测试）：\n${reuseContract}\n已有用例结构与引用要求（checkpoint请求使用此结构，仅描述原已有用例）：\n${readFileSync(new URL('../../references/case-discovery-contract.md',import.meta.url),'utf8')}\n宿主复用检查工具：${JSON.stringify(reuseTools)}。先将checkpoint请求写到request_path，再执行checkpoint数组并追加该请求文件路径。成功后才进入测试修改和统一调试；恢复时若record_path已存在则复用冻结记录，不覆盖checkpoint。最终JSON还须包含case_reuse，且必须写明 case_reuse.schema 为固定字符串 case-reuse-plan-v1；不能省略此协议字段。提交之前，将完整最终候选 JSON 写到 final_request_path，执行 final_check 数组并追加该文件路径；按实际校验错误修正候选，直至 valid，再原样提交同一对象。此预检不运行业务测试，也不是独立复审。source.title 必须是源码选定行段内实际连续出现的原始声明名；不要把类名和方法名拼成源码中不存在的限定字符串。`)+`\n\n用例说明输出契约（在原JSON中增加case_descriptions，不另输出文档）：\n${displayContract}\n提交前执行契约中的标题自查：只读 name 列表也能看懂各项实际验证的行为；删去不必要的实现步骤，保留区分条件与真实观察边界。`;
 const policyScript=fileURLToPath(new URL('./existing_case_policy.py',import.meta.url));
 if(existingOnly)execFileSync('python3',[policyScript,'start',catalogPath,output],{encoding:'utf8'});
 if(resume){if(readFileSync(join(output,'prompt.txt'),'utf8')!==prompt)throw Error('resume prompt changed');}
@@ -120,10 +120,25 @@ const result={agent_runtime:agent.metadata,model:agent.metadata.model,effort:age
  catalog_sha256:fingerprint,revision:catalog.revision,scene_id:input.scene.id,prompt_characters:prompt.length,
  ...(resume?{resumed_from_session:resumeSession}:{})};
 const t=performance.now(),texts=[];let done,error,tools=0;
+const strings={type:'array',items:{type:'string'}};
+const jsonResultSchema=existingOnly?undefined:{type:'object',additionalProperties:true,
+ properties:{status:{type:'string',enum:['passed_local','product_failure','needs_contract','host_ready','blocked']},
+  test_files:strings,test_command:strings,test_env:{type:'object',additionalProperties:{type:'string'}},
+  observations:strings,evidence_paths:strings,limitations:strings,reason:{type:'string'},
+  case_descriptions:{type:'array',items:{type:'object',additionalProperties:true}},
+  case_reuse:{type:'object',additionalProperties:true,
+   properties:{schema:{type:'string',enum:['case-reuse-plan-v1']},
+    decisions:{type:'array',items:{type:'object',additionalProperties:true,
+     properties:{case_id:{type:'string'},action:{type:'string',enum:['reuse','extend','new']},existing_case_ids:strings,obligation_ids:strings,reason:{type:'string'}},
+     required:['case_id','action','existing_case_ids','obligation_ids','reason']}},
+    not_selected:{type:'array',description:'Only IDs from the frozen checkpoint discovery.case_descriptions that were not selected. Never excluded_candidates or filenames; [] when all existing cases selected.',
+     items:{type:'object',additionalProperties:false,properties:{case_id:{type:'string',description:'Exact existing case ID, not a file path or excluded candidate'},reason:{type:'string'}},required:['case_id','reason']}},limitations:strings},
+   required:['schema','decisions','not_selected','limitations']}},
+ required:['status','test_files','test_command','test_env','observations','evidence_paths','limitations','reason','case_descriptions','case_reuse']};
 try{
  writeFileSync(join(output,'runner.pid'),String(process.pid)+'\n');
  const task=resume?(existingOnly?`继续同一冻结场景的已有用例查找${discoveryOnly?'（只读，不运行测试或应用）':'与调试'}；保留原有测试和产品文件，不新增不修改，只完成未完成步骤，最后返回原格式JSON。`:'继续同一场景用例实现与本地调试。先核对当前测试文件和已执行观察，只完成尚未做完的工作；不要重复已确认的外部效果。最终仅输出原任务要求的 JSON。'):prompt;
- for await(const event of agent.run(task,{cwd:acceptanceBinding.project_root,model:result.model,effort:result.effort,
+ for await(const event of agent.run(task,{jsonOutput:true,jsonResultSchema,cwd:acceptanceBinding.project_root,model:result.model,effort:result.effort,
   ...(resume?{resume:resumeSession}:{}),
   permissions:discoveryOnly?{fileWrite:'deny',shellExecute:'allow',networkAccess:'deny'}:caseAgentPermissions})){
   appendFileSync(join(output,'agent.jsonl'),JSON.stringify(event)+'\n');
@@ -132,9 +147,39 @@ try{
   if(event.type==='done')done=event.payload;
   if(event.type==='error')error=event.payload?.message;
  }
- const raw=(texts.at(-1)??'').trim();writeFileSync(join(output,'answer.txt'),raw+'\n');
- try{writeFileSync(join(output,'answer.json'),JSON.stringify(JSON.parse(raw.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'')),null,2)+'\n');}
- catch(e){result.parse_error=e.message;}
+ let raw=(texts.at(-1)??'').trim(),answer;
+ const parse=value=>JSON.parse(value.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,''));
+ try{answer=parse(raw);}catch(e){result.parse_error=e.message;}
+ // A native structured tool can still omit a nested required field. Keep the
+ // original submission and ask the SAME session to repair only that literal.
+ // No business content, command, observation or source may change.
+ if(!existingOnly&&done?.status==='success'&&answer?.case_reuse&&answer.case_reuse.schema===undefined){
+  writeFileSync(join(output,'answer.protocol-original.txt'),raw+'\n');
+  writeFileSync(join(output,'answer.protocol-original.json'),JSON.stringify(answer,null,2)+'\n');
+  const session=readFileSync(join(output,'agent.jsonl'),'utf8').trim().split('\n').map(JSON.parse).find(e=>e.type==='init')?.sessionId;
+  if(!session)throw Error('Protocol correction has no originating session');
+  result.protocol_correction={reason:'missing case_reuse.schema',session,initial_usage:done.usage,
+   original_sha256:createHash('sha256').update(raw).digest('hex')};
+  const expected=structuredClone(answer);expected.case_reuse.schema='case-reuse-plan-v1';
+  const canonical=value=>JSON.stringify(value,(_key,item)=>item&&typeof item==='object'&&!Array.isArray(item)
+   ?Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])):item);
+  const fix='Your native structured submission omitted the mandatory fixed protocol field case_reuse.schema. Submit the SAME task JSON object with only case_reuse.schema added as the exact string "case-reuse-plan-v1". Preserve every other value, list item, command, observation, source and conclusion byte-for-byte as JSON values. Do not run tools, read or change files, debug, or repeat tests. This is one protocol correction, not a new test or review. Original task object: '+JSON.stringify(answer);
+  let correctionDone;
+  for await(const event of agent.run(fix,{jsonOutput:true,jsonResultSchema,resume:session,cwd:acceptanceBinding.project_root,
+   model:result.model,effort:result.effort,permissions:{fileWrite:'deny',shellExecute:'deny',networkAccess:'deny'}})){
+   appendFileSync(join(output,'agent.jsonl'),JSON.stringify(event)+'\n');
+   if(event.type==='text'&&typeof event.payload?.content==='string')texts.push(event.payload.content);
+   if(event.type==='tool_use'){tools++;if(event.payload?.toolName!=='StructuredOutput')throw Error('Protocol correction attempted a non-submission tool');}
+   if(event.type==='done')correctionDone=event.payload;
+   if(event.type==='error')throw Error(event.payload?.message??'Protocol correction failed');
+  }
+  if(correctionDone?.status!=='success')throw Error('Protocol correction did not complete');
+  raw=(texts.at(-1)??'').trim();const fixed=parse(raw);
+  if(canonical(fixed)!==canonical(expected))throw Error('Protocol correction changed content beyond the missing fixed marker');
+  answer=fixed;result.protocol_correction.status='corrected';result.protocol_correction.usage=correctionDone.usage;
+ }
+ writeFileSync(join(output,'answer.txt'),raw+'\n');
+ if(answer)writeFileSync(join(output,'answer.json'),JSON.stringify(answer,null,2)+'\n');
  result.status=done?.status;result.usage=done?.usage;result.error=error;
 }catch(e){result.status='error';result.error=e.message;}
 finally{if(existsSync(join(output,'runner.pid')))unlinkSync(join(output,'runner.pid'));}

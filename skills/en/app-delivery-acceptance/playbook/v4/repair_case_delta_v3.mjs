@@ -65,7 +65,7 @@ const agent=createAgentRuntime({directory:out,resume});
 const t=performance.now();let done,raw='',calls=0;try{
  writeFileSync(join(out,'runner.pid'),String(process.pid)+'\n');
  const task=resume?'继续同一场景的差量修复。核对已完成的测试文件及观察，只完成尚未完成的缺口；不要重复外部效果。最终仅输出原任务要求的 JSON。':prompt;
- for await(const e of agent.run(task,{cwd:acceptanceBinding.project_root,model:agent.metadata.model,effort:agent.metadata.effort,
+ for await(const e of agent.run(task,{jsonOutput:true,cwd:acceptanceBinding.project_root,model:agent.metadata.model,effort:agent.metadata.effort,
   ...(resume?{resume:resumeSession}:{}),
   permissions:caseAgentPermissions})){
   appendFileSync(join(out,'agent.jsonl'),JSON.stringify(e)+'\n');if(e.type==='text')raw=e.payload?.content??'';if(e.type==='done')done=e.payload;if(e.type==='tool_use')calls++;

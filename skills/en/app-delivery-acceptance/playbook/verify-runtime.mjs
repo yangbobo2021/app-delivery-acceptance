@@ -25,8 +25,10 @@ const {CodexAdapter} = await import('@sublang/cligent/adapters/codex');
 const {Codex} = await import('@openai/codex-sdk');
 const {ClaudeCodeAdapter} = await import('@sublang/cligent/adapters/claude-code');
 const {query} = await import('@anthropic-ai/claude-agent-sdk');
+const {OpenCodeAdapter} = await import('@sublang/cligent/adapters/opencode');
+const {createOpencodeClient} = await import('@opencode-ai/sdk/v2');
 const {parse} = await import('smol-toml');
-if (![createActor, createWorktreeHostCapabilities, CodexAdapter, Codex, ClaudeCodeAdapter, query, parse].every(v => typeof v === 'function') || !Object.keys(runtime).length) {
+if (![createActor, createWorktreeHostCapabilities, CodexAdapter, Codex, ClaudeCodeAdapter, query, OpenCodeAdapter, createOpencodeClient, parse].every(v => typeof v === 'function') || !Object.keys(runtime).length) {
   throw Error('Required runtime exports are unavailable');
 }
 const spex = join(modules, '@sublang/spex/dist/cli.js');
@@ -40,7 +42,7 @@ const cliManifest = sdkRequire.resolve('@openai/codex/package.json');
 const cliPackage = JSON.parse(readFileSync(cliManifest, 'utf8'));
 const codexEntry = join(dirname(cliManifest), cliPackage.bin.codex);
 const selectedAgent=process.env.ACCEPTANCE_AGENT;
-if (selectedAgent&&!['codex','claude-code'].includes(selectedAgent)) throw Error('Unknown ACCEPTANCE_AGENT');
+if (selectedAgent&&!['codex','claude-code','opencode'].includes(selectedAgent)) throw Error('Unknown ACCEPTANCE_AGENT');
 const codexVersion = selectedAgent==='codex' ? execFileSync(process.execPath, [codexEntry, '--version'], {encoding: 'utf8', timeout: 30000}).trim() : null;
 let claudeVersion=null;
 if (selectedAgent==='claude-code') {
@@ -48,4 +50,5 @@ if (selectedAgent==='claude-code') {
   const binary=join(modules,`@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}${musl?'-musl':''}`,'claude');
   claudeVersion=execFileSync(binary,['--version'],{encoding:'utf8',timeout:30000}).trim();
 }
-console.log(JSON.stringify({versions, spexVersion, codexVersion, claudeVersion, selectedAgent:selectedAgent??null, modules}));
+const opencodeVersion=selectedAgent==='opencode'?execFileSync('opencode',['--version'],{encoding:'utf8',timeout:30000}).trim():null;
+console.log(JSON.stringify({versions, spexVersion, codexVersion, claudeVersion, opencodeVersion, selectedAgent:selectedAgent??null, modules}));

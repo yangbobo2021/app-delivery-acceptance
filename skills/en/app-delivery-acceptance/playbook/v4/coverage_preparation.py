@@ -120,14 +120,19 @@ def _probe(mode, route, plan, runtime, output):
     receipts = {}
     for name in ("collect", "adapter", "direct"):
         receipts[name] = _execute(commands[name], runtime, substitutions, root, folder / name)
+        if name != "collect":
+            after = {str(path): sha(path) for path in raw.rglob("*") if path.is_file()}
+            write(folder / "native-integrity.json", {"reader": name, "before": native, "after": after,
+                  "added": sorted(set(after) - set(native)), "removed": sorted(set(native) - set(after)),
+                  "changed": sorted(path for path in native.keys() & after.keys() if native[path] != after[path])})
+            if native != after:
+                raise ValueError("coverage probe readers changed native data")
         if receipts[name]["exit_code"]:
             raise ValueError("coverage " + name + " probe failed")
         if name == "collect":
             native = {str(path): sha(path) for path in raw.rglob("*") if path.is_file()}
             if not native:
                 raise ValueError("coverage probe produced no native data")
-    if native != {str(path): sha(path) for path in raw.rglob("*") if path.is_file()}:
-        raise ValueError("coverage probe readers changed native data")
     adapter = json.loads(Path(receipts["adapter"]["stdout"]["path"]).read_text())
     direct = json.loads(Path(receipts["direct"]["stdout"]["path"]).read_text())
     metrics = _normalized(adapter, route["source_paths"])
