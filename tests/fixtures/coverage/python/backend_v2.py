@@ -34,7 +34,8 @@ def main(operation, request):
         raw = out / "native"
         raw.mkdir()
         config = out / "coverage.ini"
-        config.write_text("[run]\nbranch = True\nparallel = True\nsource = " + str(ROOT) + "\ndata_file = " + str(raw / ".coverage") + "\n")
+        source = ROOT / 'src' if BEHAVIOR == 'zero-branch-mode' else ROOT
+        config.write_text("[run]\nbranch = True\nparallel = True\nsource = " + str(source) + "\ndata_file = " + str(raw / ".coverage") + "\n")
         env = {**os.environ, **request.get("env", {})}
         env["PYTHONPATH"] = str(HERE / "hook") + os.pathsep + env.get("PYTHONPATH", "")
         if BEHAVIOR != "missing":
@@ -59,12 +60,13 @@ def main(operation, request):
         target = Path(request["output"]) / "coverage-native.json"
         cov.json_report(morfs=list(request["sources"].values()), outfile=str(target))
         document = load(target)
-        if not document["meta"]["branch_coverage"]:
+        if not document["meta"]["branch_coverage"] and BEHAVIOR != 'zero-branch-mode':
             raise ValueError("Native data has no branch measurements")
         summary = document["totals"]
         component = {"id": "src/calc.py", "source_paths": ["src/calc.py"],
                      "line": {"status": "measured", "covered": summary["covered_lines"], "total": summary["num_statements"]},
-                     "branch": {"status": "measured", "covered": summary["covered_branches"], "total": summary["num_branches"]}}
+                     "branch": {"status": "measured", "covered": summary["covered_branches"], "total": summary["num_branches"]}
+                     if 'num_branches' in summary else {"status":"unavailable", "reason":"Native zero snapshot has no branch mode"}}
         if BEHAVIOR == "native-metric":
             component["statements"] = component["line"]
             for name in ("line", "branch"):

@@ -19,7 +19,8 @@ for item in request["component_sources"]:
     summary = doc["totals"]
     component = {"id": item["id"], "source_paths": item["source_paths"],
                  "line": {"status": "measured", "covered": summary["covered_lines"], "total": summary["num_statements"]},
-                 "branch": {"status": "measured", "covered": summary["covered_branches"], "total": summary["num_branches"]}}
+                 "branch": {"status": "measured", "covered": summary["covered_branches"], "total": summary["num_branches"]}
+                 if 'num_branches' in summary else {"status":"unavailable", "reason":"Native zero snapshot has no branch mode"}}
     if "statements" in item.get("metric_names", []):
         component["statements"] = component["line"]
         for name in ("line", "branch"):

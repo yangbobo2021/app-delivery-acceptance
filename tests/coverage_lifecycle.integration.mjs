@@ -78,6 +78,7 @@ for (const [behavior, pattern] of [
   ['drop-child', /did not establish nonzero/], ['missing', /finish omitted/], ['broken-finish', /lifecycle finish failed/],
   ['broken-summary', /lifecycle summarize failed/], ['echo', /native recount mismatch/], ['wrong-counts', /native recount mismatch/],
   ['mutate', /reader changed evidence/],
+  ['zero-branch-mode', /zero\/nonzero metric availability or native denominator changed/],
 ]) test('LIFECYCLE-' + behavior, '阻止就绪：' + behavior, () => {
   const value = fixture(behavior, behavior);
   assert.throws(() => runLifecycleGate(value), pattern);

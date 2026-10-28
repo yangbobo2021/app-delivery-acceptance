@@ -15,6 +15,19 @@ const hash = file => createHash('sha256').update(fs.readFileSync(file)).digest('
 const write = (file, value) => fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n', {flag: 'wx'});
 const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object' ?
   Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
+function countBasis(components) {
+  return components.map(component => ({id:component.id,source_paths:[...component.source_paths].sort(),
+    metrics:Object.fromEntries(Object.entries(component).filter(([,metric]) =>
+      ['measured','incomplete','unavailable'].includes(metric?.status)).map(([name,metric]) =>
+      [name,{status:metric.status,...(metric.status==='measured'?{total:metric.total}:{})}]))}))
+    .sort((left,right)=>left.id.localeCompare(right.id));
+}
+function verifyCountBasis(reports) {
+  const first=countBasis(reports[0].components);
+  if(reports.slice(1).some(report=>!equal(first,countBasis(report.components))))
+    throw Error('Coverage lifecycle zero/nonzero metric availability or native denominator changed');
+  return first;
+}
 export function lifecycleBinding(profile) {
   const copy = structuredClone(profile);
   delete copy.spec.lifecycle_report;delete copy.spec.lifecycle_report_sha256;
@@ -41,6 +54,7 @@ export function verifyLifecycleGate(file, profile, mapping = {}) {
   if (report.routes.some(route => !['zero', 'zero_repeat', 'nonzero'].every(mode => route[mode]?.status === 'passed') ||
       !['zero', 'mixed'].every(mode => route.aggregates?.[mode]?.status === 'passed')))
     throw Error('Coverage lifecycle gate omitted a route check');
+  const verifiedFiles=new Map();
   for (const ref of report.files ?? []) {
     let actual = ref.path;
     if (!fs.existsSync(actual) || hash(actual) !== ref.sha256) {
@@ -49,8 +63,17 @@ export function verifyLifecycleGate(file, profile, mapping = {}) {
       actual = alias.path;
     }
     if (hash(actual) !== ref.sha256) throw Error('Coverage lifecycle evidence missing or changed: ' + ref.path);
+    verifiedFiles.set(ref.path+'#'+ref.sha256,actual);
   }
   if (!report.files?.length) throw Error('Coverage lifecycle gate has no execution evidence');
+  for(const route of report.routes){
+    const reports=['zero','zero_repeat','nonzero'].map(mode=>{
+      const ref=route[mode].report,actual=verifiedFiles.get(ref?.path+'#'+ref?.sha256);
+      if(!actual)throw Error('Coverage lifecycle route report missing from frozen evidence');
+      return read(actual);
+    });
+    verifyCountBasis(reports);
+  }
   return report;
 }
 export function runLifecycleGate({prepared, plan: planPath, output}) {
@@ -192,6 +215,7 @@ export function runLifecycleGate({prepared, plan: planPath, output}) {
         result[mode] = {status: 'passed', report: {path: finished.file, sha256: hash(finished.file)},
           command: session.command, expected_exit_code: expectedExit, metrics_tamper_rejected: true};
       }
+      result.count_basis=verifyCountBasis(['zero','zero_repeat','nonzero'].map(mode=>read(result[mode].report.path)));
       result.aggregates = {};
       for (const [name, modes] of [['zero', ['zero', 'zero_repeat']], ['mixed', ['zero', 'nonzero']]]) {
         const folder = path.join(output, route.id, 'aggregate-' + name);fs.mkdirSync(folder);
