@@ -12,7 +12,7 @@ import {runLifecycleGate, verifyLifecycleGate} from '../skills/en/app-delivery-a
 
 const args = process.argv.slice(2), option = name => {const index = args.indexOf(name);return index < 0 ? undefined : args[index + 1];};
 const output = args.includes('--output') ? path.resolve(option('--output')) : fs.mkdtempSync(path.join(os.tmpdir(), 'coverage-lifecycle-evidence-'));
-const python = fs.realpathSync(option('--python') ?? '/opt/miniconda3/bin/python3');
+const python = path.resolve(option('--python') ?? '/opt/miniconda3/bin/python3');
 fs.mkdirSync(output, {recursive: true});
 const sha = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const read = file => JSON.parse(fs.readFileSync(file));

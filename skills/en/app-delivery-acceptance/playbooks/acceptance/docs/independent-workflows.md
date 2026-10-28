@@ -96,4 +96,4 @@ node <repository>/tests/acceptance_freeze.integration.mjs --live-cli --output /a
 ```
 
 实际调用官方 CLI、当前 Node 存储工具和文件系统，检查原文、增量、不可覆盖历史、同请求重入、过期基线、场景影响、工作区互斥及创建→冻结后停止。
-`--live-cli` 使用测试中明确记录的 Codex/gpt-6.1-sol Captain；省略则仅执行确定性协议集成检查。
+`--live-cli` 使用测试中明确记录的 Codex Captain；可用 `ACCEPTANCE_MODEL / ACCEPTANCE_EFFORT` 显式选择模型和 effort，实际配置与角色回执随证据保存。省略则仅执行确定性协议集成检查。

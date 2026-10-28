@@ -10,7 +10,7 @@ import {harness,read,sha,skill,snapshot} from './official_workflow_harness.mjs';
 
 const h=harness('acceptance-coverage',[['acceptance-coverage-prepare','coverage']]);
 const args=process.argv.slice(2),pythonIndex=args.indexOf('--python');
-const python=pythonIndex>=0?fs.realpathSync(args[pythonIndex+1]):null;
+const python=pythonIndex>=0?path.resolve(args[pythonIndex+1]):null;
 async function check(id,purpose,body){try{const data=await body();h.test(id,purpose,()=>data);}catch(error){h.test(id,purpose,()=>{throw error;});}}
 const root=h.project('coverage-project'),at='AT-coverage';
 fs.mkdirSync(path.join(root,'src'));fs.mkdirSync(path.join(root,'tests'));

@@ -68,16 +68,19 @@ if(!process.argv.includes('--stop-at-execution'))await check('EXECUTE-03','Conti
 if(h.live)await check('EXECUTE-04',repairFixture?'Real independent review identifies the seeded test gap, one Node repair retains IDs and a new execution/review verifies the full scene':'Real official CLI resumes the checkpoint and obtains independent judgment against only the selected TC',async()=>{
   let repairHashes;
   if(repairCheckpoint){
-    const paused=h.cli('acceptance-execute',{...request,stop_after:'repair'},'live-stop-after-repair',root,{timeout:1000000,env:{...process.env,ACCEPTANCE_AGENT:'codex',ACCEPTANCE_MODEL:'gpt-6.1-sol',SPEX_HOME:path.join(h.temporary,'spex')}});h.settled(paused,'acceptance-execute','done');
+    const paused=h.cli('acceptance-execute',{...request,stop_after:'repair'},'live-stop-after-repair',root,{timeout:1000000,env:{...process.env,ACCEPTANCE_AGENT:'codex',ACCEPTANCE_MODEL:process.env.ACCEPTANCE_MODEL??'gpt-6.1-sol',SPEX_HOME:path.join(h.temporary,'spex')}});h.settled(paused,'acceptance-execute','done');
     assert.equal(read(path.join(checkpoint.directory,'state.json')).stages['repair-1'].status,'completed');assert.equal(fs.existsSync(path.join(checkpoint.directory,'execution-review-1')),false);assert.equal(fs.existsSync(path.join(checkpoint.directory,'result.json')),false);
     repairHashes=Object.fromEntries(['repair-1/metrics.json','repair-1/answer.json','review/answer.json'].map(name=>[name,sha(path.join(checkpoint.directory,name))]));h.save('repair-checkpoint.json',{directory:checkpoint.directory,repairHashes,first_execution_sha256:receiptHash});
   }
-  const cli=h.cli('acceptance-execute',request,'live-execute',root,{timeout:1000000,env:{...process.env,ACCEPTANCE_AGENT:'codex',ACCEPTANCE_MODEL:'gpt-6.1-sol',SPEX_HOME:path.join(h.temporary,'spex')}});h.settled(cli,'acceptance-execute','done');
+  const cli=h.cli('acceptance-execute',request,'live-execute',root,{timeout:1000000,env:{...process.env,ACCEPTANCE_AGENT:'codex',ACCEPTANCE_MODEL:process.env.ACCEPTANCE_MODEL??'gpt-6.1-sol',SPEX_HOME:path.join(h.temporary,'spex')}});h.settled(cli,'acceptance-execute','done');
   const value=read(path.join(checkpoint.directory,'result.json'));assert.equal(value.status,'completed');assert.equal(value.review_status,'passed');
   if(repairFixture){assert.equal(value.review_applies_to,'frozen_scene');assert.equal(value.scene_review_status,'passed');assert.equal(value.repair_attempts,1);assert.equal(read(path.join(checkpoint.directory,'review/answer.json')).status,'repair_required');assert.equal(read(path.join(checkpoint.directory,'review-review-1/answer.json')).status,'passed');assert.deepEqual(read(value.active_case_answer).case_descriptions.map(item=>item.id).sort(),[...ids].sort());}
   else{assert.equal(value.review_applies_to,'selected_cases_only');assert.equal(value.scene_review_status,'not_revalidated');assert.deepEqual(value.unselected_case_ids,[ids[1]]);}
   assert.equal(sha(path.join(checkpoint.directory,'execution/execution.json')),receiptHash);assert.equal(fs.existsSync(path.join(local,'workspace-owner.json')),false);assert.equal(read(path.join(root,'.acceptance-local/current.json')).acceptance_id,at);
-  const metrics=read(path.join(checkpoint.directory,'review/metrics.json'));assert.equal(metrics.agent_runtime.transport.kind,'official-playbook-cli');assert.equal(read(path.join(checkpoint.directory,'review/decision-gate.json')).status,'valid');
+  const metrics=read(path.join(checkpoint.directory,'review/metrics.json')),configured=read(path.join(h.output,'cli-config.json')).players['acceptance.execute.reviewer'];
+  assert.equal(metrics.agent_runtime.transport.kind,'official-playbook-player-port');assert.equal(metrics.agent_runtime.role,'reviewer');
+  assert.equal(metrics.agent_runtime.model,configured.model);if(configured.effort)assert.equal(metrics.agent_runtime.effort,configured.effort);
+  assert.equal(read(path.join(checkpoint.directory,'review/decision-gate.json')).status,'valid');
   if(repairHashes)for(const [name,expected]of Object.entries(repairHashes))assert.equal(sha(path.join(checkpoint.directory,name)),expected,'A completed repair or review was repeated or changed during continuation');
   const cached=await executeScenario(request);assert.equal(cached.reused,true);assert.equal(cached.review_status,'passed');return {result:value,metrics};
 });

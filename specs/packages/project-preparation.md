@@ -97,6 +97,8 @@
 
 当验证完整工作流配置时，集成测试应通过实际注册模块生成不含凭据的临时配置并用官方 CLI 加载，核对显式模型及差异角色绑定 [[project-preparation-1](#project-preparation-1)]、缺失身份被拒绝 [[project-preparation-2](#project-preparation-2)] 和旧配置不被覆盖 [workflow_config.integration.mjs](../../tests/workflow_config.integration.mjs)。
 
+- 真实模型测试采用调用者明确选择的模型及 effort；模型无关的夹具隔离其模拟身份，不继承另一 Agent 的专属配置。
+
 ### project-preparation-19
 
 当验证已验证方法的知识提炼时，集成测试应核对真实轻量验证依据、可移植适用条件及限制，并拒绝将本机路径或业务收据当作共享方法 [[project-preparation-10](#project-preparation-10)] [acceptance_knowledge.integration.mjs](../../tests/acceptance_knowledge.integration.mjs)。

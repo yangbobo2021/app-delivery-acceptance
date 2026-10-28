@@ -10,7 +10,7 @@ const attempt=args.includes('--request-id')?args[args.indexOf('--request-id')+1]
 const request={...input,request_id:attempt,basis:args.includes('--basis')?args[args.indexOf('--basis')+1]:'修复此前真实覆盖率准备失败；只读核对前次失败收据与已冻结适配器，复用当前运行环境并执行本次新探针。不运行业务测试。',prior_attempts:[original]};
 const old=snapshot(original);h.save('repair-input.json',request);let result;
 h.test('REPAIR-COVERAGE-01','同一 AT 的官方 CLI 独立角色检查原失败并修复采集链，重新核对零/非零探针',()=>{
-  const cli=h.cli('acceptance-coverage-prepare',request,'repair-coverage',input.project_root,{timeout:1000000,env:{...process.env,ACCEPTANCE_AGENT:'codex',ACCEPTANCE_MODEL:'gpt-6.1-sol',SPEX_HOME:path.join(h.temporary,'spex')}});h.settled(cli,'acceptance-coverage-prepare','done');
+  const cli=h.cli('acceptance-coverage-prepare',request,'repair-coverage',input.project_root,{timeout:1000000,env:{...process.env,ACCEPTANCE_AGENT:'codex',ACCEPTANCE_MODEL:process.env.ACCEPTANCE_MODEL??'gpt-6.1-sol',SPEX_HOME:path.join(h.temporary,'spex')}});h.settled(cli,'acceptance-coverage-prepare','done');
   result=read(path.join(input.project_root,'.acceptance-local',input.acceptance_id,'workflows/coverage',attempt,'result.json'));assert.equal(result.status,'ready');
   const runtime=read(input.runtime_manifest);assert.equal(fs.existsSync(path.join(runtime.workspace,'BUSINESS_TEST_WAS_RUN')),false);
   assert.deepEqual(snapshot(original),old);h.save('repair-result.json',result);return {result,original_failure_preserved:true};

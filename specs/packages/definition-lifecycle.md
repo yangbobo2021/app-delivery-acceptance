@@ -114,3 +114,5 @@
 ### definition-lifecycle-25
 
 当验证用户授权的文档回填时，集成测试应沿用实际项目组织、限制写入授权文档并通过真实 SPEX 检查，保留原约定映射及单独冻结候选 [[definition-lifecycle-17](#definition-lifecycle-17)] [acceptance_backfill.integration.mjs](../../tests/acceptance_backfill.integration.mjs)。
+
+- 原文包含完整标点和空白；新增引用应放在完整原文之后，不能通过插入引用改写原句。拒绝时指出具体事项及失配类别，不将排版相近当作原文相同。

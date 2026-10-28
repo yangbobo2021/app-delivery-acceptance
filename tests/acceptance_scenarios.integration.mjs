@@ -121,7 +121,7 @@ if(h.live){
     assert.equal(sha(path.join(liveRoot,'.acceptance',liveAt,'scenarios.json')),original);
     const calls=result.traces.filter(t=>t.type==='player.call.started');assert.equal(calls.length,1);assert.equal(calls[0].payload.roleId??calls[0].payload.role,'designer');
     h.save('live-result.json',receipt);h.save('live-after.json',snapshot(liveRoot));
-    return {output:result.envelope,receipt,player_calls:calls.length,actual_model:'gpt-6.1-sol'};
+    return {output:result.envelope,receipt,player_calls:calls.length,actual_model:read(path.join(h.output,'cli-config.json')).captain.model};
   });
   h.test('SCENARIO-14','真实 CLI 对已完成设计不再调用角色，并可单独采用候选定义',()=>{
     const req=read(path.join(h.output,'live-input.json')),again=h.cli('acceptance-scenarios',req,'live-design-repeat',liveRoot);h.settled(again,'acceptance-scenarios','done');

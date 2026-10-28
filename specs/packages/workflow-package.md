@@ -23,3 +23,5 @@
 ### workflow-package-4
 
 当系统测试在无 Skill 的新目录安装 npm 包并调用标准命令时，应验证全部公开入口的注册与必要输入边界、真实业务链路及停止点、包内路径闭合 [[workflow-package-1](#workflow-package-1)]，并检查 Skill 层无业务实现 [[workflow-package-2](#workflow-package-2)] 和角色配置、真实事件及本地运行时版本来源 [[workflow-package-3](#workflow-package-3)]。
+
+- 正常路径验证须包括新请求的实际处理，不仅重放已完成回执；生命周期命令使用独立新夹具核对文件、指针及不执行产品测试的边界 [acceptance_lifecycle_cli.integration.mjs](../../tests/acceptance_lifecycle_cli.integration.mjs)。

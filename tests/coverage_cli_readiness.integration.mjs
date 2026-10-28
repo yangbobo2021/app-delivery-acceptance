@@ -12,7 +12,8 @@ import {prepareCoverage} from '../skills/en/app-delivery-acceptance/playbooks/ac
 const args = process.argv.slice(2), option = key => args[args.indexOf(key) + 1];
 assert.ok(args.includes('--live-cli') && args.includes('--bundle') && args.includes('--python'));
 const h = harness('coverage-cli-readiness', [['acceptance-coverage-prepare', 'coverage']]);
-const root = h.project('original-product'), python = fs.realpathSync(option('--python'));
+// Preserve the invoked interpreter: resolving a venv symlink changes sys.prefix.
+const root = h.project('original-product'), python = path.resolve(option('--python'));
 const revision = 'be952659c7d93018e26793daf2e58fa8321601f4', at = 'AT-cli-readiness';
 assert.equal(h.run('clone-preserved-product', 'git', ['clone', '-q', path.resolve(option('--bundle')), root]).exit_code, 0);
 assert.equal(h.run('checkout-frozen-product', 'git', ['-C', root, 'checkout', '-q', '--detach', revision]).exit_code, 0);

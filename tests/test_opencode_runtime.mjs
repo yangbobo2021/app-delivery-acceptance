@@ -17,7 +17,7 @@ function fixture(t) {
   // Model-free resolver boundary: native CLI success/error output is intentionally private.
   writeFileSync(join(bin,'opencode'),`#!${process.execPath}\nimport fs from 'node:fs';\nimport http from 'node:http';\nif(process.argv[2]==='--version')console.log('1.19.4');\nelse {const server=http.createServer((req,res)=>{res.setHeader('Content-Type','application/json');res.end(fs.readFileSync(${JSON.stringify(configPath)},'utf8'));});server.listen(0,'127.0.0.1',()=>console.log('opencode server listening on http://127.0.0.1:'+server.address().port));process.on('SIGTERM',()=>server.close());}\n`,{mode:0o755});
   return {home,cwd:home,config,configPath,env:{...process.env,PATH:bin+delimiter+process.env.PATH,
-    ACCEPTANCE_AGENT:'opencode',ACCEPTANCE_MODEL:'relay/glm-5.3-flash',ZHIPU_API_KEY:'environment-secret'}};
+    ACCEPTANCE_AGENT:'opencode',ACCEPTANCE_MODEL:'relay/glm-5.3-flash',ACCEPTANCE_EFFORT:undefined,ZHIPU_API_KEY:'environment-secret'}};
 }
 
 test('OpenCode requires the actual fully qualified model before invoking configuration resolution',t=>{

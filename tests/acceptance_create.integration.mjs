@@ -147,7 +147,7 @@ test('CREATE-12', '真实 Git linked worktree 不能成为验收资料根', () =
 if (args.includes('--live-cli')) {
   const spex = path.join(temporary, 'cli-spex'); fs.mkdirSync(path.join(spex, 'config'), { recursive: true });
   const sessions = path.join(temporary, 'cli-sessions');
-  const config = { captain: { adapter: 'codex', model: 'gpt-6.1-sol' }, players: {},
+  const config = { captain: { adapter: 'codex', model: process.env.ACCEPTANCE_MODEL??'gpt-6.1-sol', ...(process.env.ACCEPTANCE_EFFORT?{effort:process.env.ACCEPTANCE_EFFORT}:{}) }, players: {},
     playbooks: { 'acceptance-create': { from: path.join(skill, 'workflows/create/registry.mjs'), roles: {} } }, sessions };
   fs.writeFileSync(path.join(spex, 'config/playbook.config.yaml'), JSON.stringify(config));
   save('live-cli-config.json', config);
