@@ -10,6 +10,7 @@ import {harness,read,sha,snapshot,skill} from './official_workflow_harness.mjs';
 
 const h=harness('acceptance-find-cases',[['acceptance-find-cases','find-cases',{finder:'acceptance.finder'}],['acceptance-assess-cases','assess-cases',{evaluator:'acceptance.evaluator'}]]);
 const description='余额不足时拒绝扣款，账户余额保持不变。';
+const userConstraints=['本次只查找关联和独立评估，不执行、不生成、不修改已有业务断言。'];
 const source=`import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -38,7 +39,7 @@ function fixture(label){
   h.run(label+'-init','git',['init','-q',root]);h.run(label+'-add','git',['-C',root,'add','.']);h.run(label+'-commit','git',['-C',root,'-c','user.name=Integration Fixture','-c','user.email=fixture@example.invalid','commit','-qm','static finder fixture']);
   const revision=h.run(label+'-revision','git',['-C',root,'rev-parse','HEAD']).stdout.trim();
   createAcceptance({project_root:root,acceptance_id:at,request_id:'create',user_request:'只查找并关联已有测试，不执行、不生成。'});
-  freezeAcceptance({project_root:root,acceptance_id:at,request_id:'freeze',base_definitions_sha256:null,basis:'用户提供两个独立场景以检查关联保留。',definitions:{context:{business_goal:'找到验证余额不足拒绝扣款的真实测试。'},scenarios:['S1','S2'].map(id=>({id,title:id==='S1'?'余额不足拒绝扣款':'另一独立场景',description,priority:'P0',priority_reason:'防止错误扣款。',origin:{kind:'user-statement',reference:'fixture:user#'+id},external_refs:[],check:{method:'adopted',basis:'用户实际提供场景。'}}))}});
+  freezeAcceptance({project_root:root,acceptance_id:at,request_id:'freeze',base_definitions_sha256:null,basis:'用户提供两个独立场景以检查关联保留。',definitions:{context:{business_goal:'找到验证余额不足拒绝扣款的真实测试。',user_constraints:userConstraints},scenarios:['S1','S2'].map(id=>({id,title:id==='S1'?'余额不足拒绝扣款':'另一独立场景',description,priority:'P0',priority_reason:'防止错误扣款。',origin:{kind:'user-statement',reference:'fixture:user#'+id},external_refs:[],check:{method:'adopted',basis:'用户实际提供场景。'}}))}});
   return {root,at,revision};
 }
 const f=fixture('find-protocol'),latest=x=>path.join(x.root,'.acceptance',x.at,'scenarios.json');
@@ -49,7 +50,7 @@ const answer=()=>({status:'not_executed',test_files:['test/pay.test.mjs'],test_c
 const conclude=(spec,value)=>{try{return finalize(spec,JSON.stringify(value));}catch(e){fail(spec,e.message);throw e;}};
 let req,spec,result,finalAnswer;
 h.test('FIND-01','物化当前独立场景及实际测试/必要实现，不创建调试入口',()=>{
-  req=input('first');spec=prepare(req);assert.equal(spec.data.request.scene.description,description);assert.equal(spec.data.request.requirement,null);assert.ok(spec.prompt.includes('标题诱饵'));
+  req=input('first');spec=prepare(req);assert.equal(spec.data.request.scene.description,description);assert.equal(spec.data.request.requirement,null);assert.deepEqual(spec.data.request.user_constraints,userConstraints);assert.ok(spec.prompt.includes('标题诱饵'));
 });
 h.test('FIND-02','通过原查找门禁后宿主仅补 ID 注释，建立未执行的静态关联',()=>{
   const original=sha(path.join(f.root,'test/pay.test.mjs')),definitions=sha(latest(f));result=conclude(spec,answer());assert.equal(result.status,'not_executed');assert.equal(result.case_count,1);
@@ -114,6 +115,7 @@ if(h.live){
   h.test('FIND-10','真实官方 Finder 基于断言选用例，排除标题诱饵并标明跳过项，宿主只补 ID',()=>{
     const request=input('live-find',{},x),original=sha(path.join(x.root,'test/pay.test.mjs')),response=h.cli('acceptance-find-cases',request,'live-find',x.root);h.settled(response,'acceptance-find-cases','done');
     const value=read(path.join(x.root,'.acceptance-local',x.at,'workflows/find-cases/live-find/result.json')),answer=read(value.case_answer.path);
+    assert.deepEqual(read(path.join(x.root,'.acceptance-local',x.at,'workflows/find-cases/live-find/request.frozen.json')).user_constraints,userConstraints);assert.ok(fs.readFileSync(path.join(x.root,'.acceptance-local',x.at,'workflows/find-cases/live-find/prompt.txt'),'utf8').includes(JSON.stringify(userConstraints)));
     assert.equal(value.status,'not_executed');assert.ok(answer.case_descriptions.some(c=>c.source.title==='拒绝余额不足的扣款'));assert.ok(!answer.case_descriptions.some(c=>c.source.title.includes('标题诱饵')));
     for(const item of answer.case_discovery.associations){const c=answer.case_descriptions.find(c=>c.id===item.case_id);if(c.source.title.includes('待启用'))assert.equal(item.availability,'skipped');}
     assert.equal(sha(path.join(x.root,'test/pay.test.mjs')),original);assert.equal(response.traces.filter(t=>t.type==='player.call.started').length,1);assert.deepEqual(answer.observations,[]);
@@ -125,7 +127,7 @@ if(h.live){
   });
   h.test('FIND-12','真实官方 CLI 查找后独立 Evaluator 可消费最终 ID 和引用，两个角色会话独立',()=>{
     const request=read(path.join(x.root,'.acceptance-local',x.at,'workflows/find-cases/live-find/assessment-request.json')),response=h.cli('acceptance-assess-cases',request,'live-find-evaluate',x.root);
-    h.settled(response,'acceptance-assess-cases','done');const value=read(path.join(x.root,'.acceptance-local',x.at,'workflows/case-assessment/'+request.request_id+'/result.json'));assert.equal(value.status,'available');assert.equal(value.product_judgment,'not_performed');assert.equal(response.traces.filter(t=>t.type==='player.call.started').length,1);h.save('live-assessment.json',read(value.report.path));return {output:response.envelope};
+    h.settled(response,'acceptance-assess-cases','done');const value=read(path.join(x.root,'.acceptance-local',x.at,'workflows/case-assessment/'+request.request_id+'/result.json'));assert.equal(value.status,'available');assert.equal(value.product_judgment,'not_performed');assert.equal(response.traces.filter(t=>t.type==='player.call.started').length,1);assert.deepEqual(read(path.join(x.root,'.acceptance-local',x.at,'workflows/case-assessment/'+request.request_id+'/request.frozen.json')).case_input.user_constraints,userConstraints);assert.ok(fs.readFileSync(path.join(x.root,'.acceptance-local',x.at,'workflows/case-assessment/'+request.request_id+'/prompt.txt'),'utf8').includes(JSON.stringify(userConstraints)));h.save('live-assessment.json',read(value.report.path));return {output:response.envelope};
   });
 }
 h.finish(['workflows/find-cases/stage.mjs','workflows/find-cases/registry.mjs','tests/acceptance_find_cases.integration.mjs']);
