@@ -72,6 +72,10 @@
 
 当开始准备 SKILL 运行依赖时，准备入口应检查 macOS/Linux、Git、Node.js 22及以上和 npm 等运行前提，对缺失项报告名称及受影响功能；新业务入口不要求 Python，项目工具自身所需的运行时仍须按实际项目另行准备。
 
+### project-preparation-20
+
+当声明支持测试父进程启动产品子进程的覆盖率采集时，准备阶段应验证同一嵌套拓扑及当前工具安装位置，不能以直接采集产品入口或父进程调用内部函数补命中代替子进程验证，并为未验证拓扑保留限制、在后续发现差异时另建准备和用例尝试。
+
 ## 验证
 
 以下分别登记模型适配、运行准备、依赖及配置的验证；不代表所有项目、平台及角色组合已完成交付验收。
@@ -104,3 +108,8 @@
 ### project-preparation-19
 
 当验证已验证方法的知识提炼时，集成测试应核对真实轻量验证依据、可移植适用条件及限制，并拒绝将本机路径或业务收据当作共享方法 [[project-preparation-10](#project-preparation-10)] [acceptance_knowledge.integration.mjs](../../tests/acceptance_knowledge.integration.mjs)。
+
+
+### project-preparation-21
+
+当验证子进程覆盖率准备时，集成测试应通过真实官方 CLI 核对父进程不调用产品、子进程产生原生命中及工具实际安装方式 [[project-preparation-20](#project-preparation-20)] [coverage_cli_readiness.integration.mjs](../../tests/coverage_cli_readiness.integration.mjs)。

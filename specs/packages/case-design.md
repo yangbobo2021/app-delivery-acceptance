@@ -84,6 +84,10 @@
 
 当调用者针对用例准备或已证实的问题提出具体操作要求时，入口应将该要求原样保存并交给用例角色，不依赖角色读取宿主对话，也不将操作要求扩成新的业务判据。
 
+### case-design-21
+
+当冻结的 `context.user_constraints` 非空时，当前用例、查找、独立评估与执行复审应逐字接收该操作约束，缺失、压缩或篡改即拒绝交接，但不因此新增场景义务或将纯调度说明变化机械等同于全量重测。
+
 ## 验证
 
 以下分别登记静态查找及动态准备的集成验证，不代表全部项目组合已通过。
@@ -96,3 +100,8 @@
 ### case-design-19
 
 当验证 Node 动态用例准备入口时，集成测试应通过真实官方 CLI 角色及实际调试核对先查找后修改 [[case-design-3](#case-design-3)]、复用或补齐缺口 [[case-design-4](#case-design-4)]、已有用例策略的文件保护和真实调试 [[case-design-9](#case-design-9)]、逐项取舍及原声明身份 [[case-design-15](#case-design-15)]、显式准备要求传递 [[case-design-20](#case-design-20)]、源码引用门禁 [[case-design-16](#case-design-16)]，并用受控错误产品实现验证最终测试能发现对应违约 [acceptance_cases.integration.mjs](../../tests/acceptance_cases.integration.mjs)。
+
+
+### case-design-22
+
+当验证冻结约束交接时，集成测试应核对原文传递与篡改拒绝 [[case-design-21](#case-design-21)]，并通过真实官方 CLI 检查用例、独立评估和执行复审的实际输入 [full_native_journey.integration.mjs](../../tests/full_native_journey.integration.mjs)。

@@ -100,7 +100,7 @@ export function sceneInput(config,id){
   const sources=value.reverse_rules.filter(r=>refs(scene).has(r.id)).flatMap(r=>r.code_sources);
   return cloneJson({definitions:config.definitions,scene,requirement:targets.get(scene.requirement_id)??null,
     related_requirements:[...refs(scene)].filter(r=>r!==scene.requirement_id).sort().map(r=>targets.get(r)),business_goal:value.context.business_goal,
-    execution_context:executionContext(value.context),
+    execution_context:executionContext(value.context),user_constraints:cloneJson(value.context.user_constraints??[]),
     confirmed_scope:value.context.confirmed_scope??{},scenario_self_check:scene.check.method,definition_binding_sha256:sceneFingerprint(value,id),
     ...(scene.ui_acceptance?{ui_acceptance:scene.ui_acceptance}:{}),...(sources.length?{source_evidence:{revision:sources[0].revision,items:sources}}:{})});
 }
@@ -109,6 +109,7 @@ export function verifyCase(config){
   if(!value){if(!config.scene?.id||!config.requirement?.id||config.scene.requirement_id!==config.requirement.id)throw Error('case input has no bound scene owner');return;}
   const expected=sceneInput(config,config.scene?.id);
   if(!equal(config.execution_context??{},expected.execution_context))throw Error('case differs from frozen definitions: execution_context');
+  if(!equal(config.user_constraints??[],expected.user_constraints))throw Error('case differs from frozen definitions: user_constraints');
   if(expected.ui_acceptance&&Object.entries(expected.ui_acceptance).some(([k,v])=>!equal(config.ui_acceptance?.[k],v)))throw Error('case differs from frozen UI contract');
   for(const key of ['scene','requirement','related_requirements','business_goal','confirmed_scope','scenario_self_check','definition_binding_sha256',...(expected.source_evidence?['source_evidence']:[])]){
     if(key==='definition_binding_sha256'&&config[key]===sceneFingerprint(value,config.scene.id,{legacyContext:true}))continue;

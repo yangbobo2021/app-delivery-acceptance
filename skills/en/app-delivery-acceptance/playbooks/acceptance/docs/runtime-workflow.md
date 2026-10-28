@@ -7,6 +7,7 @@
 ## 显式交接
 
 除当前项目、AT、请求 ID 和定义摘要外，提供实际 `source_checkout`、不可变 `revision`、项目 `test_roots`，以及 `inspection_files` 中的真实依赖清单、已有测试入口及准备说明。
+`source_checkout` 是完整 Git checkout 根目录，`test_roots` 与 `inspection_files` 相对该根目录；`project_root` 仍是保存本轮验收的用户项目目录，两者可以不同。例如验收位于 `/repo/projects/python-cli` 时，checkout 为 `/repo`，测试根为 `projects/python-cli/tests`，README 输入为 `projects/python-cli/README.md`，不要把 checkout 子目录误作仓库根。
 `available_executables` 可列 `{name,path}`，路径须为实际绝对可执行文件；角色据项目资料选择，不预设语言。
 可交接原协议的 `components`、`component_sources` 和已索引 `knowledge_paths`。
 本次 AT 唯一工作树创建在 `.acceptance-local/<AT>/workspace`；不会在用户原源码树安装依赖。

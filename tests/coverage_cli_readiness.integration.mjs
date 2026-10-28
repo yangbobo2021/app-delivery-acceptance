@@ -14,6 +14,7 @@ assert.ok(args.includes('--live-cli') && args.includes('--bundle') && args.inclu
 const h = harness('coverage-cli-readiness', [['acceptance-coverage-prepare', 'coverage']]);
 // Preserve the invoked interpreter: resolving a venv symlink changes sys.prefix.
 const root = h.project('original-product'), python = path.resolve(option('--python'));
+const coveragePath = args.includes('--coverage-path') ? path.resolve(option('--coverage-path')) : null;
 const revision = 'be952659c7d93018e26793daf2e58fa8321601f4', at = 'AT-cli-readiness';
 assert.equal(h.run('clone-preserved-product', 'git', ['clone', '-q', path.resolve(option('--bundle')), root]).exit_code, 0);
 assert.equal(h.run('checkout-frozen-product', 'git', ['-C', root, 'checkout', '-q', '--detach', revision]).exit_code, 0);
@@ -28,7 +29,7 @@ const runtime = prepare({project_root: root, acceptance_id: at, request_id: 'run
   source_checkout: root, revision, test_roots: ['projects/python-cli/tests'],
   inspection_files: ['projects/python-cli/README.md', ...files], available_executables: [{name: 'python', path: python}]});
 const readyRuntime = finalize(runtime, JSON.stringify({dependency_files: [], knowledge_used: ['INDEX.md'],
-  execution_env: {PYTHONDONTWRITEBYTECODE:'1'},
+  execution_env: {PYTHONDONTWRITEBYTECODE:'1',...(coveragePath?{PYTHONPATH:coveragePath}:{})},
   setup_commands: [{command: [python, '-c', 'from pathlib import Path; Path("projects/python-cli/tests").mkdir(exist_ok=True)']}],
   executables: [{name: 'python', path: python, version_command: [python, '--version']}],
   smoke: {command: [python, '-B', '-m', 'invoice', '--help'], env: {PYTHONPATH: '{workspace}/projects/python-cli'}},
@@ -38,7 +39,7 @@ const inventoryFile = path.join(local, 'workflows/inventory.json');
 const inventory = buildInventory({project_root: readyRuntime.workspace, base_revision: revision, head_revision: revision,
   requirements: {items: []}, pr_requirement_ids: [], test_modes: ['BLACK_BOX'], source_paths: files, test_paths: [], noncode_paths: []});
 fs.writeFileSync(inventoryFile, JSON.stringify(inventory, null, 2) + '\n');
-const instructions = '只准备，不执行业务场景。后续测试进程是一个 Python 父进程，通过 subprocess.run([sys.executable, "-B", "-m", "invoice", "--input", CSV路径], env=...) 启动真正的 invoice CLI 子进程。请依据实际 README/源码确认 CLI 参数。覆盖率准备必须验证这个真实父→子进程路由，非零探针用最小合法 CSV；父进程禁止 import invoice 或调用产品内部函数来补覆盖。为每进程保存原始快照，独立工具应能确认子进程确实命中了 __main__.py/totals.py。零探针不得运行产品。只在冻结测试根内添加脚本/配置，不改产品或依赖清单。';
+const instructions = (coveragePath?'本次 coverage.py 实际以 pip --target 安装在 '+coveragePath+'，不是常规 site-packages；用冻结运行环境中的 Python 和该工具路径验证真实启动行为，不要假定 .pth 会自动执行。':'')+'只准备，不执行业务场景。后续测试进程是一个 Python 父进程，通过 subprocess.run([sys.executable, "-B", "-m", "invoice", "--input", CSV路径], env=...) 启动真正的 invoice CLI 子进程。请依据实际 README/源码确认 CLI 参数。覆盖率准备必须验证这个真实父→子进程路由，非零探针用最小合法 CSV；父进程禁止 import invoice 或调用产品内部函数来补覆盖。为每进程保存原始快照，独立工具应能确认子进程确实命中了 __main__.py/totals.py。零探针不得运行产品。只在冻结测试根内添加脚本/配置，不改产品或依赖清单。';
 const input = {project_root: root, acceptance_id: at, request_id: 'prepare-child-cli', definitions_sha256: sha(definitions),
   policy: 'required', basis: '用户要求先修复并短测原失败拓扑，不进行完整重跑。', preparation_instructions: instructions,
   runtime_manifest: readyRuntime.runtime.manifest, runtime_sha256: readyRuntime.runtime.sha256,

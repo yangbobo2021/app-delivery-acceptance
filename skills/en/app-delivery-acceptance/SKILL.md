@@ -13,7 +13,7 @@ The host understands the user's whole conversation, identifies actual authorizat
 
 Each workflow owns its complete business operation: roles, internal sequencing, deterministic tools, gates, persistence, evidence and output. Never perform a workflow's missing internal steps in Skill scripts or hand-edit its generated results to obtain a pass. The package is also usable by humans/CI without installing this Skill.
 
-Freeze relevant original background and operating constraints in the definition context, such as `context.shared_constraints`, including full source wording when required. The workflows carry that frozen execution context to case generation, assessment and execution review and verify it against the definitions. Do not substitute a summary or rely on a role reading this conversation; background does not add unrelated requirements to the selected test scope.
+Freeze relevant original background and operating constraints in the definition context, such as `context.shared_constraints`, including full source wording when required. The workflows carry that frozen execution context and verbatim `context.user_constraints` to case generation, assessment and execution review and verify it against the definitions. Do not substitute a summary or rely on a role reading this conversation; background does not add unrelated requirements to the selected test scope.
 
 ## Prepare and invoke
 
