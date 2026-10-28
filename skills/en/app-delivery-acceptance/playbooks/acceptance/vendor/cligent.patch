@@ -1,0 +1,495 @@
+diff --git a/package-lock.json b/package-lock.json
+index ded3816..80c4608 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -123,9 +123,6 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "SEE LICENSE IN LICENSE.md",
+       "optional": true,
+       "os": [
+@@ -140,9 +137,6 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "SEE LICENSE IN LICENSE.md",
+       "optional": true,
+       "os": [
+@@ -157,9 +151,6 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "SEE LICENSE IN LICENSE.md",
+       "optional": true,
+       "os": [
+@@ -174,9 +165,6 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "SEE LICENSE IN LICENSE.md",
+       "optional": true,
+       "os": [
+@@ -1301,9 +1289,6 @@
+         "arm"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1318,9 +1303,6 @@
+         "arm"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1335,9 +1317,6 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1352,9 +1331,6 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1369,9 +1345,6 @@
+         "loong64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1386,9 +1359,6 @@
+         "loong64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1403,9 +1373,6 @@
+         "ppc64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1420,9 +1387,6 @@
+         "ppc64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1437,9 +1401,6 @@
+         "riscv64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1454,9 +1415,6 @@
+         "riscv64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1471,9 +1429,6 @@
+         "s390x"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1488,9 +1443,6 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1505,9 +1457,6 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+diff --git a/package.json b/package.json
+index 5ca3076..fb8f2fb 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "@sublang/cligent",
+-  "version": "0.36.1",
++  "version": "0.36.2-acceptance.20261028.2",
+   "description": "Unified TypeScript SDK for AI coding agent CLIs (Claude Code, Codex CLI, Gemini CLI, Kimi Code, OpenCode, and more)",
+   "type": "module",
+   "license": "Apache-2.0",
+diff --git a/specs/packages/adapters/opencode.md b/specs/packages/adapters/opencode.md
+index 399a898..4492b2b 100644
+--- a/specs/packages/adapters/opencode.md
++++ b/specs/packages/adapters/opencode.md
+@@ -808,6 +808,10 @@ adapter shall classify it through this matrix [[11]]:
+ | causal descendant still active at root completion | retain exact subset as partial |
+ 
+ 
++### opencode-241
++
++Where a caller supplies `outputSchema`, when the native prompt dispatches, the adapter shall request a native JSON-schema envelope containing `result`, correlate the completed assistant submission to the current prompt's message and root session, and expose that exact object as terminal result text without accepting a foreign, incomplete or failed assistant submission.
++
+ ## Verification
+ 
+ ### opencode-62
+@@ -1170,6 +1174,10 @@ Where the installed OpenCode CLI is on the path, when a managed run selecting `n
+ 
+ Where [[opencode-219](#opencode-219)]'s credential, retry, and skip preconditions hold in managed mode, when a run supplies a fixture skill whose body directs a unique token reply and the prompt names the skill, the acceptance check shall verify against the real server that its skill list carries the skill at the carrier location [[opencode-69](#opencode-69)], that the reply carries the token [[opencode-67](#opencode-67)], and that the carrier root is gone once the adapter's own event stream completes [[opencode-71](#opencode-71)].
+ 
++### opencode-242
++
++When an installed-SDK integration and a live structured-output run exercise native and foreign assistant submissions, they shall verify prompt schema delivery, current-message correlation and exact terminal JSON [[opencode-241](#opencode-241)].
++
+ ## References
+ 
+ [1]: https://opencode.ai/docs/models/ 'OpenCode model configuration'
+diff --git a/specs/packages/engine.md b/specs/packages/engine.md
+index 563006a..6eb482b 100644
+--- a/specs/packages/engine.md
++++ b/specs/packages/engine.md
+@@ -21,7 +21,7 @@ Per [DR-003](../decisions/003-role-scoped-session-management.md), the `Cligent`
+ | --- | --- |
+ | `AgentAdapter` | required adapter |
+ | `CligentOptions` | optional instance defaults for `role`, `cwd`, `model`, `permissions`, `maxTurns`, `maxBudgetUsd`, `effort`, `fastMode`, `subagentModel`, `subagentEffort`, `mcpServers`, `browser`, `skills`, `nativeSkills`, `allowedTools`, and `disallowedTools` |
+-| `abortSignal`, `resume`, `attachments`, and the live `approvalHandler` | excluded from instance defaults and available only per invocation in `RunOptions` [[approvals-1](approvals.md#approvals-1)] |
++| `abortSignal`, `resume`, `attachments`, `outputSchema`, and the live `approvalHandler` | excluded from instance defaults and available only per invocation in `RunOptions` [[approvals-1](approvals.md#approvals-1)] |
+ 
+ ### engine-2
+ 
+@@ -39,7 +39,7 @@ When `Cligent.run()` resolves instance defaults and per-call overrides, it shall
+ | `skills` | replace the instance array with a provided per-call array, including an empty one |
+ | `allowedTools` or `disallowedTools` | replace the instance array with a provided per-call array, including an empty one |
+ | `fastMode`, `subagentModel`, `subagentEffort`, `nativeSkills`, or another scalar shared by both option types | use the per-call value when provided, including `false`, otherwise the instance default |
+-| `abortSignal`, `resume`, `attachments`, or `approvalHandler` | accept only the per-call value because these fields do not exist in instance defaults, including the live handler [[approvals-1](approvals.md#approvals-1)] |
++| `abortSignal`, `resume`, `attachments`, `outputSchema`, or `approvalHandler` | accept only the per-call value because these fields do not exist in instance defaults, including the live handler [[approvals-1](approvals.md#approvals-1)] |
+ 
+ ### engine-4
+ 
+diff --git a/specs/packages/tmux-play.md b/specs/packages/tmux-play.md
+index a093e88..6c150a9 100644
+--- a/specs/packages/tmux-play.md
++++ b/specs/packages/tmux-play.md
+@@ -1382,6 +1382,10 @@ When the loader or the programmatic runtime factory [[tmux-play-29](#tmux-play-2
+ | two roles on the `kimi` adapter whose lists, each entry resolved against the run's working directory to its skill directory with links followed as [[kimi-49](adapters/kimi.md#kimi-49)] compares them, map one skill name to different directories | reject, naming both paths, because their concurrent runs would dispute the name |
+ | resolved role list | the role's configured `skills`, which call admission applies under [[tmux-play-93](#tmux-play-93)] |
+ 
++### tmux-play-229
++
++When `callPlayer` receives `cwd`, `outputSchema`, `allowedTools`, an invocation cancellation signal, local attachments and an `onEvent` observer, the runtime shall forward the execution inputs to that invocation only and await the observer after durable event dispatch, leaving subsequent calls without inherited execution overrides.
++
+ ## Verification
+ 
+ ### tmux-play-225
+@@ -2607,6 +2611,10 @@ Where YAML and programmatic configurations supply top-level, Captain, player, em
+ 
+ Where a programmatic runtime drives a Captain and a player on recording adapters, when calls supply complete settings with `nativeSkills` set to `false`, set to `true`, omitted, and set to a non-boolean, make calls without settings, and supply `nativeSkills: false` to a Kimi Captain and a Kimi player, the check shall assert that `Cligent.run()` receives exactly the supplied boolean on both roles and no `nativeSkills` where settings omit it or are not supplied, that a change to the caller's settings object after admission reaches no run, and that the runtime-owned `Cligent` carries no `nativeSkills` default [[tmux-play-93](#tmux-play-93)], and that the non-boolean and each Kimi `false` raise `AgentCallSettingsError` before any prompt record or provider run, keeping the stored resume token [[tmux-play-93](#tmux-play-93)].
+ 
++### tmux-play-230
++
++When integration tests call one real runtime with a recording adapter across explicit and omitted execution contexts, they shall verify exact working directory, schema, attachment and allowlist forwarding, no later-call inheritance and journal-before-observer ordering [[tmux-play-229](#tmux-play-229)].
++
+ ## References
+ 
+ [1]: https://catppuccin.com/palette/ "Catppuccin Palette"
+diff --git a/src/adapters/opencode.ts b/src/adapters/opencode.ts
+index 9930cd3..8f19b98 100644
+--- a/src/adapters/opencode.ts
++++ b/src/adapters/opencode.ts
+@@ -2282,7 +2282,9 @@ export function wrapOpencodeClient(
+         const attachmentParts = (options.attachmentParts ??
+           []) as FilePartInput[];
+ 
++        const format = options.outputSchema ? { type: 'json_schema' as const, retryCount: 2, schema: { type: 'object', properties: { result: options.outputSchema }, required: ['result'], additionalProperties: false } } : undefined;
+         const promptBody = {
++          ...(format ? { format } : {}),
+           messageID: promptMessageId,
+           parts: [{ type: 'text', text: options.prompt }, ...attachmentParts],
+           ...(modelVal ? { model: modelVal } : {}),
+@@ -2297,6 +2299,7 @@ export function wrapOpencodeClient(
+           directory?: string;
+         } = {
+           sessionID: promptSessionId,
++          ...(format ? { format: format as OpenCodeV2PromptBody['format'] } : {}),
+           messageID: promptMessageId,
+           parts: [
+             { type: 'text', text: asString(options.prompt) ?? '' },
+@@ -3014,6 +3017,7 @@ export class OpenCodeAdapter implements AgentAdapter<OpenCodeEffort> {
+     let sessionAbortAttempted = false;
+     let sessionAbortPromise: Promise<void> | undefined;
+     const ownedSessionIds = new Set<string>();
++    let structuredOutputText: string | undefined;
+     let dispatchedPromptMessageId: string | undefined;
+     const observedQuestions = new Map<string, ObservedQuestion>();
+     let wrapperUsageCoverageIncomplete = false;
+@@ -4846,6 +4850,7 @@ export class OpenCodeAdapter implements AgentAdapter<OpenCodeEffort> {
+       };
+       const runPromise = runFn({
+         prompt,
++        ...(options?.outputSchema ? { outputSchema: options.outputSchema } : {}),
+         ...(attachmentParts.length > 0 ? { attachmentParts } : {}),
+         cwd: options?.cwd,
+         model: options?.model,
+@@ -5469,7 +5474,8 @@ export class OpenCodeAdapter implements AgentAdapter<OpenCodeEffort> {
+               'done',
+               AGENT,
+               {
+-                status: recoveredStatus,
++                status: options?.outputSchema && !structuredOutputText ? 'error' : recoveredStatus,
++                ...(structuredOutputText ? { result: structuredOutputText } : {}),
+                 ...doneResumeTokenPayload(
+                   recoveredStatus,
+                   backendProvidedSessionId,
+@@ -5886,6 +5892,11 @@ export class OpenCodeAdapter implements AgentAdapter<OpenCodeEffort> {
+         if (eventType === 'message.updated') {
+           const messageId = loadOpenCodeUpdatedMessageId(event);
+           const role = loadOpenCodeMessageRole(event);
++          const info = asRecord(event.info ?? event.message);
++          if (options?.outputSchema && eventSessionId === sessionId && role === 'assistant' && info.parentID === dispatchedPromptMessageId && asRecord(info.time).completed && !info.error) {
++            const nativeResult = asRecord(info.structured).result;
++            if (nativeResult && typeof nativeResult === 'object' && !Array.isArray(nativeResult)) structuredOutputText = JSON.stringify(nativeResult);
++          }
+           if (messageId && role) {
+             messageRoles.set(messageId, role);
+             for (const normalized of drainPendingContent()) {
+@@ -6698,20 +6709,21 @@ export class OpenCodeAdapter implements AgentAdapter<OpenCodeEffort> {
+             doneYielded = true;
+             break;
+           }
+-          const status = sessionErrorObserved
++          const status = sessionErrorObserved || (options?.outputSchema && !structuredOutputText)
+             ? 'error'
+             : mapDoneStatus(asString(event.status));
+           // Canonical OpenCode idle events carry no accounting. Step-finish
+           // parts are the sole authenticated source; generic idle aliases are
+           // intentionally ignored because their frame and scope are unknown.
+           const usage = buildAccumulatedUsage(true);
++          if (options?.outputSchema && !structuredOutputText) yield createEvent('error', AGENT, { code: 'MISSING_STRUCTURED_OUTPUT', message: 'OpenCode did not submit a completed structured result for the current prompt', recoverable: false }, sessionId);
+ 
+           yield createEvent(
+             'done',
+             AGENT,
+             {
+               status,
+-              result: asString(event.result),
++              result: structuredOutputText ?? asString(event.result),
+               ...doneResumeTokenPayload(
+                 status,
+                 backendProvidedSessionId,
+diff --git a/src/app/tmux-play/contract.ts b/src/app/tmux-play/contract.ts
+index 186e654..09e0409 100644
+--- a/src/app/tmux-play/contract.ts
++++ b/src/app/tmux-play/contract.ts
+@@ -12,6 +12,7 @@ import type {
+ import type { Attachment } from '../../attachments.js';
+ import type { McpServers } from '../../mcp.js';
+ import type {
++  CligentEvent,
+   ApprovalDecision,
+   ApprovalHandler,
+   ApprovalRequest,
+@@ -188,6 +189,12 @@ export interface CallCaptainOptions {
+  * player's runtime-managed auto-resume behavior.
+  */
+ export interface CallPlayerOptions {
++  readonly signal?: AbortSignal;
++  readonly allowedTools?: readonly string[];
++  readonly cwd?: string;
++  readonly outputSchema?: Record<string, unknown>;
++  /** Observation runs after durable player_event dispatch. */
++  readonly onEvent?: (event: CligentEvent) => void | Promise<void>;
+   /** Local files for this call only; never inherited by the next call. */
+   readonly attachments?: readonly Attachment[];
+   readonly resume?: string | false;
+diff --git a/src/app/tmux-play/runtime.test.ts b/src/app/tmux-play/runtime.test.ts
+index 7d1dfa2..14693c4 100644
+--- a/src/app/tmux-play/runtime.test.ts
++++ b/src/app/tmux-play/runtime.test.ts
+@@ -151,6 +151,25 @@ async function expectAgentCallSettingsRejection(
+ }
+ 
+ describe('TmuxPlayRuntime', () => {
++  it('passes invocation execution context once and journals events before observers', async () => {
++    const captured: AgentOptions[] = [],order: string[]=[];
++    const script: RunScript=async function*(_prompt,options){captured.push(options??{});yield textEvent('test-agent','exact answer');yield doneEvent('test-agent','exact answer');};
++    const schema={type:'object',properties:{answer:{type:'string'}}};
++    const runtime=await createTmuxPlayRuntime({
++      captain:{async handleBossTurn(_turn,context){
++        await context.callPlayer('worker','first',{cwd:'/tmp/task-only',outputSchema:schema,allowedTools:[],attachments:[{path:'/tmp/frozen.png'}],onEvent:event=>{order.push('observer:'+event.type);}});
++        await context.callPlayer('worker','second');
++      }},captainConfig:{adapter:'claude'},players:[{id:'worker',adapter:'codex'}],
++      adapterImports:adapterImports({codex:{agent:'test-agent',run:script}}),
++      observers:[{onRecord:record=>{if(record.type==='player_event')order.push('journal:'+record.event.type);}}],
++    });
++    try{await runtime.runBossTurn('run');
++      expect(captured[0]?.cwd).toBe('/tmp/task-only');expect(captured[0]?.outputSchema).toEqual(schema);expect(captured[0]?.allowedTools).toEqual([]);expect(captured[0]?.attachments).toEqual([{path:'/tmp/frozen.png'}]);
++      expect(captured[1]?.cwd).not.toBe('/tmp/task-only');expect(captured[1]?.outputSchema).toBeUndefined();expect(captured[1]?.allowedTools).toBeUndefined();expect(captured[1]?.attachments).toBeUndefined();
++      expect(order).toEqual(['journal:text','observer:text','journal:done','observer:done','journal:text','journal:done']);
++    }finally{await runtime.dispose();}
++  });
++
+   it.each([true, false, undefined])(
+     'replaces configured browser %s on a complete call-settings replacement',
+     async (browser) => {
+diff --git a/src/app/tmux-play/runtime.ts b/src/app/tmux-play/runtime.ts
+index ad48ed4..b9d27e2 100644
+--- a/src/app/tmux-play/runtime.ts
++++ b/src/app/tmux-play/runtime.ts
+@@ -89,6 +89,8 @@ interface ActiveTurn {
+ }
+ 
+ interface RunCligentCallOptions {
++  readonly cwd?: string;
++  readonly outputSchema?: Record<string, unknown>;
+   readonly approvalHandler?: ApprovalHandler;
+   readonly cligent: Cligent<string, boolean, string, string>;
+   readonly prompt: string;
+@@ -533,6 +535,9 @@ export class TmuxPlayRuntime {
+ 
+       const call = await runCligentCall({
+         cligent: player.cligent,
++        cwd: options?.cwd,
++        allowedTools: options?.allowedTools,
++        outputSchema: options?.outputSchema,
+         approvalHandler: this.approvalForInvocation(turn, playerId),
+         prompt,
+         attachments,
+@@ -550,14 +555,15 @@ export class TmuxPlayRuntime {
+           ? { nativeSkills: settings.nativeSkills }
+           : {}),
+         resetPermissionPolicy: settings.resetPermissionPolicy,
+-        signal,
++        signal: options?.signal ? AbortSignal.any([signal,options.signal]) : signal,
+         resume,
+-        emitEvent: (event) =>
+-          this.emit({
++        emitEvent: async (event) => {
++          await this.emit({
+             ...makeRecordBase('player_event', turn.id, event.timestamp),
+-            playerId,
+-            event,
+-          }),
++            playerId, event,
++          });
++          await options?.onEvent?.(event);
++        },
+       });
+       const result: PlayerRunResult = {
+         status: call.status,
+@@ -1048,6 +1054,8 @@ async function runCligentCall(
+   const gen = options.cligent.run(
+     composePrompt(options.instruction, options.prompt),
+     {
++      cwd: options.cwd,
++      outputSchema: options.outputSchema,
+       abortSignal: options.signal,
+       ...(options.approvalHandler
+         ? { approvalHandler: options.approvalHandler }
+diff --git a/src/cligent.ts b/src/cligent.ts
+index abda311..68e69bd 100644
+--- a/src/cligent.ts
++++ b/src/cligent.ts
+@@ -303,6 +303,7 @@ export class Cligent<
+       subagentEffort: merged.subagentEffort,
+       allowedTools: merged.allowedTools,
+       disallowedTools: merged.disallowedTools,
++      outputSchema: overrides?.outputSchema,
+       attachments: overrides?.attachments,
+       approvalHandler: overrides?.approvalHandler,
+       mcpServers: merged.mcpServers,
+@@ -314,6 +315,7 @@ export class Cligent<
+     };
+ 
+     const agent = this.adapter.agent;
++    if (overrides?.outputSchema !== undefined && ['codex','claude-code','gemini','kimi'].includes(agent)) throw new Error('Native outputSchema is currently supported only by OpenCode');
+     const sessionId = generateSessionId();
+     const startTime = Date.now();
+     const signal = agentOptions.abortSignal;
+diff --git a/src/types.ts b/src/types.ts
+index 410e18d..42b26d3 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -359,6 +359,8 @@ export interface AgentOptions<
+ > {
+   /** Handle unresolved native tool asks for this invocation only. */
+   approvalHandler?: ApprovalHandler;
++  /** Native structured output schema for this invocation only. */
++  outputSchema?: Record<string, unknown>;
+   /** Local files for this call only; support depends on the adapter. */
+   attachments?: readonly Attachment[];
+   /** Caller-selected native tools; per-call maps replace instance defaults. */
+@@ -433,6 +435,8 @@ export interface RunOptions<
+ > extends Omit<CligentOptions<E, FM, SM, SE>, 'role'> {
+   /** Handle unresolved native tool asks for this invocation only. */
+   approvalHandler?: ApprovalHandler;
++  /** Native structured output schema for this invocation only. */
++  outputSchema?: Record<string, unknown>;
+   /** Local files for this turn; never reused automatically on resume. */
+   attachments?: readonly Attachment[];
+   abortSignal?: AbortSignal;

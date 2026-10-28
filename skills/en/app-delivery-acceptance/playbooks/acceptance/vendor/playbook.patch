@@ -1,0 +1,598 @@
+diff --git a/package.json b/package.json
+index 6a4c362..f1d4c1d 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "@sublang/playbook",
+-  "version": "18.1.0",
++  "version": "18.1.1-acceptance.20261028.2",
+   "type": "module",
+   "description": "Composable XState v5 playbook runtime with compiled Captain, CODE, REVIEW, DECIDE, DEV, BRANCH, PR, and INSPECT workflows driven by GEARS specs.",
+   "license": "Apache-2.0",
+@@ -290,7 +290,7 @@
+     "provenance": true
+   },
+   "dependencies": {
+-    "@sublang/cligent": "^0.36.1",
++    "@sublang/cligent": "0.36.2-acceptance.20261028.2",
+     "@sublang/spex": "^3.0.0",
+     "p-queue": "^9.3.1",
+     "xstate": "^5.19.4",
+diff --git a/reference/sdlc/branch.playbook/branch.fsm.d.ts b/reference/sdlc/branch.playbook/branch.fsm.d.ts
+index d0034a7..0a5fcb2 100644
+--- a/reference/sdlc/branch.playbook/branch.fsm.d.ts
++++ b/reference/sdlc/branch.playbook/branch.fsm.d.ts
+@@ -195,5 +195,5 @@ export declare const branchMachine: import("xstate").StateMachine<BranchContext,
+             id: "refused";
+         };
+     };
+-}>;
++}, import("xstate").MetaObject>;
+ export default branchMachine;
+diff --git a/reference/sdlc/captain.playbook/captain.fsm.d.ts b/reference/sdlc/captain.playbook/captain.fsm.d.ts
+index ec11040..1cef5bc 100644
+--- a/reference/sdlc/captain.playbook/captain.fsm.d.ts
++++ b/reference/sdlc/captain.playbook/captain.fsm.d.ts
+@@ -237,5 +237,5 @@ export declare const captainMachine: import("xstate").StateMachine<Context, Boss
+             id: "shutdown";
+         };
+     };
+-}>;
++}, import("xstate").MetaObject>;
+ export {};
+diff --git a/reference/sdlc/code.playbook/code.fsm.d.ts b/reference/sdlc/code.playbook/code.fsm.d.ts
+index 6470600..582a388 100644
+--- a/reference/sdlc/code.playbook/code.fsm.d.ts
++++ b/reference/sdlc/code.playbook/code.fsm.d.ts
+@@ -191,7 +191,7 @@ export declare const codeMachine: import("xstate").StateMachine<CodeContext, {
+     readonly answer: string;
+     readonly questionId?: ResumableStateId;
+ }, {
+-    [x: string]: import("xstate").ActorRefFromLogic<import("xstate").PromiseActorLogic<PlayerOutput, PlayerInput, import("xstate").EventObject>> | import("xstate").ActorRefFromLogic<import("xstate").PromiseActorLogic<PlaybookOutput, PlaybookInput, import("xstate").EventObject>> | undefined;
++    [x: string]: import("xstate").ActorRefFromLogic<import("xstate").PromiseActorLogic<PlayerOutput, PlayerInput, import("xstate").EventObject> | import("xstate").PromiseActorLogic<PlaybookOutput, PlaybookInput, import("xstate").EventObject>> | undefined;
+ }, {
+     src: "player";
+     logic: import("xstate").PromiseActorLogic<PlayerOutput, PlayerInput, import("xstate").EventObject>;
+@@ -321,5 +321,5 @@ export declare const codeMachine: import("xstate").StateMachine<CodeContext, {
+             id: "done";
+         };
+     };
+-}>;
++}, import("xstate").MetaObject>;
+ export default codeMachine;
+diff --git a/reference/sdlc/code.playbook/playbook-captain.js b/reference/sdlc/code.playbook/playbook-captain.js
+index 561e887..20bddc0 100644
+--- a/reference/sdlc/code.playbook/playbook-captain.js
++++ b/reference/sdlc/code.playbook/playbook-captain.js
+@@ -3797,14 +3797,32 @@ export function createPlaybookCaptainShell(options, deps = {}) {
+                 throw new TypeError('player freshPrompt must be a string');
+             }
+             const expectedResume = ledger.resumeToken ?? false;
+-            if (options.resume !== expectedResume) {
++            if (options.freshSession !== undefined && typeof options.freshSession !== 'boolean')
++                throw new TypeError('player freshSession must be boolean');
++            if (options.freshSession && options.resume !== false)
++                throw new Error('A fresh player task requires resume:false');
++            if (options.resume !== expectedResume && !(options.freshSession && options.resume === false)) {
+                 throw new Error(`${frameLabel(frame)} player continuation changed before dispatch`);
+             }
+             if (playerTransactions.has(binding.playerId)) {
+                 throw new Error(`session player ${JSON.stringify(binding.playerId)} already has a call in flight`);
+             }
+-            const settings = callSettings(binding.agent, binding);
+-            const attachments = await attachmentPaths(frame.attachments, signal);
++            let settings = callSettings(binding.agent, binding);
++            if (options.nativeSkills !== undefined)
++                settings = { ...settings, nativeSkills: options.nativeSkills };
++            if (options.permissions) {
++                const ceiling = binding.agent.permissions;
++                const requested = options.permissions;
++                const rank = { deny: 0, ask: 1, allow: 2 };
++                if (ceiling?.mode !== 'bypass' && (requested.mode === 'bypass' ||
++                    ['fileWrite', 'shellExecute', 'networkAccess'].some(key => rank[requested[key] ?? 'deny'] > rank[ceiling?.[key] ?? 'deny']) ||
++                    (requested.writablePaths ?? []).some(item => !(ceiling?.writablePaths ?? []).includes(item)))) {
++                    throw new Error('Player call cannot expand configured permissions');
++                }
++                settings = { ...settings, permissions: requested };
++            }
++            const attachments = options.attachments === undefined
++                ? await attachmentPaths(frame.attachments, signal) : options.attachments;
+             const calling = {
+                 phase: 'calling',
+                 frame,
+@@ -3815,6 +3833,8 @@ export function createPlaybookCaptainShell(options, deps = {}) {
+                 abandoned: false,
+             };
+             playerTransactions.set(binding.playerId, calling);
++            if (options.freshSession)
++                delete ledger.resumeToken;
+             let result;
+             let hostResolved = false;
+             const untracked = !recordProgress || journalledFrames.has(frame) ? undefined : {
+@@ -3829,7 +3849,7 @@ export function createPlaybookCaptainShell(options, deps = {}) {
+                     const call = async (resume) => {
+                         await continuity?.beforeCall(binding.playerId);
+                         signal.throwIfAborted();
+-                        const raw = await trackHostCall(frame, classifySettingsCall(() => context.callPlayer(binding.playerId, resume === false ? options.freshPrompt ?? prompt : prompt, { resume, settings, ...(attachments === undefined ? {} : { attachments }) })));
++                        const raw = await trackHostCall(frame, classifySettingsCall(() => context.callPlayer(binding.playerId, resume === false ? options.freshPrompt ?? prompt : prompt, { resume, settings, signal, ...(attachments === undefined ? {} : { attachments }), ...(options.cwd === undefined ? {} : { cwd: options.cwd }), ...(options.outputSchema === undefined ? {} : { outputSchema: options.outputSchema }), ...(options.allowedTools === undefined ? {} : { allowedTools: options.allowedTools }), ...(options.onEvent === undefined ? {} : { onEvent: options.onEvent }) })));
+                         hostResolved = true;
+                         return raw;
+                     };
+@@ -4313,6 +4333,7 @@ export function createPlaybookCaptainShell(options, deps = {}) {
+             {
+                 playerId: binding.playerId,
+                 promptIdentity: promptIdentity(binding),
++                agent: { adapter: binding.agent.adapter, model: binding.model, effort: binding.effort },
+             },
+         ])),
+         playerSessions: playerSessionStore(frame),
+diff --git a/reference/sdlc/code.playbook/playbook-captain.test.ts b/reference/sdlc/code.playbook/playbook-captain.test.ts
+index 84f02f0..293966a 100644
+--- a/reference/sdlc/code.playbook/playbook-captain.test.ts
++++ b/reference/sdlc/code.playbook/playbook-captain.test.ts
+@@ -4681,6 +4681,40 @@ describe('createPlaybookCaptainShell lifecycle and telemetry (CAPTAIN-11/14)', (
+ });
+ 
+ describe('createPlaybookCaptainShell CODE port wrapping (CAPTAIN-10/15)', () => {
++  it('admits an explicit fresh role task while retaining ordinary continuation checks', async()=>{
++    const registry=fakeCodeEntry(async(runtime,runtimeTurn)=>{
++      const store=runtime.session!.playerSessions!,port=runtime.ports!;
++      const first=await port.callPlayer('coder','first',runtimeTurn.signal,{resume:false});store.update('coder',first.resumeToken);
++      await expect(port.callPlayer('coder','implicit reset',runtimeTurn.signal,{resume:false})).rejects.toThrow('continuation changed');
++      const fresh=await port.callPlayer('coder','fresh',runtimeTurn.signal,{resume:false,freshSession:true});store.update('coder',fresh.resumeToken);
++      await expect(port.callPlayer('coder','invalid fresh',runtimeTurn.signal,{resume:store.select('coder'),freshSession:true})).rejects.toThrow('requires resume:false');
++    });registry.entry.requiredRoleIds=['coder'];
++    const shell=makeShell(registry,{rolePlayerIds:{code:{coder:'dev.coder'}}}),context=stubContext();
++    context.context.callPlayer=async(playerId,prompt,options)=>{context.playerCalls.push({playerId,prompt,options});return {status:'ok',playerId,turnId:1,finalText:'ok',resumeToken:'native-'+prompt};};
++    await shell.init!(stubSession([{id:'dev.coder',adapter:'codex'}]).session);await shell.handleBossTurn(turn('/code task'),context.context);
++    expect(context.playerCalls.map(x=>x.prompt)).toEqual(['first','fresh']);expect(context.playerCalls.every(x=>x.options?.resume===false)).toBe(true);await shell.dispose!();
++  });
++
++  it('forwards task execution context and refuses permission expansion before dispatch', async () => {
++    const observer=async()=>{};
++    const registry=fakeCodeEntry(async(runtime,runtimeTurn)=>{
++      const store=runtime.session!.playerSessions!;
++      expect(runtime.session?.roleBindings?.coder?.agent?.adapter).toBe('codex');
++      const result=await runtime.ports!.callPlayer('coder','task',runtimeTurn.signal,{
++        resume:store.select('coder'),cwd:'/tmp/isolated-task',attachments:[{path:'/tmp/frozen.png'}],nativeSkills:false,allowedTools:[],outputSchema:{type:'object'},onEvent:observer,
++        permissions:{fileWrite:'deny',shellExecute:'deny',networkAccess:'deny'},
++      });
++      store.update('coder',result.resumeToken);
++      await expect(runtime.ports!.callPlayer('coder','widen',runtimeTurn.signal,{resume:store.select('coder'),permissions:{networkAccess:'allow'}})).rejects.toThrow('cannot expand configured permissions');
++    });registry.entry.requiredRoleIds=['coder'];
++    const shell=makeShell(registry,{rolePlayerIds:{code:{coder:'dev.coder'}},playerAgents:{'dev.coder':{adapter:'codex',model:{kind:'value',value:'actual-model'},effort:{kind:'provider-default'},permissions:{fileWrite:'allow',shellExecute:'allow',networkAccess:'deny'}}}});
++    const context=stubContext();await shell.init!(stubSession([{id:'dev.coder',adapter:'codex'}]).session);
++    await shell.handleBossTurn(turn('/code task'),context.context);
++    expect(context.playerCalls).toHaveLength(1);
++    expect(context.playerCalls[0]?.options).toMatchObject({cwd:'/tmp/isolated-task',attachments:[{path:'/tmp/frozen.png'}],allowedTools:[],outputSchema:{type:'object'},onEvent:observer,settings:{nativeSkills:false,permissions:{fileWrite:'deny',shellExecute:'deny',networkAccess:'deny'}}});
++    await shell.dispose!();
++  });
++
+   it('reapplies the complete role settings atomically on every player call', async () => {
+     const registry = fakeCodeEntry(async (runtime, runtimeTurn) => {
+       const store = runtime.session?.playerSessions;
+@@ -4728,6 +4762,7 @@ describe('createPlaybookCaptainShell CODE port wrapping (CAPTAIN-10/15)', () =>
+         playerId: 'dev.coder',
+         prompt: 'configured player',
+         options: {
++          signal: expect.any(AbortSignal),
+           resume: false,
+           settings: {
+             browser: false,
+@@ -5475,7 +5510,8 @@ describe('createPlaybookCaptainShell CODE port wrapping (CAPTAIN-10/15)', () =>
+       {
+         playerId: 'code-coder',
+         prompt: 'player prompt',
+-        options: { resume: false, settings: DEFAULT_AGENT_SETTINGS },
++        options: {
++          signal: expect.any(AbortSignal), resume: false, settings: DEFAULT_AGENT_SETTINGS },
+       },
+     ]);
+     const nonSummaryCaptainCalls = context.captainCalls.filter(
+@@ -6921,12 +6957,14 @@ describe('createPlaybookCaptainShell session bridge (CAPTAIN-26/27)', () => {
+       {
+         playerId: 'code-coder',
+         prompt: 'fresh call',
+-        options: { resume: false, settings: DEFAULT_AGENT_SETTINGS },
++        options: {
++          signal: expect.any(AbortSignal), resume: false, settings: DEFAULT_AGENT_SETTINGS },
+       },
+       {
+         playerId: 'code-coder',
+         prompt: 'continued call',
+         options: {
++          signal: expect.any(AbortSignal),
+           resume: 'player-token-1',
+           settings: DEFAULT_AGENT_SETTINGS,
+         },
+@@ -10446,6 +10484,7 @@ describe('Playbook Captain complete session snapshots (CAPTAIN-41/42/43)', () =>
+         playerId: 'code-coder',
+         prompt: 'captured',
+         options: {
++          signal: expect.any(AbortSignal),
+           resume: 'player-retained-token',
+           settings: {
+             browser: false,
+@@ -10588,6 +10627,7 @@ describe('Playbook Captain complete session snapshots (CAPTAIN-41/42/43)', () =>
+         playerId: 'code-coder',
+         prompt: 'captured',
+         options: {
++          signal: expect.any(AbortSignal),
+           resume: 'player-retained-token',
+           settings: {
+             browser: false,
+diff --git a/reference/sdlc/code.playbook/playbook-captain.ts b/reference/sdlc/code.playbook/playbook-captain.ts
+index e939713..58b21d2 100644
+--- a/reference/sdlc/code.playbook/playbook-captain.ts
++++ b/reference/sdlc/code.playbook/playbook-captain.ts
+@@ -6147,7 +6147,9 @@ export function createPlaybookCaptainShell(
+         throw new TypeError('player freshPrompt must be a string');
+       }
+       const expectedResume = ledger.resumeToken ?? false;
+-      if (options.resume !== expectedResume) {
++      if (options.freshSession !== undefined && typeof options.freshSession !== 'boolean') throw new TypeError('player freshSession must be boolean');
++      if (options.freshSession && options.resume !== false) throw new Error('A fresh player task requires resume:false');
++      if (options.resume !== expectedResume && !(options.freshSession && options.resume === false)) {
+         throw new Error(
+           `${frameLabel(frame)} player continuation changed before dispatch`,
+         );
+@@ -6157,8 +6159,22 @@ export function createPlaybookCaptainShell(
+           `session player ${JSON.stringify(binding.playerId)} already has a call in flight`,
+         );
+       }
+-      const settings = callSettings(binding.agent, binding);
+-      const attachments = await attachmentPaths(frame.attachments, signal);
++      let settings = callSettings(binding.agent, binding);
++      if (options.nativeSkills !== undefined) settings = { ...settings, nativeSkills: options.nativeSkills };
++      if (options.permissions) {
++        const ceiling = binding.agent.permissions;
++        const requested = options.permissions;
++        const rank = { deny: 0, ask: 1, allow: 2 };
++        if (ceiling?.mode !== 'bypass' && (requested.mode === 'bypass' ||
++          (['fileWrite', 'shellExecute', 'networkAccess'] as const).some(key =>
++            rank[requested[key] ?? 'deny'] > rank[ceiling?.[key] ?? 'deny']) ||
++          (requested.writablePaths ?? []).some(item => !(ceiling?.writablePaths ?? []).includes(item)))) {
++          throw new Error('Player call cannot expand configured permissions');
++        }
++        settings = { ...settings, permissions: requested };
++      }
++      const attachments = options.attachments === undefined
++        ? await attachmentPaths(frame.attachments, signal) : options.attachments;
+       const calling: PlayerTransaction = {
+         phase: 'calling',
+         frame,
+@@ -6169,6 +6185,7 @@ export function createPlaybookCaptainShell(
+         abandoned: false,
+       };
+       playerTransactions.set(binding.playerId, calling);
++      if (options.freshSession) delete ledger.resumeToken;
+       let result: PlayerResult;
+       let hostResolved = false;
+       const untracked = !recordProgress || journalledFrames.has(frame) ? undefined : {
+@@ -6185,7 +6202,7 @@ export function createPlaybookCaptainShell(
+             const raw = await trackHostCall(
+               frame,
+               classifySettingsCall(() =>
+-                context.callPlayer(binding.playerId, resume === false ? options.freshPrompt ?? prompt : prompt, { resume, settings, ...(attachments === undefined ? {} : { attachments }) }),
++                context.callPlayer(binding.playerId, resume === false ? options.freshPrompt ?? prompt : prompt, { resume, settings, signal, ...(attachments === undefined ? {} : { attachments }), ...(options.cwd === undefined ? {} : { cwd: options.cwd }), ...(options.outputSchema === undefined ? {} : { outputSchema: options.outputSchema }), ...(options.allowedTools === undefined ? {} : { allowedTools: options.allowedTools }), ...(options.onEvent === undefined ? {} : { onEvent: options.onEvent as NonNullable<Parameters<typeof context.callPlayer>[2]>['onEvent'] }) }),
+               ),
+             );
+             hostResolved = true;
+@@ -6735,6 +6752,7 @@ export function createPlaybookCaptainShell(
+           {
+             playerId: binding.playerId,
+             promptIdentity: promptIdentity(binding),
++            agent: { adapter: binding.agent.adapter, model: binding.model, effort: binding.effort },
+           },
+         ]),
+       ),
+diff --git a/reference/sdlc/decide.playbook/decide.fsm.d.ts b/reference/sdlc/decide.playbook/decide.fsm.d.ts
+index 3809407..78d58ed 100644
+--- a/reference/sdlc/decide.playbook/decide.fsm.d.ts
++++ b/reference/sdlc/decide.playbook/decide.fsm.d.ts
+@@ -203,7 +203,7 @@ export type DecideOutput = {
+  */
+ export declare function authoredChildResult(error: unknown, expectedPlaybookId: string): PlaybookCallResult | undefined;
+ export declare const decideMachine: import("xstate").StateMachine<DecideContext, import("xstate").AnyEventObject, {
+-    [x: string]: import("xstate").ActorRefFromLogic<import("xstate").PromiseActorLogic<PlayerOutput, PlayerInput, import("xstate").EventObject>> | import("xstate").ActorRefFromLogic<import("xstate").PromiseActorLogic<PlaybookOutput, PlaybookInput, import("xstate").EventObject>> | undefined;
++    [x: string]: import("xstate").ActorRefFromLogic<import("xstate").PromiseActorLogic<PlayerOutput, PlayerInput, import("xstate").EventObject> | import("xstate").PromiseActorLogic<PlaybookOutput, PlaybookInput, import("xstate").EventObject>> | undefined;
+ }, {
+     src: "player";
+     logic: import("xstate").PromiseActorLogic<PlayerOutput, PlayerInput, import("xstate").EventObject>;
+@@ -387,5 +387,5 @@ export declare const decideMachine: import("xstate").StateMachine<DecideContext,
+             id: "done";
+         };
+     };
+-}>;
++}, import("xstate").MetaObject>;
+ export default decideMachine;
+diff --git a/reference/sdlc/dev.playbook/dev.fsm.d.ts b/reference/sdlc/dev.playbook/dev.fsm.d.ts
+index 90fb049..daaed02 100644
+--- a/reference/sdlc/dev.playbook/dev.fsm.d.ts
++++ b/reference/sdlc/dev.playbook/dev.fsm.d.ts
+@@ -152,7 +152,7 @@ export declare const devMachine: import("xstate").StateMachine<DevContext, {
+     readonly answer: string;
+     readonly questionId?: string;
+ }, {
+-    [x: string]: import("xstate").ActorRefFromLogic<import("xstate").PromiseActorLogic<PlayerOutput, PlayerInput, import("xstate").EventObject>> | import("xstate").ActorRefFromLogic<import("xstate").PromiseActorLogic<PlaybookOutput, PlaybookInput, import("xstate").EventObject>> | undefined;
++    [x: string]: import("xstate").ActorRefFromLogic<import("xstate").PromiseActorLogic<PlayerOutput, PlayerInput, import("xstate").EventObject> | import("xstate").PromiseActorLogic<PlaybookOutput, PlaybookInput, import("xstate").EventObject>> | undefined;
+ }, {
+     src: "player";
+     logic: import("xstate").PromiseActorLogic<PlayerOutput, PlayerInput, import("xstate").EventObject>;
+@@ -330,5 +330,5 @@ export declare const devMachine: import("xstate").StateMachine<DevContext, {
+             id: "reportedChildFailure";
+         };
+     };
+-}>;
++}, import("xstate").MetaObject>;
+ export default devMachine;
+diff --git a/reference/sdlc/inspect.playbook/inspect.fsm.d.ts b/reference/sdlc/inspect.playbook/inspect.fsm.d.ts
+index 1d5c9f1..0e3c96b 100644
+--- a/reference/sdlc/inspect.playbook/inspect.fsm.d.ts
++++ b/reference/sdlc/inspect.playbook/inspect.fsm.d.ts
+@@ -164,5 +164,5 @@ export declare const inspectMachine: import("xstate").StateMachine<InspectContex
+             id: "failed";
+         };
+     };
+-}>;
++}, import("xstate").MetaObject>;
+ export {};
+diff --git a/reference/sdlc/pr.playbook/pr.fsm.d.ts b/reference/sdlc/pr.playbook/pr.fsm.d.ts
+index 5322574..063d92c 100644
+--- a/reference/sdlc/pr.playbook/pr.fsm.d.ts
++++ b/reference/sdlc/pr.playbook/pr.fsm.d.ts
+@@ -162,7 +162,7 @@ export declare const prMachine: import("xstate").StateMachine<PrContext, {
+     readonly answer: string;
+     readonly questionId?: "openPullRequest";
+ }, {
+-    [x: string]: import("xstate").ActorRefFromLogic<import("xstate").PromiseActorLogic<PlayerOutput, PlayerInput, import("xstate").EventObject>> | import("xstate").ActorRefFromLogic<import("xstate").PromiseActorLogic<ScriptOutput, ScriptInput, import("xstate").EventObject>> | import("xstate").ActorRefFromLogic<import("xstate").PromiseActorLogic<PlaybookOutput, PlaybookInput, import("xstate").EventObject>> | undefined;
++    [x: string]: import("xstate").ActorRefFromLogic<import("xstate").PromiseActorLogic<PlayerOutput, PlayerInput, import("xstate").EventObject> | import("xstate").PromiseActorLogic<PlaybookOutput, PlaybookInput, import("xstate").EventObject> | import("xstate").PromiseActorLogic<ScriptOutput, ScriptInput, import("xstate").EventObject>> | undefined;
+ }, {
+     src: "player";
+     logic: import("xstate").PromiseActorLogic<PlayerOutput, PlayerInput, import("xstate").EventObject>;
+@@ -369,5 +369,5 @@ export declare const prMachine: import("xstate").StateMachine<PrContext, {
+             id: "mergeUnconfirmed";
+         };
+     };
+-}>;
++}, import("xstate").MetaObject>;
+ export default prMachine;
+diff --git a/reference/sdlc/review.playbook/review.fsm.d.ts b/reference/sdlc/review.playbook/review.fsm.d.ts
+index 78d2f0a..aa16616 100644
+--- a/reference/sdlc/review.playbook/review.fsm.d.ts
++++ b/reference/sdlc/review.playbook/review.fsm.d.ts
+@@ -231,5 +231,5 @@ export declare const reviewMachine: import("xstate").StateMachine<ReviewContext,
+             id: "done";
+         };
+     };
+-}>;
++}, import("xstate").MetaObject>;
+ export default reviewMachine;
+diff --git a/slc/link.md b/slc/link.md
+index 836db3f..9343d04 100644
+--- a/slc/link.md
++++ b/slc/link.md
+@@ -236,6 +236,7 @@ interface PlaybookSession {
+ interface PlaybookRoleBinding {
+   readonly playerId: string;
+   readonly promptIdentity: string;
++  readonly agent?: { readonly adapter: string; readonly model?: unknown; readonly effort?: unknown };
+ }
+ 
+ interface PlaybookPendingBossQuestion {
+@@ -708,8 +709,17 @@ interface PlaybookPorts {
+ }
+ 
+ interface PlayerCallOptions {
++  freshSession?: boolean;
+   resume: string | false;
++  /** Complete task and clarification context if the host must start fresh. */
+   freshPrompt?: string;
++  cwd?: string;
++  attachments?: readonly { readonly path: string; readonly mimeType?: string }[];
++  permissions?: { mode?: 'auto' | 'bypass'; fileWrite?: 'allow' | 'ask' | 'deny'; shellExecute?: 'allow' | 'ask' | 'deny'; networkAccess?: 'allow' | 'ask' | 'deny'; writablePaths?: string[] };
++  nativeSkills?: boolean;
++  allowedTools?: readonly string[];
++  outputSchema?: Record<string, unknown>;
++  onEvent?: (event: { type: string; payload: unknown }) => void | Promise<void>;
+ }
+ 
+ interface CaptainCallOptions {
+diff --git a/specs/map.md b/specs/map.md
+index 1a83710..daeb6b9 100644
+--- a/specs/map.md
++++ b/specs/map.md
+@@ -147,6 +147,7 @@ meta.md       The spec of specs
+ | [playbook.md](packages/playbook.md) | CODE, REVIEW, DECIDE, DEV, BRANCH, and PR source, GEARS, FSM, prompt, transition, nesting, script-state, and terminal conformance |
+ | [playbook-captain.md](packages/playbook-captain.md) | Registry, routing, explicit role binding, Captain-session player continuity, engagement stack, and host lifecycle |
+ | [playbook-cli.md](packages/playbook-cli.md) | Interactive and headless launch, player config, durable session reopening, provisioning, persistence, the machine identity and its facade, the shared session store, replay stream, and worktree host-capabilities facade, and checks |
++| [player-execution.md](packages/player-execution.md) | Public per-player execution context and authentic event observation |
+ | [playbook-runtime.md](packages/playbook-runtime.md) | Role-local linked runtime ports, execution, composition, tracing, persistence, and control |
+ | [session-assets.md](packages/session-assets.md) | Immutable owner assets and portable attachment/evidence contracts |
+ | [session-persistence.md](packages/session-persistence.md) | Bounded physical session roots, chunks, replay, migration and export |
+diff --git a/specs/packages/playbook-runtime.md b/specs/packages/playbook-runtime.md
+index 5525839..0b42c20 100644
+--- a/specs/packages/playbook-runtime.md
++++ b/specs/packages/playbook-runtime.md
+@@ -86,13 +86,13 @@ It shall further export `PlaybookSemanticValueShape`, `PlaybookSemanticValueShap
+ `PlaybookPendingBossQuestion` shall carry `questionId`, exact `question`, optional `sourceItem`, and an `asker` discriminated as `{ kind: 'captain' }` or `{ kind: 'role', roleId: string }`; it shall expose no overloaded player field.
+ `PlayerResult.status` shall be the union `'ok' | 'aborted' | 'error'`,
+ `PlayerResult` shall expose optional `resumeToken`, `PlayerCallOptions`
+-shall require `resume: string | false` and permit an optional full-context `freshPrompt: string` for fresh fallback, `CaptainResult.status` shall be the
++shall require `resume: string | false` and permit an optional full-context `freshPrompt: string` for fresh fallback, optional explicit `freshSession` for a new task with `resume:false`, `cwd`, local-file `attachments`, narrowed `permissions`, `nativeSkills`, `allowedTools`, `outputSchema` and an awaited `onEvent` callback for per-invocation execution, `CaptainResult.status` shall be the
+ same union without a resume token, `CaptainCallOptions` shall require
+ `visibility: 'visible' | 'hidden'` and `resume: string | false`, and shall
+ expose optional `allowedTools?: readonly string[]` so an explicit empty list
+ requests tool isolation while omission preserves the host Captain's configured
+ tools. `PlaybookRuntime.init` shall
+-accept a `PlaybookSession` whose optional `roleBindings` maps each local role to exact `playerId` and `promptIdentity` strings and whose optional `playerSessions` implements the exact synchronous store contract in [[playbook-runtime-58](#playbook-runtime-58)], and `PlaybookPorts` shall declare exactly
++accept a `PlaybookSession` whose optional `roleBindings` maps each local role to exact `playerId` and `promptIdentity` strings and optional configured `agent` adapter/model/effort metadata and whose optional `playerSessions` implements the exact synchronous store contract in [[playbook-runtime-58](#playbook-runtime-58)], and `PlaybookPorts` shall declare exactly
+ the members `callPlayer`,
+ `callCaptain`, `callJudge`, `callPlaybook`, `emitStatus`, and
+ `emitTelemetry`, and optional `recordStep(step: PlaybookStepRecord, position?: PlaybookRuntimeSnapshot): Promise<void>` for durable invocation progress [[recovery-1](recovery.md#recovery-1)].
+diff --git a/src/runtime.d.ts b/src/runtime.d.ts
+index 8370795..87a2d78 100644
+--- a/src/runtime.d.ts
++++ b/src/runtime.d.ts
+@@ -5,9 +5,30 @@ export interface PlayerResult {
+     error?: string;
+ }
+ export interface PlayerCallOptions {
++    /** Explicitly start a new task for this role; requires resume:false. */
++    freshSession?: boolean;
+     resume: string | false;
+     /** Complete task and clarification context if the host must start fresh. */
+     freshPrompt?: string;
++    cwd?: string;
++    attachments?: readonly {
++        readonly path: string;
++        readonly mimeType?: string;
++    }[];
++    permissions?: {
++        mode?: 'auto' | 'bypass';
++        fileWrite?: 'allow' | 'ask' | 'deny';
++        shellExecute?: 'allow' | 'ask' | 'deny';
++        networkAccess?: 'allow' | 'ask' | 'deny';
++        writablePaths?: string[];
++    };
++    nativeSkills?: boolean;
++    allowedTools?: readonly string[];
++    outputSchema?: Record<string, unknown>;
++    onEvent?: (event: {
++        type: string;
++        payload: unknown;
++    }) => void | Promise<void>;
+ }
+ export interface PlayerSessionStore {
+     select(roleId: string): string | false;
+@@ -18,6 +39,11 @@ export interface PlayerSessionStore {
+ export interface PlaybookRoleBinding {
+     readonly playerId: string;
+     readonly promptIdentity: string;
++    readonly agent?: {
++        readonly adapter: string;
++        readonly model?: unknown;
++        readonly effort?: unknown;
++    };
+ }
+ export interface CaptainCallOptions {
+     visibility: 'visible' | 'hidden';
+diff --git a/src/runtime.ts b/src/runtime.ts
+index 0082611..d0029bb 100644
+--- a/src/runtime.ts
++++ b/src/runtime.ts
+@@ -16,9 +16,18 @@ export interface PlayerResult {
+ }
+ 
+ export interface PlayerCallOptions {
++  /** Explicitly start a new task for this role; requires resume:false. */
++  freshSession?: boolean;
+   resume: string | false;
+   /** Complete task and clarification context if the host must start fresh. */
+   freshPrompt?: string;
++  cwd?: string;
++  attachments?: readonly { readonly path: string; readonly mimeType?: string }[];
++  permissions?: { mode?: 'auto' | 'bypass'; fileWrite?: 'allow' | 'ask' | 'deny'; shellExecute?: 'allow' | 'ask' | 'deny'; networkAccess?: 'allow' | 'ask' | 'deny'; writablePaths?: string[] };
++  nativeSkills?: boolean;
++  allowedTools?: readonly string[];
++  outputSchema?: Record<string, unknown>;
++  onEvent?: (event: { type: string; payload: unknown }) => void | Promise<void>;
+ }
+ 
+ // DR-032: a composing host may supply one frame-local role view of the
+@@ -35,6 +44,7 @@ export interface PlayerSessionStore {
+ export interface PlaybookRoleBinding {
+   readonly playerId: string;
+   readonly promptIdentity: string;
++  readonly agent?: { readonly adapter: string; readonly model?: unknown; readonly effort?: unknown };
+ }
+ 
+ export interface CaptainCallOptions {
+diff --git a/src/xstate-runtime.js b/src/xstate-runtime.js
+index fab6eb3..c5bd8a9 100644
+--- a/src/xstate-runtime.js
++++ b/src/xstate-runtime.js
+@@ -294,8 +294,18 @@ function capturedRoleBindings(descriptors) {
+         if (!isRecord(value)) {
+             throw new TypeError(`playbook session roleBindings.${roleId} must be an object`);
+         }
+-        rejectUnknownKeys(value, ['playerId', 'promptIdentity'], `playbook session roleBindings.${roleId}`);
++        rejectUnknownKeys(value, ['playerId', 'promptIdentity', 'agent'], `playbook session roleBindings.${roleId}`);
++        let agent;
++        if (value.agent !== undefined) {
++            if (!isRecord(value.agent))
++                throw new TypeError('role agent must be an object');
++            rejectUnknownKeys(value.agent, ['adapter', 'model', 'effort'], 'role agent');
++            agent = Object.freeze({ adapter: requireNonEmptyString(value.agent.adapter, 'role agent adapter'),
++                ...(value.agent.model === undefined ? {} : { model: value.agent.model }),
++                ...(value.agent.effort === undefined ? {} : { effort: value.agent.effort }) });
++        }
+         defineEnumerableDataProperty(bindings, roleId, Object.freeze({
++            ...(agent === undefined ? {} : { agent }),
+             playerId: requireNonEmptyString(value.playerId, `playbook session roleBindings.${roleId}.playerId`),
+             promptIdentity: requireNonEmptyString(value.promptIdentity, `playbook session roleBindings.${roleId}.promptIdentity`),
+         }));
+diff --git a/src/xstate-runtime.ts b/src/xstate-runtime.ts
+index 5f5b9f1..7037ea2 100644
+--- a/src/xstate-runtime.ts
++++ b/src/xstate-runtime.ts
+@@ -31,6 +31,7 @@ import type {
+   PlaybookRepositoryDisposition,
+   PlaybookRepositoryReceipt,
+   PlaybookRuntimeSnapshot,
++  PlaybookRoleBinding,
+   PlaybookSession,
+   PlaybookState,
+   PlaybookStateValue,
+@@ -467,10 +468,19 @@ function capturedRoleBindings(
+     }
+     rejectUnknownKeys(
+       value,
+-      ['playerId', 'promptIdentity'],
++      ['playerId', 'promptIdentity', 'agent'],
+       `playbook session roleBindings.${roleId}`,
+     );
++    let agent: PlaybookRoleBinding['agent'];
++    if (value.agent !== undefined) {
++      if (!isRecord(value.agent)) throw new TypeError('role agent must be an object');
++      rejectUnknownKeys(value.agent, ['adapter','model','effort'], 'role agent');
++      agent=Object.freeze({adapter:requireNonEmptyString(value.agent.adapter,'role agent adapter'),
++        ...(value.agent.model === undefined ? {} : {model:value.agent.model}),
++        ...(value.agent.effort === undefined ? {} : {effort:value.agent.effort})});
++    }
+     defineEnumerableDataProperty(bindings, roleId, Object.freeze({
++      ...(agent === undefined ? {} : {agent}),
+       playerId: requireNonEmptyString(
+         value.playerId,
+         `playbook session roleBindings.${roleId}.playerId`,
+diff --git a/specs/packages/player-execution.md b/specs/packages/player-execution.md
+new file mode 100644
+index 0000000..36d8f2f
+--- /dev/null
++++ b/specs/packages/player-execution.md
+@@ -0,0 +1,24 @@
++# player-execution: Workflow Player Execution Context
++
++## Intent
++
++This package allows an independently hosted workflow to run its configured roles against task-local files and observe authentic events without injecting adapter implementations into a CLI launcher.
++
++## External Behavior
++
++### player-execution-1
++
++When a workflow calls a configured player through the public session port, the host shall pass its explicit working directory, local attachments, native-skill selection, tool allowlist and native output schema to that invocation only, preserving configured model/service selection and the existing continuation transaction.
++An explicit `freshSession:true` with `resume:false` shall reset that role for a new task; all other calls shall retain exact ledger continuation checks.
++The host shall reject any requested permission capability beyond the configured role ceiling before dispatch, allow a narrower policy, and leave omitted settings unchanged.
++
++### player-execution-2
++
++When the workflow observes an invocation through `onEvent`, the host shall await the observer after recording each authentic player event and propagate observer failure without fabricating a successful result.
++The host shall expose the effective configured adapter/model/effort in the role binding without copying credentials.
++
++## Verification
++
++### player-execution-3
++
++When system tests drive a standalone workflow through the standard CLI with real local-file tools and separate roles, they shall verify the actual working directory, explicit role model, bounded permissions, attachment delivery and continuation behavior [[player-execution-1](#player-execution-1)] and compare observed events with the durable official player journal [[player-execution-2](#player-execution-2)].

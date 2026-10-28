@@ -20,15 +20,15 @@
 
 ![真实受控验收结果摘要：3条需求、7个场景独立通过，行覆盖39/43、分支覆盖9/12](skills/en/app-delivery-acceptance/assets/docs/result-summary.png)
 
-[放大结果图](skills/en/app-delivery-acceptance/assets/docs/result-summary.png) · [查看该次验证范围](skills/en/app-delivery-acceptance/references/benchmark.md#v01-合并后受控回归摘要)
+[放大结果图](skills/en/app-delivery-acceptance/assets/docs/result-summary.png) · [查看该次验证范围](docs/benchmark.md#v01-合并后受控回归摘要)
 
 *上图依据一次 v0.1 受控验收的真实数据绘制。Web 看板还能展开执行日志、冻结截图和历史记录。*
 
 ## 跑通第一个 Demo
 
-**准备环境：** macOS / Linux，Python 3、Git、Node.js >=22 与 npm；Codex、Claude Code 或 OpenCode 已能调用模型。首次会下载依赖并多次调用模型。[环境与排障说明](skills/en/app-delivery-acceptance/README.md#使用环境)
+**当前源码环境：** macOS / Linux、Git、Node.js >=22 与 npm；Codex、Claude Code 或 OpenCode 已能调用模型。Skill 的新业务入口使用官方 Playbook CLI 和 Node 工具；被测 Python 项目或其覆盖率工具仍可能需要 Python。首次会下载依赖并多次调用模型。[环境与运行说明](skills/en/app-delivery-acceptance/playbooks/acceptance/README.md)
 
-OpenCode 适配在当前源码版本提供；下方 `v0.1` 发布版本的安装示例不包含本次新增适配。使用当前源码的 OpenCode 用户需将该 Skill 挂载到 `.opencode/skills/app-delivery-acceptance`，并按[运行配置](skills/en/app-delivery-acceptance/references/agent-runtime.md)传完整模型 ID 和现有认证环境。
+当前源码已改为可组合的[独立工作流入口](skills/en/app-delivery-acceptance/playbooks/acceptance/docs/independent-workflows.md)，尚未发布为新标签。下方 `v0.1` 安装示例仍是历史发布，不能据此获得本次迁移。使用当前源码时挂载或复制 `skills/en/app-delivery-acceptance` 到所选 Agent 的 Skill 目录，按[运行配置](skills/en/app-delivery-acceptance/playbooks/acceptance/docs/agent-runtime.md)提供实际模型和既有服务环境；OpenCode 使用完整 `provider/model` 标识。
 
 ### 第 1 步：安装 Skill
 
@@ -90,7 +90,7 @@ cd projects/python-cli
 
 换成自己的项目时，跳过第 2 步，在任务中给出项目位置和一条明确需求即可。已有场景可直接采用，没有 SPEC 可从口头需求开始。
 
-[更多安装与排障](skills/en/app-delivery-acceptance/README.md#更多安装与排障) · [Agent 执行规约](skills/en/app-delivery-acceptance/SKILL.md) · [资料与历史如何保存](skills/en/app-delivery-acceptance/references/project-acceptance-store.md)
+[更多安装与排障](skills/en/app-delivery-acceptance/README.md#更多安装与排障) · [Agent 执行规约](skills/en/app-delivery-acceptance/SKILL.md) · [资料与历史如何保存](skills/en/app-delivery-acceptance/playbooks/acceptance/docs/project-acceptance-store.md)
 
 ## 测试集与识别结果
 
@@ -107,4 +107,4 @@ cd projects/python-cli
 
 **公开抽样结果：14 个场景已执行，识别 8 个已知 BUG，6 个正常对照通过。**
 
-该轮生成 159 个场景，145 个未执行；覆盖 5 个功能缺陷和 3 个可读性缺陷，其中 2 个视觉缺陷由独立注入提交引入。结果来自较早的 Skill 提交 `c6ef951`，不等于 v0.1 的全量成绩。[查看固定版本、完整报告与复现范围](skills/en/app-delivery-acceptance/references/benchmark.md)
+该轮生成 159 个场景，145 个未执行；覆盖 5 个功能缺陷和 3 个可读性缺陷，其中 2 个视觉缺陷由独立注入提交引入。结果来自较早的 Skill 提交 `c6ef951`，不等于 v0.1 的全量成绩。[查看固定版本、完整报告与复现范围](docs/benchmark.md)

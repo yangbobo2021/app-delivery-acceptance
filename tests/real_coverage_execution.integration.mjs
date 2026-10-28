@@ -1,0 +1,28 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+import {coveragePreparation,verifyCoverageReport,summarizeCoverage} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/shared/coverage.mjs';
+import {activateCoverage} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/shared/coverage-registry.mjs';
+import {runCoverage} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/shared/coverage-execution.mjs';
+import {readKnowledge} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/shared/knowledge.mjs';
+import {workspaceLease,workspaceSnapshot} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/shared/workspace.mjs';
+import {read,atomicJson} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/shared/store.mjs';
+import {digest} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/shared/definitions.mjs';
+const args=process.argv.slice(2),option=name=>{const i=args.indexOf(name);return i<0?null:args[i+1];},prepared=option('--prepared'),output=option('--output');
+if(!prepared||!output)throw Error('usage: --prepared REAL_PREPARED --output NEW_EVIDENCE');fs.mkdirSync(output,{recursive:true});
+const skill=fileURLToPath(new URL('..',import.meta.url)),config={policy:'required',protocol:'project-coverage-v1',prepared,prepared_sha256:digest(path.join(prepared,'prepared.json'))},profile=coveragePreparation(config),runtime=read(profile.spec.runtime_manifest),root=runtime.acceptance.project_root,at=runtime.acceptance.id,knowledge=readKnowledge(root,at,[]),result=[],directory=path.join(root,'.acceptance-local',at,'workflows/node-real-formal-1');
+if(fs.existsSync(directory))throw Error('Actual formal attempt already exists; use a new explicit attempt');fs.mkdirSync(directory,{recursive:true});
+const catalog={acceptance:knowledge.acceptance,source_checkout:runtime.workspace,test_roots:runtime.test_roots};
+await workspaceLease(catalog,directory,async()=>{
+  const before=workspaceSnapshot(runtime.workspace,runtime.components),sourceBefore=digest(path.join(runtime.workspace,'src/calc.py')),testFile=path.join(runtime.workspace,'tests/native_formal.py');
+  if(fs.existsSync(testFile))throw Error('Test fixture already exists; do not overwrite');
+  fs.writeFileSync(testFile,'import runpy\nfrom pathlib import Path\nclassify = runpy.run_path(str(Path(__file__).resolve().parents[1] / "src/calc.py"))["classify"]\nassert classify(1) == "positive"\nassert classify(0) == "nonpositive"\nassert classify(-1) == "nonpositive"\nprint("NATIVE_NODE_FORMAL_CLASSIFY_OK")\n');
+  const catalogFile=path.join(directory,'catalog.json');atomicJson(catalogFile,{acceptance:knowledge.acceptance,coverage_test_files:profile.adapter_files});
+  const active=activateCoverage(prepared,catalogFile),request={acceptance:knowledge.acceptance,cwd:runtime.workspace,output:path.join(directory,'execution'),files:['tests/native_formal.py'],command:[profile.entry[0],'tests/native_formal.py'],env:{},scene_id:'SCENE-native-node-formal',revision:profile.spec.revision,coverage:{...active,scene_id:'SCENE-native-node-formal',revision:profile.spec.revision},prepared,inventory_path:profile.spec.inventory_path};
+  atomicJson(path.join(directory,'request.json'),request);const receipt=await runCoverage(request),report=verifyCoverageReport(path.join(request.output,'coverage-report.json'),path.join(request.output,'execution.json')),summary=summarizeCoverage([path.join(request.output,'coverage-report.json')]);
+  assert.equal(receipt.exit_code,0);assert.equal(report.status,'measured');assert.equal(report.components[0].line.covered,report.components[0].line.total);assert.equal(report.components[0].branch.covered,report.components[0].branch.total);assert.equal(sourceBefore,digest(path.join(runtime.workspace,'src/calc.py')));assert.match(fs.readFileSync(path.join(request.output,'execution.log'),'utf8'),/NATIVE_NODE_FORMAL_CLASSIFY_OK/);assert.ok(report.raw_evidence.every(item=>fs.statSync(item.path).size>0&&digest(item.path)===item.sha256));
+  result.push({status:'passed',actual_tool:profile.tools,request,receipt,report,summary,source_unchanged:true,native_bytes_verified:true,current_validator_accepts:true,workspace_before:before,workspace_after:workspaceSnapshot(runtime.workspace,runtime.components)});
+});
+atomicJson(path.join(output,'result.json'),{schema:'node-real-coverage-forward-v1',status:'passed',directory,result});console.log(JSON.stringify({status:'passed',evidence:directory,output,tools:profile.tools}));
