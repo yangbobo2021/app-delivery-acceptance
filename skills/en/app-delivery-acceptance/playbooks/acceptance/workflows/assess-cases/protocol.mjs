@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {locations,requireCurrent,read} from '../shared/store.mjs';
 import {validateStore} from '../shared/validation.mjs';
-import {currentBinding,digest} from '../shared/definitions.mjs';
+import {currentBinding,digest,sceneInput} from '../shared/definitions.mjs';
 import {canonical,cloneJson} from '../shared/json.mjs';
 import {caseId,marker,identitySource,sourceLines,verifyIdentity} from '../shared/identity.mjs';
 import {caseContext,validateEvaluation} from '../shared/case-contract.mjs';
@@ -16,7 +16,7 @@ function sourceText(bytes,name){
 export function prepareAssessment(input,folder){
  const {root,shared}=locations(input.project_root,input.acceptance_id);requireCurrent(root,input.acceptance_id);validateStore(root,input.acceptance_id);const definitions=currentBinding(root,input.acceptance_id);
  if(definitions.sha256!==input.definitions_sha256)throw Error('assessment definitions changed');const current=read(path.join(shared,'scenarios.json')),scene=current.scenarios.find(s=>s.id===input.scene_id);if(!scene)throw Error('assessment scene absent from frozen definitions');
- const source=fs.realpathSync(input.source_checkout??root),frozen={definitions,scene:cloneJson(scene),source_root:source,enabled:input.enabled??true,source_files:{},source_revision:null};
+ const source=fs.realpathSync(input.source_checkout??root),frozen={definitions,scene:cloneJson(scene),case_input:sceneInput({definitions,acceptance:{project_root:root,id:input.acceptance_id,scope_sha256:current.scope_sha256}},input.scene_id),source_root:source,enabled:input.enabled??true,source_files:{},source_revision:null};
  if(typeof frozen.enabled!=='boolean')throw Error('enabled must be an explicit boolean');if(!frozen.enabled){write(path.join(folder,'request.frozen.json'),frozen,true);return {frozen};}
  const answer=cloneJson(input.case_answer);if(!answer||typeof answer!=='object'||Array.isArray(answer))throw Error('actual current case_answer object required');const cases=answer.case_descriptions??answer.associated_tests;if(!Array.isArray(cases))throw Error('explicit case_descriptions or associated_tests array required; files alone are not declarations');
  if(answer.case_identity)verifyIdentity(answer,source,{sceneId:scene.id,acceptanceId:input.acceptance_id});const seenIds=new Set(),seenSources=new Set(),sourceFiles={},normalized=[];
