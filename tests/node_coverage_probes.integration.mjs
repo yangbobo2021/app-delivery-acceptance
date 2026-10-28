@@ -65,4 +65,11 @@ h.test('PROBE-07','归档映射能读取离线同哈希资料，原生字节漂�
   const native=good.routes[0].probes.nonzero.native[0].path;fs.appendFileSync(mapping[native].path,' ');
   assert.throws(()=>verifyProbeReport(reportPath,runtimePath,prepared.runtime.sha256,['src/unit.fixture'],{verifyRuntime:false,mapping}),/bound artifact missing or changed/);
 });
+h.test('PROBE-08','失败探针把具体路由、模式、退出码和原始堆栈交给准备修复流程',()=>{
+  const file=plan('diagnostic'),value=read(file);value.routes[0].zero.adapter=[process.execPath,'-e','throw new Error("READER_DIAGNOSTIC_MARKER")'];fs.writeFileSync(file,JSON.stringify(value));
+  const result=runProbePlan(file,path.join(folder,'diagnostic')),failure=result.routes[0].probes.zero;
+  assert.equal(failure.status,'failed');assert.match(failure.reason,/"route":"fixture"/);assert.match(failure.reason,/"mode":"zero"/);
+  assert.match(failure.reason,/"exit_code":1/);assert.match(failure.reason,/READER_DIAGNOSTIC_MARKER/);assert.match(failure.reason,/receipt.json/);
+  assert.throws(()=>verifyProbeReport(path.join(folder,'diagnostic/coverage-probes.json'),prepared.runtime.manifest,prepared.runtime.sha256,['src/unit.fixture']),/READER_DIAGNOSTIC_MARKER/);
+});
 h.finish(['workflows/shared/runtime.mjs','workflows/shared/coverage-probes.mjs','tests/node_coverage_probes.integration.mjs']);

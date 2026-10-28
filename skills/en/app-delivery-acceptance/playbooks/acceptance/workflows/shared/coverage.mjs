@@ -9,6 +9,7 @@ import {read,inside,atomicJson} from './store.mjs';
 import {digest,object} from './definitions.mjs';
 import {validateRuntime} from './runtime.mjs';
 import {verifyProbeReport} from './coverage-probes.mjs';
+import {assertToolIdentity} from '../coverage/protocol/tools.mjs';
 export const protocol='project-coverage-v1';
 const commandObservers=[];
 export function withCoverageCommandObserver(observer,operation){commandObservers.push(observer);try{return operation();}finally{commandObservers.pop();}}
@@ -37,7 +38,7 @@ export function invokeCoverage(profile,operation,request,output,mapping={}){
     const started_at=new Date().toISOString(),actualArgv=[...argv.slice(1),operation,file,output],result=spawnSync(argv[0],[...argv.slice(1),operation,file,output],{cwd:fs.existsSync(root)?root:path.dirname(output),encoding:'utf8',timeout:180000,maxBuffer:32*1024*1024});
     for(const observer of commandObservers)observer({operation,argv:[argv[0],...actualArgv],cwd:fs.existsSync(root)?root:path.dirname(output),started_at,finished_at:new Date().toISOString(),exit_code:result.status,stdout:result.stdout,stderr:result.stderr,error:result.error?.message??null,request:{...request,artifact_map:map}});
     if(result.error)throw result.error;
-    if(result.status!==0)throw Error('project coverage '+operation+' failed: '+String(result.stderr||result.stdout||(fs.existsSync(output)?fs.readFileSync(output,'utf8'):result.signal)).slice(-1800));
+    if(result.status!==0)throw Error('project coverage '+operation+' failed: '+JSON.stringify({exit_code:result.status,signal:result.signal,command:[argv[0],...actualArgv],request:file,response:output,detail:String(result.stderr||result.stdout||(fs.existsSync(output)?fs.readFileSync(output,'utf8'):'No diagnostic text')).slice(-4000)}));
   }finally{fs.rmSync(folder,{recursive:true});}
   if(!fs.existsSync(output))throw Error('project coverage operation produced no response: '+operation);return read(output);
 }
@@ -86,7 +87,8 @@ export function verifyCoverageReport(reportPath,receiptPath,{runCheck=true,mappi
   if(report.schema!=='project-tool-coverage-report-v1'||report.protocol!==protocol)throw Error('invalid project coverage report protocol');
   const profile=coveragePreparation(report,{runCheck,mapping});
   if(report.revision!==profile.spec.revision||!equal(report.source_hashes,profile.spec.source_hashes))throw Error('coverage source version mismatch');
-  if(!equal(report.tools,profile.tools)||report.collection_relation!=='same_run')throw Error('coverage tool provenance or execution relation mismatch');
+  assertToolIdentity(report.tools,profile.tools,'Coverage report tool identity');
+  if(report.collection_relation!=='same_run')throw Error('coverage execution relation mismatch');
   if(!['measured','incomplete'].includes(report.status)||!Array.isArray(report.components)||!report.components.length)throw Error('coverage report has no measured components');
   const receiptFile=boundFile(report.receipt_path,report.execution_sha256,mapping);
   if(receiptPath&&digest(resolveArtifact(receiptPath,mapping,report.execution_sha256))!==report.execution_sha256)throw Error('coverage is bound to another execution');
@@ -124,7 +126,8 @@ export function summarizeCoverage(reports,inventory,{mapping={}}={}){
   const profile=coveragePreparation(checked[0],{runCheck:false,mapping}),frozen=read(boundFile(profile.spec.inventory_path,profile.spec.inventory_sha256,mapping));
   if(inventory&&!equal(inventory,frozen))throw Error('coverage summary inventory differs from frozen preparation');
   const result=tempOperation('coverage-project-summary-',directory=>invokeCoverage(profile,'summarize',{reports,inventory:frozen},path.join(directory,'summary.json'),mapping));
-  if(!object(result.scopes)||!equal(result.tools,profile.tools))throw Error('project coverage summary lacks scope or tool provenance');
+  if(!object(result.scopes))throw Error('project coverage summary lacks scope');
+  assertToolIdentity(result.tools,profile.tools,'Coverage summary tool identity');
   for(const name of ['project','changed_files','changed_lines']){
     const value=result.scopes[name]??{};
     if(!['measured','incomplete','unavailable'].includes(value.status))throw Error('project summarizer omitted coverage scope: '+name);

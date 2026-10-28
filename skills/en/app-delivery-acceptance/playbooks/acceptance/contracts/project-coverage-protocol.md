@@ -8,9 +8,9 @@
 
 项目准备命令自行选择，输出新的 `prepared/prepared.json`，schema 为 `project-coverage-preparation-v1`：
 
-- `entry`：项目测试树内冻结适配器的 argv；由宿主追加操作名、request JSON 路径、response JSON 路径。不使用 shell 插值。这里须写本次 workspace 中可直接执行的绝对路径，不能保留探针命令使用的 `{workspace}`、`{runtime_root}` 占位符；探针通过后仍须用这份最终 `entry` 实测 `verify-preparation`。
+- `entry`：宿主将包内固定 Node 协议入口复制到项目测试树并冻结后的 argv；由宿主追加操作名、request JSON 路径、response JSON 路径。不使用 shell 插值。项目后端 argv 同样冻结在 `binding.json` 内，必须可直接执行，不能保留探针命令占位符；探针通过后仍须用最终 `entry` 实测 `verify-preparation`。
 - `adapter_files`：项目相对路径到 SHA256 的映射，包含适配器、必要夹具、配置及锁文件。入口至少包含其中一个文件。路径和实际解析目录都不得逃出项目。
-- `tools`：实际验证过的 `{name, version, role}`；准备资料记录实际命令/API及官方文档依据。安装包名称或版本标签不能代替验证。
+- `tools`：实际验证过的 `{name, version, role}`；准备资料记录实际命令/API及官方文档依据。工具身份仅为名称和版本，`role` 是可读用途描述；描述的语言、措辞或列表顺序不改变身份。Agent 返回的工具元数据冻结为唯一 `binding.json`，固定入口传给后端的每个 request.tools、准备清单和最终报告均使用此来源，不能另写一份 TOOLS 常量。安装包名称或版本标签不能代替验证。
 - `spec.project_root / revision / components / source_hashes`：实际执行工作区、完整冻结版本与全部源码范围。静态资源仍在清单内。
 - 新准备的 `spec.runtime_manifest / runtime_sha256 / probe_report / probe_report_sha256`：绑定本次验收的运行时环境和独立覆盖率探针报告。后续用例每次执行前复核环境、依赖、执行器、源码、适配器及探针字节；任一变化须重新准备。旧归档中不存在这些字段的历史准备保持可读，不将旧结果伪装成本轮运行环境验证。
 - `spec.inventory_path / inventory_sha256 / registry_path`：不可变范围清单及其摘要、持续证据索引。两个路径必须是绝对路径，保证准备与用例从不同工作目录调用时仍指向同一文件。`registry_path` 的父目录必须是当前 ID 的 `workflows` 下的专用尝试目录，供后续用例调试精确授权；首次采集之前索引文件可以不存在，但声明的父目录必须存在；不能直接把索引放在 `workflows` 根目录。
@@ -49,9 +49,16 @@ catalog 的 `coverage` 使用：
 
 所有操作读取 request JSON、写 response JSON，失败返回非零退出码。请求包含 `artifact_map` 时，只读处理使用指定同哈希归档副本，不改原报告内的路径或字节。
 
+宿主在每次新准备中，将 `workflows/coverage/protocol/{entry,tools}.mjs` 原样复制到声明测试根下的独立 `.acceptance-coverage/<attempt>/`，与唯一 `binding.json` 一并冻结；这些文件不依赖原 Skill 或包的安装位置，归档时保持相邻结构。
+项目准备角色返回的 `entry` 指向项目后端，后端实现 `project-coverage-backend-v1` 的 `tools / run / finish / verify-report / summarize`，不实现通用 `verify-preparation`。
+后端 `tools` 实际导入或执行已安装的工具并返回 `{tools:[{name,version}]}`，不得回显 request.tools；固定入口在完整探针之前实测并核对身份，版本不符时保留 expected/actual 差异并停止。
+固定入口负责后端冻结字节验证、工具身份比较、规范工具元数据交接和通用准备核验；后端仍负责实际采集、工具原生重算及统计，通用代码不生成覆盖率数字。
+`finish / summarize` 返回的实测工具身份须与冻结身份相同，固定入口核对后用唯一元数据封装最终输出，保留工具生成的指标和原生证据；用途描述变化不能冒充工具版本变化。
+后端失败时固定入口保留操作、完整 argv、退出码、信号、异常和原始 stdout/stderr，生成 `<response>.failure.json` 并向 stderr 输出诊断；`run` 透传业务输出和退出码，不把业务断言失败改写为协议成功。
+
 | 操作 | 请求与响应 |
 | --- | --- |
-| `verify-preparation` | 请求 `prepared` 指向 manifest 文件；实测准备能力、版本与冻结资料，响应 `status: valid`。 |
+| `verify-preparation` | 请求 `prepared` 指向 manifest 文件；固定入口核对后端冻结资料并调用后端 tools 实测工具身份，宿主同时核对完整运行时、源码、探针和准备绑定，响应 `status: valid`。 |
 | `run` | 请求为宿主冻结的执行会话，含 `cwd, output, scene_id, command, env, files, coverage, prepared, prepared_sha256`。以成熟工具运行原业务命令，保持业务断言和退出码：适配器进程实际返回业务命令的退出码，并把业务 stdout/stderr 透传给宿主冻结日志；只在 response JSON 记录 exit_code 而返回 0 不符合约定。在本轮输出内保存原生数据并可靠收尾。 |
 | `finish` | 请求 `request, receipt, output`，分别指冻结会话 JSON **文件**、真实收据与输出目录。读取该会话后，其 `prepared` 是准备**目录**，manifest 位于 `<prepared>/prepared.json`；不要把目录直接当 JSON 文件打开。生成下面的规范化报告，不能把测试失败变成成功。 |
 | `verify-report` | 请求 `report`；从绑定原生资料用相同专用工具重算并核对报告，响应 `status: valid`。不能只检查汇总 JSON 自身。 |

@@ -80,7 +80,10 @@ function probe(mode,route,runtime,output){
       write(path.join(folder,'native-integrity-'+name+'.json'),{reader:name,before,after,added:Object.keys(after).filter(x=>!(x in before)),removed:Object.keys(before).filter(x=>!(x in after)),changed:Object.keys(before).filter(x=>x in after&&before[x]!==after[x])});
       if(!isDeepStrictEqual(before,after))throw Error('Coverage probe readers changed native data');
     }
-    if(receipts[name].exit_code!==0)throw Error('Coverage '+name+' probe failed');
+    if(receipts[name].exit_code!==0)throw Error('Coverage '+name+' probe failed: '+JSON.stringify({route:route.id,mode,
+      receipt:path.join(folder,name,'receipt.json'),command:receipts[name].command,exit_code:receipts[name].exit_code,
+      signal:receipts[name].signal,error:receipts[name].error,
+      stderr:fs.readFileSync(receipts[name].stderr.path,'utf8').slice(-4000),stdout:fs.readFileSync(receipts[name].stdout.path,'utf8').slice(-1000)}));
     if(name==='collect'){
       native=nativeSnapshot(raw);
       if(!Object.keys(native).length||!Object.keys(native).some(file=>fs.statSync(file).size>0))throw Error('Coverage probe produced no nonempty native data');
@@ -133,6 +136,8 @@ export function verifyProbeReport(reportPath,runtimeManifest,runtimeSha,measured
     }
   }
   if(report.status!==(allPassed?'ready':'partial'))throw Error('Coverage probe status differs from route evidence');
-  if(measuredSources.some(source=>!covered.has(source)))throw Error('Measured source lacks passing zero/nonzero route probes');
+  const missing=measuredSources.filter(source=>!covered.has(source));
+  if(missing.length)throw Error('Measured source lacks passing zero/nonzero route probes: '+JSON.stringify({sources:missing,
+    failures:(report.routes??[]).flatMap(route=>Object.entries(route.probes).filter(([,probe])=>probe.status!=='passed').map(([mode,probe])=>({route:route.id,mode,reason:probe.reason})))}));
   return report;
 }

@@ -1,0 +1,29 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {createHash} from 'node:crypto';
+import {fileURLToPath} from 'node:url';
+import {toolIdentities} from './tools.mjs';
+
+export function materializeCoverageEntry({workspace, testRoots, attempt, entry, tools, adapterFiles}) {
+  toolIdentities(tools);
+  if (tools.some(tool => typeof tool.role !== 'string' || !tool.role.trim())) throw Error('Coverage tool purpose missing');
+  if (!Array.isArray(entry) || entry.length < 2 || !path.isAbsolute(entry[0]) || entry.some(item => typeof item !== 'string' || !item))
+    throw Error('Coverage backend entry must contain absolute executable and adapter paths');
+  if (!Object.keys(adapterFiles).some(name => entry.includes(path.join(workspace, name))))
+    throw Error('Coverage backend entry must include a frozen project adapter');
+  const root = path.resolve(workspace), testRoot = path.resolve(root, testRoots[0]);
+  if (!testRoot.startsWith(root + path.sep) || !fs.realpathSync(testRoot).startsWith(fs.realpathSync(root) + path.sep))
+    throw Error('Coverage protocol directory escapes the project test tree');
+  const id = createHash('sha256').update(path.resolve(attempt)).digest('hex').slice(0, 20);
+  const directory = path.join(testRoot, '.acceptance-coverage', id);
+  fs.mkdirSync(path.dirname(directory), {recursive: true});
+  if (!fs.realpathSync(path.dirname(directory)).startsWith(fs.realpathSync(testRoot) + path.sep))
+    throw Error('Coverage protocol directory resolves outside its test root');
+  fs.mkdirSync(directory);
+  for (const name of ['entry.mjs', 'tools.mjs'])
+    fs.copyFileSync(fileURLToPath(new URL(name, import.meta.url)), path.join(directory, name), fs.constants.COPYFILE_EXCL);
+  fs.writeFileSync(path.join(directory, 'binding.json'), JSON.stringify({schema: 'project-coverage-backend-v1',
+    project_root: root, entry, tools, adapter_files: adapterFiles}, null, 2) + '\n', {flag: 'wx'});
+  return {entry: [process.execPath, path.join(directory, 'entry.mjs')],
+    paths: ['entry.mjs', 'tools.mjs', 'binding.json'].map(name => path.relative(root, path.join(directory, name)))};
+}

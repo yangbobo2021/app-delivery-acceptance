@@ -72,7 +72,10 @@ export async function prepareCoverage(input,{signal}={}){
         output:path.join(spec.folder,'commands/preparation'),timeoutSeconds:900,signal});
       fs.writeFileSync(path.join(spec.folder,'command.json'),json({...observation,executable:process.execPath}),{flag:'wx'});
       if(observation.timed_out||observation.cancelled)throw Error('Coverage preparation interrupted; inspect process and file effects before any new attempt');
-      if(observation.exit_code!==0)throw Error('Coverage preparation blocked; inspect command.json, commands/preparation/combined.log and preparation/metrics.json');
+      if(observation.exit_code!==0){
+        const metrics=path.join(stage,'metrics.json'),detail=fs.existsSync(metrics)?read(metrics).error:null;
+        throw Error('Coverage preparation blocked: '+(detail||'No stage diagnostic; inspect command.json and commands/preparation/combined.log')+'; metrics='+metrics);
+      }
       const handoff=read(path.join(stage,'handoff.json'));
       if(!['ready','partial'].includes(handoff.status))throw Error('Coverage stage returned no verified handoff');
       const profile=path.join(handoff.prepared,'prepared.json');

@@ -9,6 +9,7 @@ import {fileURLToPath} from 'node:url';
 import {createAgentRuntime} from '../../../runtime/players.mjs';
 import {acceptanceGuard, knowledgeContext} from '../../shared/guard.mjs';
 import {workspaceSnapshot,verifyAllowedChanges} from '../../shared/workspace.mjs';
+import {materializeCoverageEntry} from '../protocol/materialize.mjs';
 
 const [requestArg, outputArg] = process.argv.slice(2);
 if (!requestArg || !outputArg) throw Error('usage: node preparer.mjs request.json new-output-dir');
@@ -41,7 +42,7 @@ const check = (program, args, stdout, stderr) => {
   writeFileSync(stdout, child.stdout ?? ''); writeFileSync(stderr, child.stderr ?? '');
   appendFileSync(join(output,'host-checks.jsonl'),JSON.stringify({program,args,cwd:process.cwd(),started_at,finished_at:new Date().toISOString(),seconds:(performance.now()-started)/1000,
     exit_code:child.status,stdout:{path:stdout,sha256:hash(readFileSync(stdout))},stderr:{path:stderr,sha256:hash(readFileSync(stderr))}})+'\n');
-  if (child.status !== 0) throw Error(`Coverage stage gate failed (${child.status}): ${(child.stderr ?? '').slice(-1600)}`);
+  if (child.error || child.signal || child.status !== 0) throw Error(`Coverage stage gate failed: ${JSON.stringify({program,args,exit_code:child.status,signal:child.signal,error:child.error?.message,stdout,stderr,detail:(child.stderr||child.stdout||'No diagnostic text; inspect the saved command and exit status').slice(-4000)})}`);
   return child;
 };
 const sourceHashes = request.source_hashes;
@@ -91,8 +92,9 @@ const prompt = `你是独立的覆盖率准备 Agent。你的输入是**已经�
 已保留的前次失败尝试（只读检查其错误收据和项目适配器快照，不能覆盖）：${JSON.stringify(request.prior_attempts ?? [])}
 真实宿主调用方：${resolve(fileURLToPath(new URL('../../shared/coverage-execution.mjs', import.meta.url)))} 与 ${resolve(fileURLToPath(new URL('../../shared/coverage.mjs', import.meta.url)))}；必要时只读核对各操作的实际 request/response 形状。
 collect、adapter、direct 是独立进程，不继承对方设置的环境变量；必要上下文用各自 argv 的占位符或冻结项目配置传递，不能依赖交互式调试 shell 的临时 export。
-路径类型必须按真实接口区分：verify-preparation 的 request.prepared 是 prepared.json 文件；run 收到的冻结会话中 prepared 是目录；finish 先读取 request.request 指向的会话文件，再从该会话的 prepared 目录加载 prepared.json。报告的 prepared 必须原样保留冻结会话的目录值，prepared_sha256 才是该目录下 manifest 文件的摘要；不要把加载用的 manifest 文件路径回填为报告 prepared。不得用自造请求替代实际宿主形状来证明兼容。
-交付给宿主的 entry 必须能对本阶段新建的 project-coverage-preparation-v1 profile 执行 verify-preparation、run、finish、verify-report、summarize，尤其应读取 spec.runtime_manifest 与 spec.probe_report，不能假定旧适配器私有的 probe_comparison 等字段必然存在。entry 中的可执行文件和项目适配器路径必须是本次 workspace 中已存在的绝对路径；不要在 entry 留下 {workspace}、{runtime_root} 等仅供探针命令使用的占位符。宿主会在探针后立即调用 verify-preparation；探针自测通过不等于整份准备通过。
+你交付的是 project-coverage-backend-v1 项目后端：实现 tools、run、finish、verify-report、summarize；不要实现通用 verify-preparation 或重新编写工具身份比较。宿主会生成固定 Node 协议入口及唯一 binding.json，冻结其字节，先实测 tools 再运行探针，最后完成通用准备核验。tools 必须实际导入/调用已安装工具返回 {tools:[{name,version}]}，不能回显请求冒充实测版本。每次调用都收到 request.tools，这是唯一规范工具元数据；报告和汇总使用它，不另写 TOOLS 常量，不比较 role 描述文字。工具身份由固定代码按 name/version 核验，用途描述仅供阅读。
+路径类型必须按真实接口区分：run 收到的冻结会话中 prepared 是目录；finish 先读取 request.request 指向的会话文件，再从该会话的 prepared 目录加载 prepared.json。报告的 prepared 必须原样保留冻结会话的目录值，prepared_sha256 才是该目录下 manifest 文件的摘要；不要把加载用的 manifest 文件路径回填为报告 prepared。不得用自造请求替代实际宿主形状来证明兼容。
+交付给宿主的 entry 是项目后端 argv；不能假定旧适配器私有准备字段存在。可执行文件和项目适配器路径必须是本次 workspace 中已存在的绝对路径；不要在 entry 留下 {workspace}、{runtime_root} 等仅供探针命令使用的占位符。项目相关原生数据重算仍由你的 verify-report 完成，固定入口不替代成熟工具统计。后端异常保留完整堆栈和具体字段差异，不能仅输出空 AssertionError。
 
 写入项目测试目录内的适配器/配置/探针助手（不可写产品源码），并只使用上面运行环境的已验证执行器调用轻量**非业务**探针。adapter_paths 必须列全这些项目脚本、配置和必要夹具，也必须包含本阶段修改过的全部受版本控制测试文件，即便其中某个文件只是自检助手；每个路径都必须位于请求声明的 test_roots 内；项目根目录的依赖清单或源码不能填入 adapter_paths，它们分别由运行环境和源码清单绑定。宿主会冻结适配器哈希及归档副本。**绝对不要修改 .acceptance/knowledge、任何 INDEX.md 或共享验收知识；只在回答中提出 knowledge_candidate，待探针与宿主核验通过后由宿主发布。**每条不同进程/测试入口路由分别准备零命中和非零命中探针。宿主在每个 collect 前已经创建 {raw_dir}，collect 只能向其中写入原生数据，不得再用 exist_ok=False 创建它。adapter/direct 必须只读 {raw_dir}，所有派生文件只能写到 {probe_dir} 的其他位置或 stdout；宿主会检查 raw 目录在两个 reader 后逐字节不变。零命中必须有非空原生数据及非零分母而 covered=0；非零命中须有 covered>0。每个探针先采集原生数据，再让项目适配器与专用工具直接从同一原生数据独立输出规范化 JSON，二者源码路径、指标、数值须一致。直接工具读取命令不得调用适配器。若某部分无法验证，标记 unsupported 并给出真实尝试依据，不能把它称为 measured。保留首次异常和重试原始资料；探针只证明采集链路，不得算业务覆盖率。
 
@@ -148,6 +150,11 @@ try {
       return file === root || file.startsWith(root + '/');
     }) && !(name in adapters));
   if (omitted.length) throw Error('Coverage Agent omitted changed test files from adapter_paths: ' + omitted.join(', '));
+  const protocolEntry = materializeCoverageEntry({workspace:runtime.workspace,testRoots:request.test_roots,
+    attempt:output,entry:answer.entry,tools:answer.tools,adapterFiles:{...adapters}});
+  for (const name of protocolEntry.paths) adapters[name] = hash(readFileSync(resolve(runtime.workspace,name)));
+  writeFileSync(join(output,'backend-binding.json'),JSON.stringify({backend_entry:answer.entry,entry:protocolEntry.entry,
+    tools:answer.tools,generated_files:protocolEntry.paths},null,2)+'\n');
   // Freeze before probing so a rejected preparation remains reproducible after a retry.
   const artifactAliases = {...(answer.artifact_aliases ?? {})};
   const snapshot = {};
@@ -161,6 +168,9 @@ try {
   }
   writeFileSync(join(output, 'snapshot.json'), JSON.stringify({schema: 'coverage-preparation-snapshot-v1',
     files: snapshot}, null, 2) + '\n');
+  const toolRequest=join(output,'tool-check.request.json');writeFileSync(toolRequest,JSON.stringify({artifact_map:{}})+'\n');
+  check(protocolEntry.entry[0],[...protocolEntry.entry.slice(1),'tools',toolRequest,join(output,'tool-check.response.json')],
+    join(output,'tool-check.stdout'),join(output,'tool-check.stderr'));
   const verifyAdapters = () => {
     for (const [name, digest] of Object.entries(adapters)) {
       if (hash(readFileSync(resolve(runtime.workspace, name))) !== digest)
@@ -201,7 +211,7 @@ try {
   const status = probe.status === 'ready' && measured.length &&
     !Object.values(dispositions).some(value => value.kind === 'unsupported') ? 'ready' : 'partial';
   const unmetExpectedSources = expectedMeasuredSources.filter(name => dispositions[name]?.kind !== 'measured');
-  const profile = {schema: 'project-coverage-preparation-v1', entry: answer.entry,
+  const profile = {schema: 'project-coverage-preparation-v1', entry: protocolEntry.entry,
     adapter_files: adapters, tools: answer.tools, source_dispositions: dispositions,
     preparation_status: status,
     spec: {project_root: runtime.workspace, revision: runtime.revision,
