@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { createAcceptance } from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/create/initialize.mjs';
+import {AcceptanceView} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/view/data.mjs';
 
 const skill = process.env.ACCEPTANCE_PACKAGE_ROOT ?? fileURLToPath(new URL('../skills/en/app-delivery-acceptance/playbooks/acceptance/', import.meta.url));
 const args = process.argv.slice(2);
@@ -85,6 +86,9 @@ test('CREATE-04', '只创建的容器可读取和检查，但依赖范围的严�
   assert.equal(current(root),input.acceptance_id);
   assert.equal(validateStore(root,input.acceptance_id,{requireScope:false}).scope,null);
   assert.throws(()=>validateStore(root,input.acceptance_id),/no scope snapshot/);
+  const before=snapshot(root),view=new AcceptanceView(root).snapshot(input.acceptance_id);
+  assert.equal(view.denominator_complete,false);assert.equal(view.statistics.total,0);assert.equal(view.statistics.executed,0);
+  assert.ok(view.warnings.some(text=>text.includes('缺少完整冻结清单')));assert.deepEqual(snapshot(root),before);
 });
 test('CREATE-05','在同一 AT 补充真实需求冻结，不隐式生成场景',()=>{
  const frozen=freezeAcceptance({project_root:root,acceptance_id:input.acceptance_id,request_id:'follow-up',base_definitions_sha256:null,basis:'用户随后明确要求冻结此需求',definitions:{context:{business_goal:'验证先创建后冻结'},requirements:[{id:'R-create-followup',text:'用户随后可以在同一验收中冻结真实需求。',origin:{kind:'integration-fixture',reference:'follow-up:user'},external_refs:[]}]}});

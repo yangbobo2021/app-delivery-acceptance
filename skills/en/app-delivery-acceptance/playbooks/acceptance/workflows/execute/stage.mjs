@@ -119,6 +119,7 @@ export async function executeScenario(input,{signal}={}){
         verifyFiles(sources);frozenWorkspace(catalog);
         const old=state.stages[name];if(old?.status==='completed'){verifyFiles(old.immutable_files);return old.result;}
         if(old&&old.status!=='resume_ready')throw Error('Stage '+name+' is '+old.status+'; inspect its processes, receipts and effects before explicit recovery');
+        if(old?.recovery?.proof_files)verifyFiles(old.recovery.proof_files);
         state.stages[name]={...old,status:'running',started_at:new Date().toISOString()};atomicJson(stateFile,state);
         try{
           const result=await operation({recovery:old?.recovery});frozenWorkspace(catalog);state.stages[name]={...state.stages[name],status:'completed',finished_at:new Date().toISOString(),result:result.value,immutable_files:hashes(result.files)};atomicJson(stateFile,state);return result.value;

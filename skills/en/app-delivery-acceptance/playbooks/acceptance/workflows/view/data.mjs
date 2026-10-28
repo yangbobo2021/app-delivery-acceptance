@@ -14,7 +14,7 @@ export class AcceptanceView{
  currentStatus(){try{return {current_acceptance_id:current(this.root),current_error:null};}catch(e){return {current_acceptance_id:null,current_error:e.message};}}
  select(id){const ids=inventory(this.root).map(x=>x.id),active=this.currentStatus().current_acceptance_id,result=id??this.selected??active??ids[0];if(!ids.includes(result))throw Error('Explicit selected acceptance is unavailable');return result;}
  roots(id){const {local,shared}=locations(this.root,id);return [inside(local,'workflows'),inside(shared,'records')];}
- archiveRecords(id){const {shared}=locations(this.root,id),base=inside(shared,'records');return fs.readdirSync(base).map(name=>inside(base,name)).filter(file=>fs.statSync(file).isDirectory()).map(folder=>inside(folder,'record.json')).filter(file=>fs.existsSync(file));}
+ archiveRecords(id){const {shared}=locations(this.root,id),base=inside(shared,'records');if(!fs.existsSync(base))return [];return fs.readdirSync(base).map(name=>inside(base,name)).filter(file=>fs.statSync(file).isDirectory()).map(folder=>inside(folder,'record.json')).filter(file=>fs.existsSync(file));}
  mapping(id){
   if(this.snapshotMappings?.has(id))return this.snapshotMappings.get(id);
   const mapping={};for(const file of this.archiveRecords(id)){

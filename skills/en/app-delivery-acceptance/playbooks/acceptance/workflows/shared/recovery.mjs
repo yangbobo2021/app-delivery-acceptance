@@ -3,6 +3,7 @@ import path from 'node:path';
 import {inside,read,atomicJson,ownedAbsolute,locations} from './store.mjs';
 import {digest} from './definitions.mjs';
 import {git} from './workspace.mjs';
+import {isDeepStrictEqual as equal} from 'node:util';
 export function alive(pid,{group=false}={}){if(!Number.isSafeInteger(Number(pid))||Number(pid)<=0)return false;try{process.kill(group?-Number(pid):Number(pid),0);return true;}catch(e){if(e.code==='ESRCH')return false;if(e.code==='EPERM')return true;throw e;}}
 export function filesUnder(root,{skipDirectories=[]}={}){const files=[];if(!fs.existsSync(root))return files;function visit(dir){for(const name of fs.readdirSync(dir).sort()){if(['node_modules','.git','__pycache__','.venv','venv'].includes(name))continue;const candidate=path.join(dir,name),stat=fs.lstatSync(candidate);if(stat.isSymbolicLink())continue;const file=inside(dir,name);if(stat.isDirectory()){if(!skipDirectories.includes(name))visit(file);}else if(stat.isFile())files.push(file);}}visit(root);return files;}
 export function inspectProcesses(folder){const observations=[];for(const file of filesUnder(folder)){
@@ -19,8 +20,24 @@ export function verifyExecutionReceipt(file,catalog){
 }
 export function verifyRoleResume(directory){
  const runtime=read(path.join(directory,'agent-runtime.json')),events=fs.readFileSync(path.join(directory,'agent.jsonl'),'utf8').split('\n').filter(Boolean).map(JSON.parse),session=events.find(e=>e.type==='init')?.sessionId;
- if(!session||!runtime.service||runtime.transport?.kind!=='official-playbook-cli')throw Error('Interrupted role lacks original official session and service binding');
- const done=events.filter(e=>e.type==='done').at(-1);if(done?.payload?.status==='success')return {action:'adopt_completed_role',session_id:session,runtime};
+ if(!session||!runtime.service?.provider||runtime.transport?.kind!=='official-playbook-player-port')throw Error('Interrupted role lacks original official session and service binding');
+ const binding=read(path.join(directory,'role-call-binding.json'));
+ if(!equal(binding.agent_runtime,runtime)||binding.role!==runtime.role||binding.player_id!==runtime.player_id)throw Error('Original official role binding changed');
+ const done=events.filter(e=>e.type==='done').at(-1);
+ if(done?.payload?.status==='success'){
+  const official=path.join(directory,'official-player');
+  const calls=fs.readdirSync(official).filter(name=>/^[a-f0-9-]+\.json$/.test(name)).map(name=>path.join(official,name));
+  const completed=calls.some(file=>{
+   const call=read(file),responseFile=file.replace(/\.json$/,'.result.json'),eventFile=file.replace(/\.json$/,'.events.jsonl');
+   if(!fs.existsSync(responseFile)||!fs.existsSync(eventFile))return false;
+   const response=read(responseFile),native=fs.readFileSync(eventFile,'utf8').trim().split('\n').map(JSON.parse);
+   return call.role===binding.role&&call.player_id===binding.player_id&&call.cwd===binding.cwd&&typeof call.session_id==='string'&&
+    response.status==='ok'&&response.resumeToken===session&&done.sessionId===session&&
+    native.some(event=>event.type==='init'&&event.sessionId===session)&&native.some(event=>event.type==='done'&&event.sessionId===session&&event.payload?.status==='success');
+  });
+  if(!completed)throw Error('Completed role lacks matching official Player result and native session evidence');
+  return {action:'adopt_completed_role',session_id:session,runtime,proof_files:Object.fromEntries(filesUnder(directory).map(file=>[file,digest(file)]))};
+ }
  if(done?.payload?.status!=='error'||!events.some(e=>e.type==='error'))throw Error('Role interruption is not a proved unsuccessful transport; inspect effects before superseding');
  // The CLI's durable root UUID does not prove provider continuity. In v18
  // unsuccessful calls clear optional continuation hints, and a rejected hint
