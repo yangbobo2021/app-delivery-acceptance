@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {toolIdentities} from './tools.mjs';
 
-export function materializeCoverageEntry({workspace, testRoots, attempt, entry, tools, adapterFiles}) {
+export function materializeCoverageEntry({workspace, testRoots, attempt, entry, tools, adapterFiles, sourceHashes = {}, revision}) {
   toolIdentities(tools);
   if (tools.some(tool => typeof tool.role !== 'string' || !tool.role.trim())) throw Error('Coverage tool purpose missing');
   if (!Array.isArray(entry) || entry.length < 2 || !path.isAbsolute(entry[0]) || entry.some(item => typeof item !== 'string' || !item))
@@ -20,10 +20,10 @@ export function materializeCoverageEntry({workspace, testRoots, attempt, entry, 
   if (!fs.realpathSync(path.dirname(directory)).startsWith(fs.realpathSync(testRoot) + path.sep))
     throw Error('Coverage protocol directory resolves outside its test root');
   fs.mkdirSync(directory);
-  for (const name of ['entry.mjs', 'tools.mjs'])
+  for (const name of ['entry.mjs', 'tools.mjs', 'report.mjs'])
     fs.copyFileSync(fileURLToPath(new URL(name, import.meta.url)), path.join(directory, name), fs.constants.COPYFILE_EXCL);
-  fs.writeFileSync(path.join(directory, 'binding.json'), JSON.stringify({schema: 'project-coverage-backend-v1',
-    project_root: root, entry, tools, adapter_files: adapterFiles}, null, 2) + '\n', {flag: 'wx'});
-  return {entry: [process.execPath, path.join(directory, 'entry.mjs')],
-    paths: ['entry.mjs', 'tools.mjs', 'binding.json'].map(name => path.relative(root, path.join(directory, name)))};
+  fs.writeFileSync(path.join(directory, 'binding.json'), JSON.stringify({schema: 'project-coverage-backend-v2',
+    project_root: root, entry, tools, adapter_files: adapterFiles, source_hashes: sourceHashes, revision}, null, 2) + '\n', {flag: 'wx'});
+  return {revision: 2, entry: [process.execPath, path.join(directory, 'entry.mjs')],
+    paths: ['entry.mjs', 'tools.mjs', 'report.mjs', 'binding.json'].map(name => path.relative(root, path.join(directory, name)))};
 }

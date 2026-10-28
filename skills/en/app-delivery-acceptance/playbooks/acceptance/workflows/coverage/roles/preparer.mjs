@@ -10,6 +10,7 @@ import {createAgentRuntime} from '../../../runtime/players.mjs';
 import {acceptanceGuard, knowledgeContext} from '../../shared/guard.mjs';
 import {workspaceSnapshot,verifyAllowedChanges} from '../../shared/workspace.mjs';
 import {materializeCoverageEntry} from '../protocol/materialize.mjs';
+import {runLifecycleGate} from '../protocol/lifecycle.mjs';
 
 const [requestArg, outputArg] = process.argv.slice(2);
 if (!requestArg || !outputArg) throw Error('usage: node preparer.mjs request.json new-output-dir');
@@ -84,6 +85,7 @@ const prompt = `你是独立的覆盖率准备 Agent。你的输入是**已经�
 运行环境 manifest：${runtimePath}，SHA256：${request.runtime_sha256}
 运行环境执行器：${JSON.stringify(runtime.executables)}
 项目覆盖率输入：${JSON.stringify(request)}
+调用者明确的准备要求（仅在本次授权及准备范围内执行）：${request.preparation_instructions??'未另行提供，按实际项目入口和本协议准备。'}
 本次项目明确预期能采集的源码：${JSON.stringify(expectedMeasuredSources)}。这是项目目标，不是所有项目的通用覆盖率配额。先检查已有适配器为什么没达到这些目标，再尝试项目适用的替代采集/映射方法；零命中、定向命中和独立读取都须证明这些文件的真实分母与命中。还须轻量验证采集未发生时的状态传播：没有实际原生快照的来源不得把零基线标为实测 0%，收尾失败不能冒充完整采集；记录失败路径证据。不能因为第一次方案失败便停止探索并把目标文件标成 unsupported。若充分尝试后仍无法证明，就如实标 unsupported、保留失败证据和具体限制，不能声称本项目目标已完成。不要改动 partial 的通用含义。
 适用项目知识：${JSON.stringify(knowledge)}
 覆盖率工具强制规约（同样适用于项目适配器与独立读取器）：${readFileSync(toolContract, 'utf8')}
@@ -92,9 +94,10 @@ const prompt = `你是独立的覆盖率准备 Agent。你的输入是**已经�
 已保留的前次失败尝试（只读检查其错误收据和项目适配器快照，不能覆盖）：${JSON.stringify(request.prior_attempts ?? [])}
 真实宿主调用方：${resolve(fileURLToPath(new URL('../../shared/coverage-execution.mjs', import.meta.url)))} 与 ${resolve(fileURLToPath(new URL('../../shared/coverage.mjs', import.meta.url)))}；必要时只读核对各操作的实际 request/response 形状。
 collect、adapter、direct 是独立进程，不继承对方设置的环境变量；必要上下文用各自 argv 的占位符或冻结项目配置传递，不能依赖交互式调试 shell 的临时 export。
-你交付的是 project-coverage-backend-v1 项目后端：实现 tools、run、finish、verify-report、summarize；不要实现通用 verify-preparation 或重新编写工具身份比较。宿主会生成固定 Node 协议入口及唯一 binding.json，冻结其字节，先实测 tools 再运行探针，最后完成通用准备核验。tools 必须实际导入/调用已安装工具返回 {tools:[{name,version}]}，不能回显请求冒充实测版本。每次调用都收到 request.tools，这是唯一规范工具元数据；报告和汇总使用它，不另写 TOOLS 常量，不比较 role 描述文字。工具身份由固定代码按 name/version 核验，用途描述仅供阅读。
-路径类型必须按真实接口区分：run 收到的冻结会话中 prepared 是目录；finish 先读取 request.request 指向的会话文件，再从该会话的 prepared 目录加载 prepared.json。报告的 prepared 必须原样保留冻结会话的目录值，prepared_sha256 才是该目录下 manifest 文件的摘要；不要把加载用的 manifest 文件路径回填为报告 prepared。不得用自造请求替代实际宿主形状来证明兼容。
-交付给宿主的 entry 是项目后端 argv；不能假定旧适配器私有准备字段存在。可执行文件和项目适配器路径必须是本次 workspace 中已存在的绝对路径；不要在 entry 留下 {workspace}、{runtime_root} 等仅供探针命令使用的占位符。项目相关原生数据重算仍由你的 verify-report 完成，固定入口不替代成熟工具统计。后端异常保留完整堆栈和具体字段差异，不能仅输出空 AssertionError。
+你交付的是 project-coverage-backend-v2 项目后端，只实现 tools、run、read 三个操作；公共 finish、verify-preparation、verify-report、summarize 全部由固定 Node 入口完成，不能在后端重新实现。tools 必须实际导入/调用已安装工具返回 {tools:[{name,version}]}。每次 request.tools 是唯一规范元数据；read 返回它，不另写 TOOLS 常量，不比较用途描述。
+run 接收实际冻结会话的 cwd、command、env、output；通过成熟工具运行原始命令，透传真实输出及退出码，并响应 {exit_code,collection_status:"complete|incomplete",raw_evidence:[{path:绝对路径,sha256,role:项目自定类型}]}。所有原生数据、配置和收尾状态保存在 request.output 下；即使业务非零退出也保留可靠资料，缺少快照时保留实际失败状态文件。它不生成框架报告、场景绑定或 prepared 字段。
+read 是唯一统计实现，同时处理一组及多组原生数据：接收 {groups:[{status:"measured|incomplete",raw_evidence:[{path:已解析的同哈希文件路径,original_path,sha256,role}]}],sources:{"冻结相对源码":"当前实际文件"},project_root,inventory,output,tools}。调用工具公开报告/合并 API，响应 {tools:request.tools,status:"measured|incomplete",components:[{id,source_paths,line,branch}],scopes:{project:{status,components,...工具实际总计},changed_files:{...},changed_lines:{...}},derived_evidence:[{path,sha256,role}]}。project.components 必须与顶层 components 相同；所有派生资料只写 request.output。输入已经解析同哈希映射，不需要再实现 artifact_map 或框架来源校验。不能回显旧指标；不得从原生 arcs 自算计数，不能对不同操作分别编写统计路径。全零、多组全零及零/非零混合均须保留工具的真实分母与分支模式；缺字段不能补造0或自造命中单位。无数据/收尾不完整须保持 incomplete。源码相对路径按冻结 project_root 规范化，不依赖调用者 cwd。异常保留完整堆栈。
+交付 entry 为实际后端 argv，执行器和脚本为本次 workspace 内绝对路径，不留占位符。协议及统计字段以当前合同为准，不复用旧后端私有请求。
 
 写入项目测试目录内的适配器/配置/探针助手（不可写产品源码），并只使用上面运行环境的已验证执行器调用轻量**非业务**探针。adapter_paths 必须列全这些项目脚本、配置和必要夹具，也必须包含本阶段修改过的全部受版本控制测试文件，即便其中某个文件只是自检助手；每个路径都必须位于请求声明的 test_roots 内；项目根目录的依赖清单或源码不能填入 adapter_paths，它们分别由运行环境和源码清单绑定。宿主会冻结适配器哈希及归档副本。**绝对不要修改 .acceptance/knowledge、任何 INDEX.md 或共享验收知识；只在回答中提出 knowledge_candidate，待探针与宿主核验通过后由宿主发布。**每条不同进程/测试入口路由分别准备零命中和非零命中探针。宿主在每个 collect 前已经创建 {raw_dir}，collect 只能向其中写入原生数据，不得再用 exist_ok=False 创建它。adapter/direct 必须只读 {raw_dir}，所有派生文件只能写到 {probe_dir} 的其他位置或 stdout；宿主会检查 raw 目录在两个 reader 后逐字节不变。零命中必须有非空原生数据及非零分母而 covered=0；非零命中须有 covered>0。每个探针先采集原生数据，再让项目适配器与专用工具直接从同一原生数据独立输出规范化 JSON，二者源码路径、指标、数值须一致。直接工具读取命令不得调用适配器。若某部分无法验证，标记 unsupported 并给出真实尝试依据，不能把它称为 measured。保留首次异常和重试原始资料；探针只证明采集链路，不得算业务覆盖率。
 
@@ -103,6 +106,8 @@ collect、adapter、direct 是独立进程，不继承对方设置的环境变�
 先逐条读取适用项目知识，检查已有项目测试适配器是否仍适用于本次 runtime 和源码版本；可复用时沿用并做最小修正，不重复探索已经有依据的工具路线或安装方法。你只需用一条最小命令确认适配器可启动；完整的各路由零/非零探针由宿主在你回答后统一执行并独立复核，不要在 Agent 内提前重复跑整套探针。若现有资料失效，记录具体差异，再做必要探索。
 
 若当前项目已有仍适用的完整探针计划，可以输出 probe_plan_path（本 ID workflows 下计划文件的完整绝对路径）替代重复输出 probe_plan 对象。不要用省略号缩写可执行路径。宿主只复用命令定义，不复用旧通过结果；新准备会重新执行全部探针，并要求计划的运行时、workspace 和 revision 绑定一致。
+
+probe_plan 每条 routes 除原 collect/adapter/direct 外必须提供 lifecycle:{zero:{command:[原始非业务命令],env:{}},nonzero:{command:[原始非业务命令],env:{}},direct:[独立读取器执行器,独立脚本,"{request}"]}。zero/nonzero 从冻结 workspace 根目录执行，执行器须已验证，仅支持 {workspace}、{probe_dir}；env 为字符串。direct 读取 {request} 指向的 JSON，形状与 read 相同，另含 component_sources:[{id,source_paths}]；独立调用成熟工具从同份只读原生数据输出 stdout JSON {schema:"coverage-native-oracle-v1",status,components}，不得调用/导入主后端，可复用已有独立工具读取器并适配这个请求形状。所有新脚本也列入 adapter_paths。它们必须走实际 CLI/子进程路由，不在父进程额外调用产品内部函数补充覆盖。宿主执行两次独立零命中及一次非零命中，跑完最终 run→finish→重复核验→summarize，逐次对比独立原生读取，并核验全零/混合合并及篡改指标拒绝；每命令最多30秒，不计入业务场景。可声明 expected_exit_code 验证业务非零透传。角色内不重复整套链路，失败不发布 ready。
 
 最后只输出 JSON 对象，形如：{"adapter_paths":["项目相对路径"],"entry":["执行器","项目适配器"],"tools":[{"name":"...","version":"...","role":"..."}],"source_dispositions":{"项目相对源码":{"kind":"measured|unsupported|non_executable","reason":"..."}},"probe_plan":{"schema":"project-coverage-probe-plan-v1","routes":[{"id":"route-id","source_paths":["项目相对源码"],"zero":{"collect":["执行器","脚本","{raw_dir}"],"adapter":["执行器","适配器脚本","{raw_dir}"],"direct":["执行器","直接工具脚本","{raw_dir}"]},"nonzero":{...}}]},"limitations":["..."],"knowledge_candidate":"跨验收可复用的步骤、失败排查与新电脑重建方法；不能包含本机路径/秘密/探针通过结论"}。三个 probe 命令均为 argv，首项必须是本次 runtime.json 验证的可执行文件绝对路径；可用 {raw_dir}、{probe_dir}、{workspace} 占位。adapter/direct 向 stdout 输出 coverage-probe-normalized-v1 JSON：{"schema":"coverage-probe-normalized-v1","components":[{"id":"...","source_paths":["..."],"metrics":{"line":{"status":"measured","covered":0,"total":1},"branch":{"status":"unavailable","reason":"..."}}}]}。不要把空原生数据在 source-map 转换后意外出现的 100% 当作零命中通过。`;
 writeFileSync(join(output, 'prompt.txt'), prompt);
@@ -151,7 +156,7 @@ try {
     }) && !(name in adapters));
   if (omitted.length) throw Error('Coverage Agent omitted changed test files from adapter_paths: ' + omitted.join(', '));
   const protocolEntry = materializeCoverageEntry({workspace:runtime.workspace,testRoots:request.test_roots,
-    attempt:output,entry:answer.entry,tools:answer.tools,adapterFiles:{...adapters}});
+    attempt:output,entry:answer.entry,tools:answer.tools,adapterFiles:{...adapters},sourceHashes,revision:runtime.revision});
   for (const name of protocolEntry.paths) adapters[name] = hash(readFileSync(resolve(runtime.workspace,name)));
   writeFileSync(join(output,'backend-binding.json'),JSON.stringify({backend_entry:answer.entry,entry:protocolEntry.entry,
     tools:answer.tools,generated_files:protocolEntry.paths},null,2)+'\n');
@@ -211,7 +216,7 @@ try {
   const status = probe.status === 'ready' && measured.length &&
     !Object.values(dispositions).some(value => value.kind === 'unsupported') ? 'ready' : 'partial';
   const unmetExpectedSources = expectedMeasuredSources.filter(name => dispositions[name]?.kind !== 'measured');
-  const profile = {schema: 'project-coverage-preparation-v1', entry: protocolEntry.entry,
+  const profile = {schema: 'project-coverage-preparation-v1', protocol_revision: protocolEntry.revision, entry: protocolEntry.entry,
     adapter_files: adapters, tools: answer.tools, source_dispositions: dispositions,
     preparation_status: status,
     spec: {project_root: runtime.workspace, revision: runtime.revision,
@@ -222,6 +227,18 @@ try {
     preparation_evidence: [{path: planPath, sha256: hash(readFileSync(planPath))},
       {path: probePath, sha256: hash(readFileSync(probePath))}],
     artifact_aliases: artifactAliases};
+  // Candidate identity is frozen before certification; the final profile binds
+  // the certificate without a self-referential hash or activation of the probe.
+  const candidate = join(output, 'validation-candidate');mkdirSync(candidate);
+  writeFileSync(join(candidate, 'prepared.json'), JSON.stringify(profile, null, 2) + '\n');
+  const lifecycle = join(output, 'lifecycle');
+  runLifecycleGate({prepared: candidate, plan: planPath, output: lifecycle});
+  const lifecycleReport = join(lifecycle, 'lifecycle-gate.json');
+  profile.spec.lifecycle_report = lifecycleReport;
+  profile.spec.lifecycle_report_sha256 = hash(readFileSync(lifecycleReport));
+  profile.preparation_evidence.push({path:lifecycleReport,sha256:profile.spec.lifecycle_report_sha256,role:'lifecycle_gate'});
+  verifyProduct();verifyAdapters();
+  verifyAllowedChanges(runtime.workspace,workspaceBaseline,request.test_roots,runtime.components??[]);
   const prepared = join(output, 'prepared'); mkdirSync(prepared);
   writeFileSync(join(prepared, 'prepared.json'), JSON.stringify(profile, null, 2) + '\n');
   const config = {policy: 'required', protocol: 'project-coverage-v1', prepared,

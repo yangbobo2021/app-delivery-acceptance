@@ -11,7 +11,7 @@ import {setCoverageOff} from '../shared/coverage-registry.mjs';
 import {runProcess} from '../shared/process.mjs';
 
 const allowed=['project_root','acceptance_id','request_id','definitions_sha256','policy','basis','runtime_manifest','runtime_sha256',
-  'inventory_path','inventory_sha256','source_hashes','test_roots','components','expected_measured_sources','prior_attempts','knowledge_paths'];
+  'inventory_path','inventory_sha256','source_hashes','test_roots','components','expected_measured_sources','prior_attempts','knowledge_paths','preparation_instructions'];
 function ownedArtifact(input,file){
   if(typeof file!=='string'||!path.isAbsolute(file))throw Error('Absolute acceptance artifact path required');
   const base=owned(input.project_root,'.acceptance-local/'+input.acceptance_id);
@@ -34,6 +34,7 @@ export async function prepareCoverage(input,{signal}={}){
       try{return verifyCached(spec.completed);}catch(error){return {...spec.completed,status:'stale',reason:error.message,historical_report_preserved:true};}
     }
     const value=spec.normalized;
+    if(value.preparation_instructions!==undefined&&(typeof value.preparation_instructions!=='string'||!value.preparation_instructions.trim()))throw Error('Explicit coverage preparation instructions must be nonempty text');
     if(!['required','off','unavailable'].includes(value.policy)||typeof value.basis!=='string'||!value.basis.trim())throw Error('Coverage policy and actual decision basis required');
     if(value.policy!=='required'){
       let change;
@@ -62,7 +63,7 @@ export async function prepareCoverage(input,{signal}={}){
       runtime_manifest:manifest,runtime_sha256:value.runtime_sha256,workspace:runtime.workspace,revision:runtime.revision,
       inventory_path:inventory,inventory_sha256:value.inventory_sha256,registry_path:path.join(spec.folder,'registry.json'),
       source_hashes:value.source_hashes,test_roots:value.test_roots,components,expected_measured_sources:value.expected_measured_sources??[],
-      prior_attempts:priors};
+      prior_attempts:priors,preparation_instructions:value.preparation_instructions??null};
     const requestFile=path.join(spec.folder,'request.frozen.json');fs.writeFileSync(requestFile,json(request),{flag:'wx'});
     const config={acceptance:knowledge.acceptance,source_checkout:runtime.workspace,test_roots:value.test_roots};
     acceptanceGuard(config,[spec.folder]);

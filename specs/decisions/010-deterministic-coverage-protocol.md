@@ -3,6 +3,7 @@
 ## 状态
 
 已接受，细化 [DR-009](009-skill-playbook-responsibility-boundary.md) 的工作流内部职责。
+项目后端的报告核验职责由 [DR-011](011-coverage-readiness-and-recount.md) 部分修订：项目工具重算，固定协议作一致性判断并强制完整准备验证。
 
 ## 背景
 

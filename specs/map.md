@@ -33,6 +33,7 @@ meta.md       SPEX 原生规约规则
 | [DR-008](decisions/008-workflow-owned-source-layout.md) | 008-workflow-owned-source-layout.md | 按工作流职责组织源码、移除旧执行器和路径包装器 |
 | [DR-009](decisions/009-skill-playbook-responsibility-boundary.md) | 009-skill-playbook-responsibility-boundary.md | Skill 对话接入与完整独立 Playbook 包的职责、依赖和命令验收边界 |
 | [DR-010](decisions/010-deterministic-coverage-protocol.md) | 010-deterministic-coverage-protocol.md | 固定覆盖率协议、唯一工具元数据及项目工具后端边界 |
+| [DR-011](decisions/011-coverage-readiness-and-recount.md) | 011-coverage-readiness-and-recount.md | 固定报告核验、工具原生重算及就绪前完整调用链验证 |
 
 ## 规约包
 

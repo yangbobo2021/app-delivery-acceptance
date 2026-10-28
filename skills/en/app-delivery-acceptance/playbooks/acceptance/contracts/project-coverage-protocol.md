@@ -49,20 +49,63 @@ catalog 的 `coverage` 使用：
 
 所有操作读取 request JSON、写 response JSON，失败返回非零退出码。请求包含 `artifact_map` 时，只读处理使用指定同哈希归档副本，不改原报告内的路径或字节。
 
-宿主在每次新准备中，将 `workflows/coverage/protocol/{entry,tools}.mjs` 原样复制到声明测试根下的独立 `.acceptance-coverage/<attempt>/`，与唯一 `binding.json` 一并冻结；这些文件不依赖原 Skill 或包的安装位置，归档时保持相邻结构。
-项目准备角色返回的 `entry` 指向项目后端，后端实现 `project-coverage-backend-v1` 的 `tools / run / finish / verify-report / summarize`，不实现通用 `verify-preparation`。
-后端 `tools` 实际导入或执行已安装的工具并返回 `{tools:[{name,version}]}`，不得回显 request.tools；固定入口在完整探针之前实测并核对身份，版本不符时保留 expected/actual 差异并停止。
-固定入口负责后端冻结字节验证、工具身份比较、规范工具元数据交接和通用准备核验；后端仍负责实际采集、工具原生重算及统计，通用代码不生成覆盖率数字。
-`finish / summarize` 返回的实测工具身份须与冻结身份相同，固定入口核对后用唯一元数据封装最终输出，保留工具生成的指标和原生证据；用途描述变化不能冒充工具版本变化。
-后端失败时固定入口保留操作、完整 argv、退出码、信号、异常和原始 stdout/stderr，生成 `<response>.failure.json` 并向 stderr 输出诊断；`run` 透传业务输出和退出码，不把业务断言失败改写为协议成功。
+宿主在每次新准备中，将 `workflows/coverage/protocol/{entry,tools,report}.mjs` 原样复制到声明测试根下的独立 `.acceptance-coverage/<attempt>/`，与唯一 `binding.json` 一并冻结；这些文件不依赖原 Skill 或包的安装位置，归档时保持相邻结构。
+项目准备角色返回的 `entry` 指向项目后端；新准备的后端合同为 `project-coverage-backend-v2`，只实现 `tools / run / read`。
+公共 `finish / verify-preparation / verify-report / summarize` 的封装与判断全部属于固定 Node 协议。
+后端只调用成熟工具，不自行实现工具身份、会话/收据/版本绑定、报告完整性判断或框架响应。
 
-| 操作 | 请求与响应 |
+| 后端操作 | 唯一项目职责 |
 | --- | --- |
-| `verify-preparation` | 请求 `prepared` 指向 manifest 文件；固定入口核对后端冻结资料并调用后端 tools 实测工具身份，宿主同时核对完整运行时、源码、探针和准备绑定，响应 `status: valid`。 |
-| `run` | 请求为宿主冻结的执行会话，含 `cwd, output, scene_id, command, env, files, coverage, prepared, prepared_sha256`。以成熟工具运行原业务命令，保持业务断言和退出码：适配器进程实际返回业务命令的退出码，并把业务 stdout/stderr 透传给宿主冻结日志；只在 response JSON 记录 exit_code 而返回 0 不符合约定。在本轮输出内保存原生数据并可靠收尾。 |
-| `finish` | 请求 `request, receipt, output`，分别指冻结会话 JSON **文件**、真实收据与输出目录。读取该会话后，其 `prepared` 是准备**目录**，manifest 位于 `<prepared>/prepared.json`；不要把目录直接当 JSON 文件打开。生成下面的规范化报告，不能把测试失败变成成功。 |
-| `verify-report` | 请求 `report`；从绑定原生资料用相同专用工具重算并核对报告，响应 `status: valid`。不能只检查汇总 JSON 自身。 |
-| `summarize` | 请求 `reports, inventory`。检查兼容性后由专用工具合并和筛选，响应 `tools, scopes`；三个 scope 为 `project, changed_files, changed_lines`。 |
+| `tools` | 实际导入/执行已安装工具，返回 `{tools:[{name,version}]}`；不能回显请求。 |
+| `run` | 以原会话的 cwd、command、env 真实采集，输出及退出码透传；响应 `{exit_code,collection_status:"complete或incomplete",raw_evidence:[{path,sha256,role}]}`。所有原生资料、配置及真实收尾状态位于会话 output；无快照时保留实际失败状态文件，不称为零命中。 |
+| `read` | 从一组或多组原生资料，通过同一成熟工具读取/合并实现返回状态、组件指标及全部声明范围；不能为收尾、重算、汇总分别建立不同的统计路径。 |
+
+read 请求为：
+
+```json
+{"groups":[{"status":"measured","raw_evidence":[{"path":"已解析的同哈希文件","original_path":"原路径","sha256":"摘要","role":"项目定义类型"}]}],"sources":{"冻结相对源码":"实际同哈希源码文件"},"project_root":"冻结工作区","inventory":{},"output":"已创建的本次派生目录","tools":[{"name":"实际工具","version":"实际版本","role":"说明"}]}
+```
+
+read 响应为 `{tools,status,components,scopes,derived_evidence}`。
+调用者可提供非空 `preparation_instructions`，明确真实入口或进程要求；该文本随请求冻结并传给角色，`basis` 仍只表示策略依据。
+status 为 `measured / incomplete`；任一组收尾或原生数据不完整时不能升级为 measured。
+components 的 `id / source_paths / line / branch` 来自工具的公开报告；源码路径相对冻结 project_root，不依赖当前 cwd。
+其他原生指标也可使用 `{status,covered,total}` 或 `{status,tool_output}`；不支持的行或分支必须说明原因，不能伪造数值。数值型原生指标可证明零/非零采集。
+scopes 包含 `project / changed_files / changed_lines` 的状态、工具指标或明确不可用原因。
+project.components 与顶层 components 表示同一完整项目统计，不能再次另算。
+原始路径映射由固定入口解析；后端只处理明确提供的实际文件，必要时仍使用工具的正式路径映射功能处理原生数据内部路径。
+全零、多组全零以及零/非零混合都须保留工具真实分母和分支模式，缺字段时不能用0、自造单位或伪造命中补齐。
+derived_evidence 为工具原始报告等 `{path,sha256,role}` 数组，派生文件只能写入 request.output。
+
+| 公共操作 | 固定协议负责的行为 |
+| --- | --- |
+| `verify-preparation` | 读取 request.prepared 指向的 manifest 文件，核对冻结后端、源码和实际工具身份。 |
+| `run` | 调用后端 run，透传真实 stdout、stderr、退出码及采集响应。 |
+| `finish` | 读取 request.request 冻结会话、request.receipt 真实收据和 output/run-response.json；调用 read 后绑定 prepared、场景、源码、工具、执行及原生/派生资料，生成不可变框架报告。prepared 是会话中的目录，prepared_sha256 是该目录下 prepared.json 的摘要。 |
+| `verify-report` | 核对原报告、原生数据和采集响应哈希，调用同一 read 重算并比较状态、源码范围及工具指标；生成时间和展示说明不参与比较，所有原始资料只读。 |
+| `summarize` | 逐份核验报告和兼容性后，调用同一 read 处理多组原生数据；由工具输出 scopes，不由 Node 相加计数或重建分母。 |
+
+固定入口每次传递唯一工具元数据，身份只按实际名称和版本核验。
+后端失败保留操作、完整命令、退出/信号、原始 stdout/stderr 和堆栈；`<response>.backend.json` 保留实际工具调用与返回，`<response>.failure.json` 保留失败诊断。
+
+## 就绪前完整入口验证
+
+新准备记录 `protocol_revision:2`，各 probe_plan.routes 同时提供：
+
+```json
+{"lifecycle":{"zero":{"command":["/verified/executor","/frozen/probe","zero"],"env":{}},"nonzero":{"command":["/verified/executor","/frozen/probe","nonzero"],"env":{},"expected_exit_code":0},"direct":["/verified/executor","/frozen/independent-reader","{request}"]}}
+```
+
+zero/nonzero 为原始非业务启动命令，最终 entry 包装采集，从 workspace 根目录执行；执行器须已验证，仅支持 `{workspace} / {probe_dir}`。
+探针走真实 CLI、子进程或页面路由，不通过在父进程额外调用产品内部函数补充覆盖。
+direct 接收 `{request}` 指向的只读查询，形状与 read 相同，另含 `component_sources:[{id,source_paths,metric_names}]`；仅给出需要读取的指标名称，不提供预期数值。
+它不得调用或导入主后端，须独立调用成熟工具，从同份原生资料向 stdout 返回 `{schema:"coverage-native-oracle-v1",status,components}`。
+每命令最多30秒；宿主执行两次独立零命中及一次非零命中，逐次完成 run、finish、重复核验、独立读取和汇总，并比较全零及混合合并的工具结果。
+指标篡改必须被拒绝；独立读取也须发现主后端错误转换指标，不能把未运行或解析失败视为有效核验。
+这些资料不计入业务场景，不激活准备或登记业务覆盖率。
+完整验证失败不发布就绪交接；成功报告及所有依赖摘要绑定到 `spec.lifecycle_report / lifecycle_report_sha256`，准备复用与归档继续核验闭包。
+历史准备及其冻结入口不改写；新准备不能用旧适配器跳过这些检查。
+若没有任何可测源码及执行路由，保存明确原因、绑定和 `partial` 证明，不运行空门禁并宣称 `ready`。
 
 正式执行通过 `/acceptance-execute`，由 Node 工具调用冻结的项目采集器；本地调试通过宿主提供的 `case-tool.mjs debug-run` 契约。低层 `coverage-tool.mjs run REQUEST` 不是绕过工作流门禁的公共验收入口。执行仍须绑定 acceptance、同一工作区、实际场景、测试文件与新输出目录。业务失败的可靠计数仍可登记；缺失执行收据、版本不符或来源错误时不能登记。仅重算已有覆盖率使用 `/acceptance-coverage-recompute`，不重新运行用例。
 

@@ -14,6 +14,7 @@
   "definitions_sha256": "<current scenarios.json SHA-256>",
   "policy": "required",
   "basis": "用户要求准备采集链，暂不运行用例。",
+  "preparation_instructions": "后续用例通过父进程启动真实 CLI 子进程；准备时验证同一路由，不调用产品内部函数补覆盖。",
   "runtime_manifest": "/absolute/this-AT/workflows/runtime/attempt/runtime/runtime.json",
   "runtime_sha256": "<runtime manifest SHA-256>",
   "inventory_path": "/absolute/this-AT/workflows/inventory.json",
@@ -36,7 +37,8 @@
 1. 核对当前 AT、定义、完整源码、运行时与知识，取得本 AT 独占工作区声明。
 2. Node 工具通过官方 CLI 的独立 `coverage_preparer` 角色检查项目后端、选择成熟工具并提出计划；宿主生成固定协议入口和唯一工具绑定，先实测工具名称与版本。
 3. 宿主冻结项目后端与固定协议代码，用 Node 执行每路由的新零命中、非零命中探针，核对适配器与专用工具对同份只读原生资料输出一致。
-4. 冻结准备并执行实际 `verify-preparation`，保存 `ready / partial / blocked` 和限制后停止。
+4. 通过最终入口执行每路由的两次零命中和一次非零命中，跑完 `run → finish → verify-report → summarize`；逐次对照独立原生读取，验证全零/混合汇总及指标篡改拒绝。
+5. 完整链路通过后冻结准备及验证证据，执行实际 `verify-preparation`，保存 `ready / partial / blocked` 和限制后停止；失败保留原始资料，不发布就绪交接。
 
 这不代表业务覆盖率或产品通过。
 同请求重入只校验已有绑定，资料变化返回 `stale` 并保留历史，不自动重跑。
@@ -46,7 +48,12 @@
 ## 证据
 
 `.acceptance-local/<AT>/workflows/coverage/<request_id>/` 保留请求、实际命令与输出、工作区基线、原答与 CLI 会话、每次宿主检查、探针收据、原生数据、冻结副本及准备回执。
-`backend-binding.json` 和 `tool-check.*` 记录通用入口、后端命令及真实工具核验；失败诊断包含操作、路由、命令、退出码和原始异常，不将空断言当作完整原因。
+`backend-binding.json` 和 `tool-check.*` 记录通用入口、后端命令及真实工具核验；`lifecycle/lifecycle-gate.json` 绑定最终入口、命令、收尾报告、重算、汇总及原生证据，不能只用旧的采集探针声明准备就绪。
+新后端只提供 `tools / run / read`；同一个 read 负责单组和多组原生统计，避免单次读取和合并时的初始化方式不同。
+
+`preparation_instructions` 是可选的本次准备要求，非空文本随请求冻结并完整传递给准备角色；`basis` 记录策略依据。未提供时按实际项目材料准备，不凭空补出用户要求。
+工具原生数值指标均可被核验；行或分支不支持时保留原因。没有可测源码及路由时只保存 `partial` 证明，不能发布 `ready`。
+固定 Node 入口拥有准备核验、收尾封装、报告一致性判断及汇总交接；原始文件哈希与工具稳定指标必须一致，生成时间和展示描述不参与比较。
 核对实际退出码、原生哈希、零/非零输出、旧失败保留及业务测试未运行，不仅依据角色自报或命令成功。
 Node 不自行识别覆盖单位或计算分母。
 该入口的身份、知识、运行时、探针及准备协议校验已使用 Node；正式采集、原生资料复核、注册和专用工具汇总也已提供 Node 工具。项目本身的覆盖率工具仍按项目真实依赖执行，例如 Python 项目使用 coverage.py；Skill 正常业务调度与校验不依赖 Python；被测 Python 项目及 coverage.py 自身仍需要项目的 Python。

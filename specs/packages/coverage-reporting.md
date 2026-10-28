@@ -19,10 +19,15 @@
 - 失败记录保留实际进程退出及返回诊断；原生数据被读取器改变时保留读取前后的文件摘要，便于定位变更，不削弱只读门禁。
 - 准备所用的通用入口、工具身份比较和交接封装由工作流包的确定性代码提供；项目后端只适配实际工具，工具身份按真实名称及版本核验，用途描述的语言或措辞不改变身份。
 - 交接使用同一份冻结工具元数据，先验证后端实测工具身份，再执行完整探针；失败诊断保留操作、命令、退出状态、原始输出及明确的预期/实际差异。
+- 新准备就绪前通过最终冻结入口验证各声明路由的两次独立零命中、非零命中、实际收尾、重复核验及全零/混合汇总，并用独立工具读取同份原生数据对照指标；失败不发布就绪交接，命令、回执及文件摘要随准备冻结。
+- 调用者明确补充的实际执行入口或进程要求随准备请求冻结并传入角色；真实父进程启动 CLI 子进程的准备验证保留原生证据及源码不变证明 [coverage_cli_readiness.integration.mjs](../../tests/coverage_cli_readiness.integration.mjs)。
 
 ### coverage-reporting-3
 
 当为实际场景采集覆盖率时，采集应绑定同次真实测试执行 [[execution-evidence-2](execution-evidence.md#execution-evidence-2)]、源码及组件版本、工具、配置和原生数据，不将历史计数或其他场景结果替代本次证据。
+
+- 报告一致性由固定协议核对原始证据哈希及专用工具重算的状态、源码范围和指标；生成时间及展示描述不参与一致性判断，重算不得修改原始报告或原生文件。
+- 框架收尾和汇总封装由固定协议完成，单次读取和多组合并使用同一个项目工具读取入口，不能分别重建统计环境或自行累计计数。
 
 ### coverage-reporting-4
 
@@ -75,6 +80,7 @@
 当将正式采集及注册迁移到 Node 时，集成测试应执行真实测试及专用工具并核对同次收据和原生数据 [[coverage-reporting-2](#coverage-reporting-2)]、统计仍来自专用工具 [[coverage-reporting-4](#coverage-reporting-4)]、旧报告不可覆盖及不兼容场景拒绝 [[coverage-reporting-8](#coverage-reporting-8)]，并阻止绕过已启用采集策略 [[coverage-reporting-10](#coverage-reporting-10)]。
 
 - 确定性协议入口的实际子进程验证涵盖工具描述变化仍可交接、版本漂移拒绝、空诊断失败定位、业务非零退出码与 stdout/stderr 透传，以及冻结后端漂移拒绝 [[coverage-reporting-2](#coverage-reporting-2)]。
+- 完整准备链路的集成验证使用真实专用工具及子进程，核对零/非零调用、报告重复重算和汇总均可用才交接就绪 [[coverage-reporting-2](#coverage-reporting-2)]，并核对生成时间变化不误拒绝、原始证据或重算指标变化仍拒绝及只读完整性 [[coverage-reporting-3](#coverage-reporting-3)] [coverage_lifecycle.integration.mjs](../../tests/coverage_lifecycle.integration.mjs)。
 
 ### coverage-reporting-15
 

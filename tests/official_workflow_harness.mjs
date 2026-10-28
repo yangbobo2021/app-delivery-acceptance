@@ -41,10 +41,11 @@ export function harness(name, registryNames) {
   };
   const spex=path.join(temporary,'spex'), sessions=path.join(temporary,'sessions');
   fs.mkdirSync(path.join(spex,'config'),{recursive:true});
-  const generated=spawnSync(process.execPath,['--input-type=module','-e',"import {workflowOverlay} from "+JSON.stringify(path.join(skill,'bin/configure.mjs'))+";console.log(JSON.stringify(await workflowOverlay({agent:'codex',model:'gpt-6.1-sol'})))"],{encoding:'utf8'});
+  const model=process.env.ACCEPTANCE_MODEL??'gpt-6.1-sol',effort=process.env.ACCEPTANCE_EFFORT;
+  const generated=spawnSync(process.execPath,['--input-type=module','-e',"import {workflowOverlay} from "+JSON.stringify(path.join(skill,'bin/configure.mjs'))+";console.log(JSON.stringify(await workflowOverlay("+JSON.stringify({agent:'codex',model,...(effort?{effort}:{})})+")))"],{encoding:'utf8'});
   if(generated.status!==0)throw Error(generated.stderr);
   const complete=JSON.parse(generated.stdout),players={...complete.players},playbooks={};
-  for(const [id,folder,bindings={}]of registryNames){const entry=complete.playbooks[id];if(!entry)throw Error('Unknown test entry '+id);playbooks[id]={...entry,roles:{...entry.roles,...bindings}};for(const playerId of Object.values(bindings))players[playerId]={adapter:'codex',model:'gpt-6.1-sol',permissions:{fileWrite:'deny',shellExecute:'deny',networkAccess:'deny'}};}
+  for(const [id,folder,bindings={}]of registryNames){const entry=complete.playbooks[id];if(!entry)throw Error('Unknown test entry '+id);playbooks[id]={...entry,roles:{...entry.roles,...bindings}};for(const playerId of Object.values(bindings))players[playerId]={adapter:'codex',model,...(effort?{effort}:{}),permissions:{fileWrite:'deny',shellExecute:'deny',networkAccess:'deny'}};}
   const config={captain:complete.captain,players,playbooks,sessions};
   fs.writeFileSync(path.join(spex,'config/playbook.config.yaml'),JSON.stringify(config));
   save('cli-config.json',config);

@@ -10,6 +10,7 @@ import {digest,object} from './definitions.mjs';
 import {validateRuntime} from './runtime.mjs';
 import {verifyProbeReport} from './coverage-probes.mjs';
 import {assertToolIdentity} from '../coverage/protocol/tools.mjs';
+import {verifyLifecycleGate} from '../coverage/protocol/lifecycle.mjs';
 export const protocol='project-coverage-v1';
 const commandObservers=[];
 export function withCoverageCommandObserver(observer,operation){commandObservers.push(observer);try{return operation();}finally{commandObservers.pop();}}
@@ -66,6 +67,10 @@ export function coveragePreparation(config,{runCheck=true,mapping={}}={}){
   if(Object.values(dispositions).some(x=>!['measured','non_executable','unsupported'].includes(x.kind)||!x.reason))throw Error('coverage source disposition is incomplete');
   if(!profile.preparation_evidence?.length)throw Error('coverage requires actual toolchain probe evidence');
   for(const item of profile.preparation_evidence)boundFile(item.path,item.sha256,mapping);
+  if(profile.protocol_revision===2){
+    if(!spec.lifecycle_report||!spec.lifecycle_report_sha256)throw Error('Coverage preparation lacks its complete lifecycle gate');
+    verifyLifecycleGate(boundFile(spec.lifecycle_report,spec.lifecycle_report_sha256,mapping),profile,mapping);
+  }
   const runtimeKeys=['runtime_manifest','runtime_sha256','probe_report','probe_report_sha256'];
   if(runtimeKeys.some(k=>spec[k])){
     if(!runtimeKeys.every(k=>spec[k]))throw Error('coverage runtime/probe binding is incomplete');

@@ -36,6 +36,7 @@ await check('COVERAGE-02','相同 off 请求重入不改字节；不能把不可
 });
 await check('COVERAGE-03','缺明确依据、非法策略和跨 AT 的运行环境在模型前阻塞',async()=>{
   assert.equal((await prepareCoverage(request('no-basis',{basis:''}))).status,'blocked');assert.equal((await prepareCoverage(request('unknown',{policy:'optional'}))).status,'blocked');
+  assert.equal((await prepareCoverage(request('empty-instructions',{preparation_instructions:' '}))).status,'blocked');
   const result=await prepareCoverage(request('outside',{policy:'required',runtime_manifest:'/etc/hosts',runtime_sha256:sha('/etc/hosts'),inventory_path:'/etc/hosts',inventory_sha256:sha('/etc/hosts')}));assert.equal(result.status,'blocked');assert.match(result.reason,/another acceptance/);
 });
 if(h.live){
@@ -49,11 +50,14 @@ if(h.live){
   fs.writeFileSync(inventory,JSON.stringify(buildInventory(read(inventoryRequest)),null,2)+'\n');h.save('inventory-node-binding.json',{module:'workflows/reverse/protocol.mjs#buildInventory',input:inventoryRequest,output:inventory,sha256:sha(inventory)});
   const liveInput=request('live',{policy:'required',basis:'用户明确只准备本次采集链路。',runtime_manifest:runtimeResult.runtime.manifest,runtime_sha256:runtimeResult.runtime.sha256,inventory_path:inventory,inventory_sha256:sha(inventory),source_hashes:{'src/calc.py':sha(path.join(runtimeResult.workspace,'src/calc.py'))},test_roots:['tests'],expected_measured_sources:['src/calc.py']});
   await check('COVERAGE-04','真实官方 CLI 覆盖率准备角色选择工具并交付新零/非零探针及完整准备核验',async()=>{
-    h.save('live-input.json',liveInput);const cli=h.cli('acceptance-coverage-prepare',liveInput,'live-coverage',root,{timeout:1000000,env:{...process.env,ACCEPTANCE_AGENT:'codex',ACCEPTANCE_MODEL:'gpt-6.1-sol',SPEX_HOME:path.join(h.temporary,'spex')}});h.settled(cli,'acceptance-coverage-prepare','done');
+    h.save('live-input.json',liveInput);const cli=h.cli('acceptance-coverage-prepare',liveInput,'live-coverage',root,{timeout:1000000,env:{...process.env,ACCEPTANCE_AGENT:'codex',ACCEPTANCE_MODEL:process.env.ACCEPTANCE_MODEL??'gpt-6.1-sol',SPEX_HOME:path.join(h.temporary,'spex')}});h.settled(cli,'acceptance-coverage-prepare','done');
     const result=read(path.join(local,'workflows/coverage/live/result.json'));assert.equal(result.status,'ready');assert.equal(result.business_tests,'not_executed');
     assert.equal(fs.existsSync(path.join(runtimeResult.workspace,'BUSINESS_TEST_WAS_RUN')),false);assert.equal(sha(definitions),liveInput.definitions_sha256);
     const handoff=read(path.join(local,'workflows/coverage/live/preparation/handoff.json'));assert.deepEqual(handoff.unmet_expected_sources,[]);
     const report=read(handoff.probe_report);assert.ok(report.routes.length);for(const route of report.routes){assert.equal(route.probes.zero.status,'passed');assert.equal(route.probes.nonzero.status,'passed');}
+    const profile=read(path.join(handoff.prepared,'prepared.json'));assert.equal(profile.protocol_revision,2);
+    const lifecycle=read(profile.spec.lifecycle_report);assert.equal(lifecycle.status,'passed');assert.ok(lifecycle.routes.length);
+    for(const route of lifecycle.routes){assert.equal(route.zero.status,'passed');assert.equal(route.nonzero.status,'passed');assert.equal(route.nonzero.metrics_tamper_rejected,true);}
     const metrics=read(path.join(local,'workflows/coverage/live/preparation/metrics.json'));assert.equal(metrics.agent_runtime.transport.kind,'official-playbook-player-port');assert.equal(metrics.agent_runtime.role,'coverage_preparer');
     h.save('live-result.json',result);return {result,probe_report:handoff.probe_report};
   });
