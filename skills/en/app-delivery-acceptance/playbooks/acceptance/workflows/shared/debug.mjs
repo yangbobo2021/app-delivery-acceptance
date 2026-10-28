@@ -10,6 +10,7 @@ import {digest,verifyCase} from './definitions.mjs';
 import {requireWorkspaceLease} from './guard.mjs';
 import {recordExecution} from './recorder.mjs';
 import {runCoverage} from './coverage-execution.mjs';
+import {projectEnvironment} from './runtime.mjs';
 const cli=fileURLToPath(new URL('../../tools/case.mjs',import.meta.url));
 export function createDebugContract(catalogFile,inputFile,contractFile){
   const catalog=read(catalogFile),input=read(inputFile);verifyCase(input);guard(catalog,[contractFile]);requireWorkspaceLease(catalog,{allowLegacy:false});
@@ -27,7 +28,7 @@ export async function runDebug(contractFile,requestFile,{signal}={}){
   if(Object.keys(request).some(key=>!['command','files','env','output'].includes(key))||!request.command?.length||!request.files?.length)throw Error('Debug request accepts exact command, files, env and optional new output only');
   const output=ownedAbsolute(contract.debug_root,request.output??path.join(contract.debug_root,'attempt-'+randomUUID()));
   if(output===contract.debug_root||fs.existsSync(output))throw Error('Debug output must be a new attempt beneath debug_root');
-  const env={...(request.env??{})},settings=contract.environment,state=path.join(output,'state');
+  const env={...projectEnvironment(read(contract.catalog_path)),...(request.env??{})},settings=contract.environment,state=path.join(output,'state');
   if(settings.fresh_env_root_key)env[settings.fresh_env_root_key]=state;
   for(const [key,relative]of Object.entries(settings.fresh_env_paths??{}))env[key]=inside(state,relative);
   for(const key of settings.evidence_env_dir_keys??[])if(env[key])ownedAbsolute(output,env[key]);

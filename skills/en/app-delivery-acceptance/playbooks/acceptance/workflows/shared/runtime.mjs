@@ -6,6 +6,19 @@ import {locations,inside,requireCurrent,ownedAbsolute} from './store.mjs';
 import {read,sha,packageRoot} from './artifacts.mjs';
 import {git} from './workspace.mjs';
 import {validateStore} from './validation.mjs';
+import {isDeepStrictEqual as equal} from 'node:util';
+
+export function runtimeEnvironment(manifest){
+  const value=manifest.execution_env??{};
+  if(!value||Array.isArray(value)||typeof value!=='object'||Object.entries(value).some(([key,item])=>!key||key.includes('=')||key.includes('\0')||typeof item!=='string'||item.includes('\0')))throw Error('Invalid frozen project execution environment');
+  return {...value};
+}
+export function projectEnvironment(catalog){
+  if(!catalog.runtime)return {};
+  const file=catalog.runtime.manifest??catalog.runtime.runtime_manifest;
+  if(!file||sha(file)!==catalog.runtime.sha256)throw Error('Project runtime environment binding missing or changed');
+  return runtimeEnvironment(read(file));
+}
 
 export function observeRuntime(item){
   if(!Array.isArray(item.command)||!item.command.length||item.command.some(x=>typeof x!=='string'||!x)||!item.cwd||
@@ -47,6 +60,8 @@ export function validateRuntime(manifestPath,{expectedAcceptance,resmoke=true}={
   ownedAbsolute(inside(local,'knowledge-reads'),manifest.knowledge_receipt);
   if(sha(manifest.knowledge_receipt)!==manifest.knowledge_read_sha256)throw Error('Runtime knowledge read receipt changed');
   ownedAbsolute(local,manifest.spec_path);if(sha(manifest.spec_path)!==manifest.spec_sha256)throw Error('Runtime frozen Agent spec changed');
+  const spec=read(manifest.spec_path),expected=Object.fromEntries(Object.entries(spec.execution_env??{}).map(([key,value])=>[key,value.replaceAll('{workspace}',workspace).replaceAll('{runtime_root}',runtimeRoot)]));
+  if(!equal(runtimeEnvironment(manifest),expected))throw Error('Runtime execution environment differs from its frozen spec');
   if(manifest.recipe_candidate!==path.join(path.dirname(manifestFile),'recipe-candidate.md')||sha(manifest.recipe_candidate)!==manifest.recipe_candidate_sha256)throw Error('Runtime reusable recipe candidate changed');
   for(const item of manifest.setup){ownedAbsolute(path.dirname(manifestFile),item.log);receipt(item);}
   for(const item of manifest.executables){
@@ -54,7 +69,7 @@ export function validateRuntime(manifestPath,{expectedAcceptance,resmoke=true}={
     if(fs.realpathSync(item.path)!==item.resolved_path||sha(item.resolved_path)!==item.sha256)throw Error('Runtime executable changed: '+item.name);
     ownedAbsolute(path.dirname(manifestFile),item.version_receipt.log);receipt(item.version_receipt);
     if(item.version_command[0]!==item.path)throw Error('Runtime version command no longer binds executable');
-    const actual=observeRuntime({command:item.version_command,cwd:workspace,env:{},timeout_seconds:30});
+    const actual=observeRuntime({command:item.version_command,cwd:workspace,env:runtimeEnvironment(manifest),timeout_seconds:30});
     if(actual.exit_code!==0||actual.raw.toString('utf8').trim()!==item.version_output)throw Error('Runtime executable version changed: '+item.name);
   }
   ownedAbsolute(path.dirname(manifestFile),manifest.smoke.log);receipt(manifest.smoke);

@@ -1,3 +1,4 @@
+import {projectEnvironment} from "../../shared/runtime.mjs";
 import {fileURLToPath} from 'node:url';
 import {acceptanceGuard,knowledgeContext,requireWorkspaceLease} from '../../shared/guard.mjs';
 import {readFileSync,writeFileSync,appendFileSync,mkdirSync,existsSync,unlinkSync} from 'node:fs';
@@ -47,7 +48,7 @@ const fingerprint=createHash('sha256').update(catalogBytes).digest('hex');
 const guideBrief={coverage_tools:guide.coverage_tools,summary:guide.summary,fixture_isolation:guide.fixture_isolation,ui_state_notes:guide.ui_state_notes,
  environment_contract:(guide.environment_contract??[]).filter(x=>x.must_match&&x.must_match!=='无'),
  existing_test_examples:guide.existing_test_examples,uncertainties:guide.uncertainties};
-const catalogBrief={acceptance_knowledge:acceptanceKnowledge,project_root:catalog.project_root,revision:catalog.revision,components:catalog.components,coverage:catalog.coverage,
+const catalogBrief={execution_env:projectEnvironment(catalog),acceptance_knowledge:acceptanceKnowledge,project_root:catalog.project_root,revision:catalog.revision,components:catalog.components,coverage:catalog.coverage,
  test_roots:catalog.test_roots,source_roots:catalog.source_roots,runner_hints:catalog.runner_hints,
  capability_checks:(catalog.capability_checks??[]).map(x=>({command:x.command,env:x.env,exit_code:x.exit_code}))};
 const inputText=JSON.stringify(input,null,2)+'\n';

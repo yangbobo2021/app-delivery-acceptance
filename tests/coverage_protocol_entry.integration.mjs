@@ -16,7 +16,7 @@ const write=(file,value)=>fs.writeFileSync(file,JSON.stringify(value,null,2)+'\n
 fs.writeFileSync(backend,`import fs from 'node:fs';
 const [op,input,output]=process.argv.slice(2),r=JSON.parse(fs.readFileSync(input));
 if(op==='tools')fs.writeFileSync(output,JSON.stringify({tools:[{name:'node-protocol-fixture',version:process.version,role:'English diagnostic description'}]}));
-else if(op==='run'){process.stdout.write('BUSINESS_STDOUT\\n');process.stderr.write('BUSINESS_STDERR\\n');fs.writeFileSync(output,JSON.stringify({exit_code:7,tools:r.tools,received_tools:r.tools}));process.exitCode=7;}
+else if(op==='run'){process.stdout.write('BUSINESS_STDOUT\\n');process.stderr.write('BUSINESS_STDERR\\n');fs.writeFileSync(output,JSON.stringify({exit_code:7,tools:r.tools,received_tools:r.tools,execution_env:process.env.PROJECT_EXECUTION_ENV??null}));process.exitCode=7;}
 else if(op==='read'){process.stderr.write('AssertionError\\n');process.exitCode=2;}
 else fs.writeFileSync(output,JSON.stringify({status:'valid',tools:r.tools,received_tools:r.tools}));
 `);
@@ -48,5 +48,10 @@ test('ENTRY-06','原生重算的空断言仍保留操作、命令、退出码和
 test('ENTRY-07','后端字节漂移被拒绝，恢复后原入口仍可用',()=>{const original=fs.readFileSync(backend);try{fs.appendFileSync(backend,'\n// drift\n');const r=run('drift','tools');assert.equal(r.exit_code,2);assert.match(r.stderr,/artifact missing or changed/);}finally{fs.writeFileSync(backend,original);}assert.equal(run('restored','tools').exit_code,0);});
 test('ENTRY-08','拒绝覆盖旧响应及未冻结的后端',()=>{const r=run('preserved','tools'),before=sha(r.response);const again=spawnSync(entry.entry[0],[...entry.entry.slice(1),'tools',path.join(output,'preserved.request.json'),r.response],{encoding:'utf8'});assert.equal(again.status,2);assert.equal(sha(r.response),before);assert.throws(()=>materializeCoverageEntry({workspace:root,testRoots:['tests'],attempt:output,entry:[process.execPath,'/unbound/backend.mjs'],tools,adapterFiles:{'tests/backend.mjs':sha(backend)}}),/frozen project adapter/);});
 test('ENTRY-09','归档入口不依赖原 Skill 路径，可从同哈希离线后端调用',()=>{const archive=path.join(output,'archive'),mapping={};fs.mkdirSync(archive);function copy(dir){for(const item of fs.readdirSync(dir,{withFileTypes:true})){const file=path.join(dir,item.name);if(item.isDirectory())copy(file);else{const dest=path.join(archive,path.relative(root,file));fs.mkdirSync(path.dirname(dest),{recursive:true});fs.copyFileSync(file,dest);mapping[file]={path:dest,sha256:sha(file)};}}}copy(testRoot);fs.renameSync(root,root+'.offline');try{const target={entry:[process.execPath,path.join(archive,path.relative(root,entry.entry[1]))]};const r=run('offline','tools',{artifact_map:mapping},target);assert.equal(r.exit_code,0,r.stderr);assert.deepEqual(r.value.tools,tools);}finally{fs.renameSync(root+'.offline',root);}});
+test('ENTRY-10','冻结项目环境传入实际后端子进程，不依赖外层 shell export',()=>{
+  assert.equal(process.env.PROJECT_EXECUTION_ENV,undefined);
+  const target=materializeCoverageEntry({workspace:root,testRoots:['tests'],attempt:path.join(output,'env-attempt'),entry:[process.execPath,backend],tools,adapterFiles:{'tests/backend.mjs':sha(backend)},executionEnv:{PROJECT_EXECUTION_ENV:'from-frozen-runtime'}});
+  const result=run('frozen-project-env','run',{},target);assert.equal(result.exit_code,7,result.stderr);assert.equal(result.value.execution_env,'from-frozen-runtime');
+});
 write(path.join(output,'summary.json'),{boundary:'Protocol subprocess tests only; no product coverage claims.',passed:results.filter(x=>x.status==='passed').length,failed:results.filter(x=>x.status==='failed').length,results,project:root});
 console.log('Evidence: '+output);

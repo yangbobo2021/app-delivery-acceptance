@@ -7,7 +7,7 @@ import {isDeepStrictEqual} from 'node:util';
 import {performance} from 'node:perf_hooks';
 import {read,sha,json} from './artifacts.mjs';
 import {locations,ownedAbsolute} from './store.mjs';
-import {validateRuntime} from './runtime.mjs';
+import {validateRuntime,runtimeEnvironment} from './runtime.mjs';
 
 const write=(file,value)=>{fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,json(value),{flag:'wx'});};
 function bound(file,digest,mapping={}){
@@ -59,7 +59,7 @@ function execute(argv,runtime,substitutions,output){
   fs.mkdirSync(output,{recursive:true});
   const stdout=path.join(output,'stdout.txt'),stderr=path.join(output,'stderr.txt');
   const out=fs.openSync(stdout,'wx'),err=fs.openSync(stderr,'wx'),started_at=new Date().toISOString(),started=performance.now();let result;
-  try{result=spawnSync(command[0],command.slice(1),{cwd:runtime.workspace,stdio:['ignore',out,err],timeout:180000});}
+  try{result=spawnSync(command[0],command.slice(1),{cwd:runtime.workspace,env:{...process.env,...runtimeEnvironment(runtime)},stdio:['ignore',out,err],timeout:180000});}
   finally{fs.closeSync(out);fs.closeSync(err);}
   const receipt={command,cwd:runtime.workspace,exit_code:result.status,
     started_at,finished_at:new Date().toISOString(),seconds:(performance.now()-started)/1000,

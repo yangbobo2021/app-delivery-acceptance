@@ -37,13 +37,13 @@ export function prepareRuntimeRequest(value,folder){
   const inspection={workspace,files,available_executables:executables,inherited_environment:{PATH:process.env.PATH??''},knowledge:knowledge.contents,baseline:workspaceSnapshot(workspace,request.components??[]).files,baseline_modes:snapshotExisting({project_root:workspace,components:request.components??[]})};saveOnce(path.join(folder,'inspection.json'),inspection);return {request,inspection};
 }
 function expand(value,workspace,runtimeRoot){if(typeof value!=='string')throw Error('Runtime command values must be strings');return value.replaceAll('{workspace}',workspace).replaceAll('{runtime_root}',runtimeRoot);}
-function command(item,workspace,runtimeRoot){
+function command(item,workspace,runtimeRoot,defaults={}){
   if(!object(item)||!Array.isArray(item.command)||!item.command.length||item.command.some(x=>typeof x!=='string'||!x))throw Error('Runtime command must contain a nonempty argv string array');
   const argv=item.command.map(x=>expand(x,workspace,runtimeRoot)),cwd=fs.realpathSync(expand(item.cwd??'{workspace}',workspace,runtimeRoot));
   if(![workspace,runtimeRoot].some(root=>cwd===root||cwd.startsWith(root+path.sep))||!fs.statSync(cwd).isDirectory())throw Error('Runtime command cwd escapes acceptance workspace/runtime root or is missing');
   if(!object(item.env??{})||Object.values(item.env??{}).some(x=>typeof x!=='string'))throw Error('Runtime command env must have string values');
   const timeout=item.timeout_seconds??120;if(!Number.isSafeInteger(timeout)||timeout<1||timeout>1800)throw Error('Runtime command timeout_seconds must be 1..1800');
-  return {command:argv,cwd,env:Object.fromEntries(Object.entries(item.env??{}).map(([k,v])=>[k,expand(v,workspace,runtimeRoot)])),timeout_seconds:timeout};
+  return {command:argv,cwd,env:{...defaults,...Object.fromEntries(Object.entries(item.env??{}).map(([k,v])=>[k,expand(v,workspace,runtimeRoot)]))},timeout_seconds:timeout};
 }
 function run(item,log){
   const start=performance.now(),started_at=new Date().toISOString(),observed=observeRuntime(item);fs.writeFileSync(log,observed.raw,{flag:'wx'});
@@ -61,28 +61,30 @@ export function installRuntimeSpec(specFile,output){
   boundary(spec,output,()=>{
     const observations=[],workspace=ensureWorkspace(spec,spec.source_checkout??binding.project_root,spec.revision,spec.components??[],spec.component_sources??{},observations),before=git(workspace,'diff','--name-only','HEAD'),dependencyHashes={};
     for(const name of spec.dependency_files??[]){const file=inside(workspace,name);if(!fs.statSync(file).isFile())throw Error('Dependency file missing: '+name);dependencyHashes[name]=digest(file);}
+    if(!object(spec.execution_env??{})||Object.entries(spec.execution_env??{}).some(([key,value])=>!key||key.includes('=')||key.includes('\0')||typeof value!=='string'||value.includes('\0')))throw Error('Runtime execution_env must contain explicit string values');
+    const executionEnv=Object.fromEntries(Object.entries(spec.execution_env??{}).map(([key,value])=>[key,expand(value,workspace,runtimeRoot)]));
     const setup=[];
     try{
-      for(const [index,item]of (spec.setup_commands??[]).entries()){const result=run(command(item,workspace,runtimeRoot),path.join(output,'setup-'+String(index).padStart(2,'0')+'.log'));setup.push(result);successful(result);}
+      for(const [index,item]of (spec.setup_commands??[]).entries()){const result=run(command(item,workspace,runtimeRoot,executionEnv),path.join(output,'setup-'+String(index).padStart(2,'0')+'.log'));setup.push(result);successful(result);}
       const executables=[];
       for(const [index,item]of (spec.executables??[]).entries()){
         if(!object(item)||typeof item.name!=='string'||!/^[A-Za-z0-9_-]+$/.test(item.name))throw Error('Executable requires a name');
         const file=expand(item.path??'',workspace,runtimeRoot);if(!path.isAbsolute(file)||!fs.existsSync(file)||!fs.statSync(file).isFile())throw Error('Executable path must be an existing executable file');fs.accessSync(file,fs.constants.X_OK);
-        const resolved=fs.realpathSync(file),version=command({command:item.version_command,cwd:'{workspace}',timeout_seconds:30},workspace,runtimeRoot);if(version.command[0]!==file)throw Error('Version command must invoke recorded executable');
+        const resolved=fs.realpathSync(file),version=command({command:item.version_command,cwd:'{workspace}',timeout_seconds:30},workspace,runtimeRoot,executionEnv);if(version.command[0]!==file)throw Error('Version command must invoke recorded executable');
         const result=run(version,path.join(output,'version-'+String(index).padStart(2,'0')+'.log'));successful(result);executables.push({name:item.name,path:file,resolved_path:resolved,sha256:digest(resolved),version_command:version.command,version_output:fs.readFileSync(result.log,'utf8').trim(),version_receipt:result});
       }
       if(!executables.length)throw Error('Runtime preparation needs at least one verified executable');
-      const smoke=run(command(spec.smoke,workspace,runtimeRoot),path.join(output,'smoke.log'));successful(smoke);
+      const smoke=run(command(spec.smoke,workspace,runtimeRoot,executionEnv),path.join(output,'smoke.log'));successful(smoke);
       if(before!==git(workspace,'diff','--name-only','HEAD'))throw Error('Runtime setup changed tracked project files');
       for(const [name,expected]of Object.entries(dependencyHashes))if(digest(inside(workspace,name))!==expected)throw Error('Runtime setup changed frozen dependency files');
-      const manifest={schema:'project-runtime-preparation-v1',status:'ready',acceptance:binding,workspace,runtime_root:runtimeRoot,revision:spec.revision,components:spec.components??[],test_roots:spec.test_roots??[],platform:{system:os.type(),machine:os.machine()},dependency_hashes:dependencyHashes,knowledge_receipt:binding.knowledge_receipt,knowledge_read_sha256:digest(binding.knowledge_receipt),knowledge_used:knowledgeUsed,spec_path:specFile,spec_sha256:digest(specFile),recipe_candidate:path.join(output,'recipe-candidate.md'),recipe_candidate_sha256:digest(path.join(output,'recipe-candidate.md')),setup,executables,smoke};saveOnce(path.join(output,'runtime.json'),manifest);
+      const manifest={schema:'project-runtime-preparation-v1',status:'ready',acceptance:binding,workspace,runtime_root:runtimeRoot,revision:spec.revision,components:spec.components??[],test_roots:spec.test_roots??[],platform:{system:os.type(),machine:os.machine()},dependency_hashes:dependencyHashes,knowledge_receipt:binding.knowledge_receipt,knowledge_read_sha256:digest(binding.knowledge_receipt),knowledge_used:knowledgeUsed,spec_path:specFile,spec_sha256:digest(specFile),recipe_candidate:path.join(output,'recipe-candidate.md'),recipe_candidate_sha256:digest(path.join(output,'recipe-candidate.md')),execution_env:executionEnv,setup,executables,smoke};saveOnce(path.join(output,'runtime.json'),manifest);
     }catch(error){saveOnce(path.join(output,'failure.json'),{schema:'project-runtime-failure-v1',reason:error.message,spec_sha256:digest(specFile),setup});throw error;}
   });return validateRuntime(path.join(output,'runtime.json'),{expectedAcceptance:binding,resmoke:true});
 }
 export function finishRuntimeRequest(folder){
   const request=read(path.join(folder,'request.frozen.json'));guard(request,[folder]);loadBinding(request,{required:true});const inspection=read(path.join(folder,'inspection.json')),workspace=inspection.workspace;
   if(git(workspace,'rev-parse','HEAD').trim()!==request.revision||!equal(workspaceSnapshot(workspace,request.components??[]).files,inspection.baseline)||(inspection.baseline_modes&&!equal(snapshotExisting({project_root:workspace,components:request.components??[]}),inspection.baseline_modes)))throw Error('Runtime planner changed or received changed workspace bytes/modes');
-  const draft=read(path.join(folder,'candidate.json')),allowed=new Set(['dependency_files','knowledge_used','setup_commands','executables','smoke','recipe_candidate','blocked_reason']);
+  const draft=read(path.join(folder,'candidate.json')),allowed=new Set(['execution_env','dependency_files','knowledge_used','setup_commands','executables','smoke','recipe_candidate','blocked_reason']);
   if(!object(draft)||Object.keys(draft).some(key=>!allowed.has(key)))throw Error('Runtime plan has undeclared fields');if(draft.blocked_reason)throw Error('Runtime planner blocked: '+draft.blocked_reason);
   for(const key of ['dependency_files','knowledge_used','setup_commands','executables'])if(!Array.isArray(draft[key]))throw Error('Runtime plan requires array: '+key);
   if(!object(draft.smoke)||typeof draft.recipe_candidate!=='string'||!draft.recipe_candidate.trim())throw Error('Runtime plan requires smoke and nonempty recipe_candidate');

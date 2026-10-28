@@ -5,6 +5,7 @@ import {createAcceptance} from '../skills/en/app-delivery-acceptance/playbooks/a
 import {freezeAcceptance} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/freeze/registry.mjs';
 import {prepare,finalize,fail} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/runtime/stage.mjs';
 import {harness,read,sha,snapshot,skill} from './official_workflow_harness.mjs';
+import {validateRuntime,projectEnvironment} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/shared/runtime.mjs';
 
 const h=harness('acceptance-runtime',[['acceptance-runtime','runtime',{preparer:'acceptance.runtime-preparer'}]]);
 function fixture(label){
@@ -63,6 +64,17 @@ h.test('RUNTIME-09','不同 AT 必须建立并核验自己的环境，不复制�
 });
 h.test('RUNTIME-10','过期修订、无实际项目资料及请求身份冲突在角色前拒绝',()=>{
   assert.throws(()=>prepare(input('wrong-revision',{revision:'0'.repeat(40)})),/source revision differs/);assert.throws(()=>prepare(input('no-inspection',{inspection_files:[]})),/inspection_files/);assert.throws(()=>prepare({...req,test_roots:['different']}),/request_id conflicts/);
+});
+h.test('RUNTIME-ENV-01','Project command environment is expanded, verified by actual smoke and frozen separately from model settings',()=>{
+  const attempt=prepare(input('execution-env')),value={...answer(),execution_env:{PROJECT_TOOL_FLAG:'ready',PROJECT_TOOL_CACHE:'{runtime_root}/cache'},smoke:{command:[process.execPath,'-e','const a=require("node:assert/strict");a.equal(process.env.PROJECT_TOOL_FLAG,"ready");a.ok(process.env.PROJECT_TOOL_CACHE.endsWith("/runtime/cache"));console.log("PROJECT_ENV_VERIFIED")']}};
+  const ready=conclude(attempt,value),manifest=read(ready.runtime.manifest),env=projectEnvironment({runtime:ready.runtime});
+  assert.equal(env.PROJECT_TOOL_FLAG,'ready');assert.equal(manifest.smoke.env.PROJECT_TOOL_CACHE,env.PROJECT_TOOL_CACHE);
+  assert.ok(fs.readFileSync(manifest.smoke.log,'utf8').includes('PROJECT_ENV_VERIFIED'));
+  const before=fs.readFileSync(ready.runtime.manifest);manifest.execution_env.PROJECT_TOOL_FLAG='changed';fs.writeFileSync(ready.runtime.manifest,JSON.stringify(manifest));
+  try{assert.throws(()=>validateRuntime(ready.runtime.manifest),/execution environment differs/);assert.throws(()=>projectEnvironment({runtime:ready.runtime}),/binding missing or changed/);}finally{fs.writeFileSync(ready.runtime.manifest,before);}
+});
+h.test('RUNTIME-ENV-02','Invalid non-string project environment cannot publish a ready runtime',()=>{
+  const attempt=prepare(input('invalid-execution-env'));assert.throws(()=>conclude(attempt,{...answer(),execution_env:{PROJECT_TOOL_FLAG:1}}),/explicit string values/);assert.equal(fs.existsSync(path.join(attempt.folder,'result.json')),false);
 });
 if(h.live){
   const live=fixture('live-runtime');

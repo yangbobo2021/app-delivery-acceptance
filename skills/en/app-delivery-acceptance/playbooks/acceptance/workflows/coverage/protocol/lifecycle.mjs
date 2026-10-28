@@ -7,6 +7,8 @@ import {createHash} from 'node:crypto';
 import {isDeepStrictEqual as equal} from 'node:util';
 import {assertToolIdentity} from './tools.mjs';
 import {assertRecount, evidenceFiles, unchangedEvidence} from './report.mjs';
+// Project command environment only; never changes a model process.
+import {runtimeEnvironment} from '../../shared/runtime.mjs';
 
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 const hash = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -64,7 +66,7 @@ export function runLifecycleGate({prepared, plan: planPath, output}) {
     const command = [...profile.entry, operation, requestFile, response], started_at = new Date().toISOString();
     const stdout = path.join(folder, 'stdout-' + sequence + '.txt'), stderr = path.join(folder, 'stderr-' + sequence + '.txt');
     const out = fs.openSync(stdout, 'wx'), err = fs.openSync(stderr, 'wx');let result;
-    try {result = spawnSync(command[0], command.slice(1), {cwd, stdio: ['ignore', out, err], timeout: 30000});}
+    try {result = spawnSync(command[0], command.slice(1), {cwd, env:{...process.env,...runtimeEnvironment(runtime)}, stdio: ['ignore', out, err], timeout: 30000});}
     finally {fs.closeSync(out);fs.closeSync(err);}
     const receipt = {operation, command, cwd, started_at, finished_at: new Date().toISOString(),
       exit_code: result.status, signal: result.signal, error: result.error?.message,
@@ -92,7 +94,7 @@ export function runLifecycleGate({prepared, plan: planPath, output}) {
     if (!command?.length || !allowed.has(fs.realpathSync(command[0]))) throw Error('Coverage lifecycle needs an independent native reader command');
     const backend = read(path.join(path.dirname(profile.entry[1]), 'binding.json')).entry;
     if (backend.slice(1).some(value => command.includes(value))) throw Error('Coverage oracle must not invoke the project backend');
-    const started_at = new Date().toISOString(), result = spawnSync(command[0], command.slice(1), {cwd: root, encoding: 'utf8', timeout: 30000, maxBuffer: 32 * 1024 * 1024});
+    const started_at = new Date().toISOString(), result = spawnSync(command[0], command.slice(1), {cwd: root, env:{...process.env,...runtimeEnvironment(runtime)}, encoding: 'utf8', timeout: 30000, maxBuffer: 32 * 1024 * 1024});
     const record = {command, started_at, finished_at: new Date().toISOString(), exit_code: result.status, signal: result.signal,
       stdout: result.stdout, stderr: result.stderr, error: result.error?.message};write(path.join(folder, 'oracle-command.json'), record);
     unchangedEvidence(snapshots);
@@ -132,10 +134,10 @@ export function runLifecycleGate({prepared, plan: planPath, output}) {
           throw Error('Coverage lifecycle route requires exact zero/nonzero commands from the verified runtime: ' + route.id);
         fs.mkdirSync(folder, {recursive: true});
         const substitute = text => text.replaceAll('{probe_dir}', folder).replaceAll('{workspace}', root);
-        const env = Object.fromEntries(Object.entries(commandSpec.env ?? {}).map(([key, value]) => {
+        const env = {...runtimeEnvironment(runtime),...Object.fromEntries(Object.entries(commandSpec.env ?? {}).map(([key, value]) => {
           if (typeof value !== 'string') throw Error('Coverage lifecycle environment must contain strings');
           return [key, substitute(value)];
-        }));
+        }))};
         const session = {cwd: root, output: folder, scene_id: '__coverage_preparation__/' + route.id + '/' + mode,
           revision: profile.spec.revision, prepared, prepared_sha256: hash(profileFile),
           command: commandSpec.command.map(substitute), env, files: Object.keys(profile.adapter_files)};

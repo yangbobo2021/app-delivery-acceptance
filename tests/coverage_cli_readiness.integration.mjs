@@ -28,6 +28,7 @@ const runtime = prepare({project_root: root, acceptance_id: at, request_id: 'run
   source_checkout: root, revision, test_roots: ['projects/python-cli/tests'],
   inspection_files: ['projects/python-cli/README.md', ...files], available_executables: [{name: 'python', path: python}]});
 const readyRuntime = finalize(runtime, JSON.stringify({dependency_files: [], knowledge_used: ['INDEX.md'],
+  execution_env: {PYTHONDONTWRITEBYTECODE:'1'},
   setup_commands: [{command: [python, '-c', 'from pathlib import Path; Path("projects/python-cli/tests").mkdir(exist_ok=True)']}],
   executables: [{name: 'python', path: python, version_command: [python, '--version']}],
   smoke: {command: [python, '-B', '-m', 'invoice', '--help'], env: {PYTHONPATH: '{workspace}/projects/python-cli'}},

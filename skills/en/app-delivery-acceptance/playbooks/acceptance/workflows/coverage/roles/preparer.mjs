@@ -11,6 +11,7 @@ import {acceptanceGuard, knowledgeContext} from '../../shared/guard.mjs';
 import {workspaceSnapshot,verifyAllowedChanges} from '../../shared/workspace.mjs';
 import {materializeCoverageEntry} from '../protocol/materialize.mjs';
 import {runLifecycleGate} from '../protocol/lifecycle.mjs';
+import {runtimeEnvironment} from '../../shared/runtime.mjs';
 
 const [requestArg, outputArg] = process.argv.slice(2);
 if (!requestArg || !outputArg) throw Error('usage: node preparer.mjs request.json new-output-dir');
@@ -103,7 +104,7 @@ read 是唯一统计实现，同时处理一组及多组原生数据：接收 {g
 
 特别检查最终 argv 与实际 cwd 下的源码路径。项目适配器与独立读取器均须调用专用工具公开支持的报告/统计入口，并在 tools 与 knowledge_candidate 中注明实际入口；即使读取了工具内部 parser 或原生 arcs，自行计算分母、分支出口或命中也不符合规约。复用旧适配器前先核查这一点，不能只修到脚本可启动。跨文件计数和范围统计也由工具生成，适配器不得自行累计各文件的计数再称为工具汇总；选择范围后调用工具报告该范围的原生 totals。
 
-先逐条读取适用项目知识，检查已有项目测试适配器是否仍适用于本次 runtime 和源码版本；可复用时沿用并做最小修正，不重复探索已经有依据的工具路线或安装方法。你只需用一条最小命令确认适配器可启动；完整的各路由零/非零探针由宿主在你回答后统一执行并独立复核，不要在 Agent 内提前重复跑整套探针。若现有资料失效，记录具体差异，再做必要探索。
+先逐条读取适用项目知识，检查已有项目测试适配器是否仍适用于本次 runtime 和源码版本；可复用时沿用并做最小修正，不重复探索已经有依据的工具路线或安装方法。对新建或修改的原生读取/合并路径，角色内必须先完成一个有界、非业务的能力自检：生成两份独立零命中数据及一份最小命中数据，读取单份、全零合并及零/命中混合，确认真实分母、覆盖模式和原生文件不变，再交付。仅检查脚本可启动不足以证明合并 API 可用。特别核对当前实际工具版本的多快照行为；内存数据对象若无法安全连续合并，应使用工具支持的文件化派生合并，输出仅写 agent-checks，不要修改原始快照或自行计算统计。全零快照也必须保留与命中快照一致的行/分支采集模式；若工具只在有真实事件时初始化模式，可采集纯测试助手的事件作为原生模式依据，报告范围仍严格限于产品源码，不得调用产品来补零基线或填造指标。保留自检命令、原始数据、原生报告和失败堆栈；修复后在新目录复测。这个自检只验证工具 API 和报告能力，不重复宿主各路由的完整 run→finish→verify→summarize 链路。宿主仍在你回答后独立执行整套正式准备核验。若现有资料失效，记录具体差异，再做必要探索。
 
 若当前项目已有仍适用的完整探针计划，可以输出 probe_plan_path（本 ID workflows 下计划文件的完整绝对路径）替代重复输出 probe_plan 对象。不要用省略号缩写可执行路径。宿主只复用命令定义，不复用旧通过结果；新准备会重新执行全部探针，并要求计划的运行时、workspace 和 revision 绑定一致。
 
@@ -156,7 +157,7 @@ try {
     }) && !(name in adapters));
   if (omitted.length) throw Error('Coverage Agent omitted changed test files from adapter_paths: ' + omitted.join(', '));
   const protocolEntry = materializeCoverageEntry({workspace:runtime.workspace,testRoots:request.test_roots,
-    attempt:output,entry:answer.entry,tools:answer.tools,adapterFiles:{...adapters},sourceHashes,revision:runtime.revision});
+    attempt:output,entry:answer.entry,tools:answer.tools,adapterFiles:{...adapters},sourceHashes,revision:runtime.revision,executionEnv:runtimeEnvironment(runtime)});
   for (const name of protocolEntry.paths) adapters[name] = hash(readFileSync(resolve(runtime.workspace,name)));
   writeFileSync(join(output,'backend-binding.json'),JSON.stringify({backend_entry:answer.entry,entry:protocolEntry.entry,
     tools:answer.tools,generated_files:protocolEntry.paths},null,2)+'\n');

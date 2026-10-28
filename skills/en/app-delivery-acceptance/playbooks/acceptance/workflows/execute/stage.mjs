@@ -8,7 +8,7 @@ import {guard} from '../shared/validation.mjs';
 import {readKnowledge} from '../shared/knowledge.mjs';
 import {digest,verifyCase,loadBinding} from '../shared/definitions.mjs';
 import {workspaceLease,finishScene,git,workspaceSnapshot,verifyAllowedChanges} from '../shared/workspace.mjs';
-import {validateRuntime} from '../shared/runtime.mjs';
+import {validateRuntime,projectEnvironment} from '../shared/runtime.mjs';
 import {verifyIdentity,sourceLines} from '../shared/identity.mjs';
 import {recordExecution} from '../shared/recorder.mjs';
 import {runCoverage} from '../shared/coverage-execution.mjs';
@@ -130,7 +130,7 @@ export async function executeScenario(input,{signal}={}){
       for(let iteration=0;iteration<=maximum;iteration++){
         const suffix=iteration?'-review-'+iteration:'',executionDirectory=path.join(folder,'execution'+suffix),files=selectedFiles(workspace,activeAnswer,catalog);
         const execution=await stage('execution'+suffix,async()=>{
-          const values={...(activeAnswer.test_env??{})},fresh=[];
+          const values={...projectEnvironment(catalog),...(activeAnswer.test_env??{})},fresh=[];
           if(settings.fresh_env_root_key){const freshRoot=path.join(folder,'fresh'+suffix);fresh.push(freshRoot);values[settings.fresh_env_root_key]=freshRoot;for(const [key,relative]of Object.entries(settings.fresh_env_paths??{}))values[key]=inside(freshRoot,relative);}
           for(const key of settings.evidence_env_dir_keys??[])if(values[key])ownedAbsolute(folder,values[key]);
           const request={acceptance:knowledge.acceptance,cwd:workspace,output:executionDirectory,files,command:activeCommand,env:values,fresh_dirs:fresh,scene_id:caseInput.scene.id,revision:catalog.revision,coverage:config.coverage,prepared:config.coverage.prepared,inventory_path:config.coverage.inventory_path};

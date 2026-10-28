@@ -42,7 +42,7 @@ try {
       const index = backendCalls.length, backendRequest = path.join(directory, 'request-' + index + '.json'), response = path.join(directory, 'response-' + index + '.json');
       write(backendRequest, {...input, tools: binding.tools});
       const command = [...argv, backendOperation, backendRequest, response];
-      const result = spawnSync(command[0], command.slice(1), {cwd: fs.existsSync(binding.project_root) ? binding.project_root : path.dirname(output),
+      const result = spawnSync(command[0], command.slice(1), {cwd: fs.existsSync(binding.project_root) ? binding.project_root : path.dirname(output), env: {...process.env,...binding.execution_env},
         encoding: 'utf8', ...(backendOperation === 'run' ? {stdio: 'inherit'} : {timeout: 30000, maxBuffer: 32 * 1024 * 1024})});
       childDiagnostic = {operation, backend_operation: backendOperation, command, request: backendRequest,
         exit_code: result.status, signal: result.signal, error: result.error?.message ?? null,

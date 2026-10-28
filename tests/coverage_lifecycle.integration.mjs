@@ -26,16 +26,16 @@ function fixture(label, behavior = 'normal', expectedExit = 0) {
   for (const name of ['src', 'tests/hook', 'candidate']) fs.mkdirSync(path.join(root, name), {recursive: true});
   fs.writeFileSync(path.join(root, 'src/calc.py'), 'import sys\ndef classify(value):\n    if value > 0:\n        return "positive"\n    return "nonpositive"\nif __name__ == "__main__":\n    print(classify(int(sys.argv[1])))\n');
   fs.writeFileSync(path.join(tests, 'hook/sitecustomize.py'), 'import coverage\ncoverage.process_startup()\n');
-  fs.writeFileSync(path.join(tests, 'route.py'), 'import os, subprocess, sys\nif sys.argv[1] == "nonzero":\n    env = dict(os.environ)\n    if env.get("FIXTURE_DROP_CHILD"): env.pop("COVERAGE_PROCESS_START", None)\n    result = subprocess.run([sys.executable, "-B", "src/calc.py", "1"], env=env)\n    assert result.returncode == 0\nprint("REAL_ROUTE_" + sys.argv[1])\nif sys.argv[1] == "nonzero": sys.exit(' + expectedExit + ')\n');
+  fs.writeFileSync(path.join(tests, 'route.py'), 'import os, subprocess, sys\nassert os.environ.get("PROJECT_EXECUTION_ENV") == "lifecycle-runtime-default"\nif sys.argv[1] == "nonzero":\n    env = dict(os.environ)\n    if env.get("FIXTURE_DROP_CHILD"): env.pop("COVERAGE_PROCESS_START", None)\n    result = subprocess.run([sys.executable, "-B", "src/calc.py", "1"], env=env)\n    assert result.returncode == 0\nprint("REAL_ROUTE_" + sys.argv[1])\nif sys.argv[1] == "nonzero": sys.exit(' + expectedExit + ')\n');
   fs.copyFileSync(fileURLToPath(new URL('./fixtures/coverage/python/backend_v2.py', import.meta.url)), path.join(tests, 'backend.py'));
   fs.copyFileSync(fileURLToPath(new URL('./fixtures/coverage/python/oracle_v2.py', import.meta.url)), path.join(tests, 'oracle.py'));
   write(path.join(tests, 'settings.json'), {root, behavior});
   const files = Object.fromEntries(['tests/backend.py', 'tests/oracle.py', 'tests/settings.json', 'tests/route.py', 'tests/hook/sitecustomize.py'].map(name => [name, sha(path.join(root, name))]));
   const materialized = materializeCoverageEntry({workspace: root, testRoots: ['tests'], attempt: root, entry: [python, path.join(tests, 'backend.py')], tools, adapterFiles: files,
-    sourceHashes: {'src/calc.py': sha(path.join(root, 'src/calc.py'))}, revision: 'fixture-revision'});
+    sourceHashes: {'src/calc.py': sha(path.join(root, 'src/calc.py'))}, revision: 'fixture-revision', executionEnv:{PROJECT_EXECUTION_ENV:'lifecycle-runtime-default'}});
   for (const name of materialized.paths) files[name] = sha(path.join(root, name));
   const runtimeFile = path.join(root, 'runtime.json'), inventory = path.join(root, 'inventory.json');
-  write(runtimeFile, {workspace: root, revision: 'fixture-revision', executables: [{path: python}]});
+  write(runtimeFile, {workspace: root, revision: 'fixture-revision', executables: [{path: python}],execution_env:{PROJECT_EXECUTION_ENV:'lifecycle-runtime-default'}});
   write(inventory, {source_hashes: {'src/calc.py': sha(path.join(root, 'src/calc.py'))}});
   const plan = {workspace: root, revision: 'fixture-revision', runtime_sha256: sha(runtimeFile),
     routes: [{id: 'python-cli-subprocess', source_paths: ['src/calc.py'], lifecycle: Object.fromEntries(['zero', 'nonzero'].map(mode => [mode,
