@@ -13,6 +13,7 @@ import {validateRuntime} from '../shared/runtime.mjs';
 import {projectCoverage} from '../shared/coverage-registry.mjs';
 import {validateEvaluation} from '../shared/case-contract.mjs';
 import {runProcess} from '../shared/process.mjs';
+import {collectDebugEvidence} from './debug-evidence.mjs';
 
 const rolesRoot=fileURLToPath(new URL('./roles',import.meta.url));
 const allowed=new Set(['project_root','acceptance_id','request_id','definitions_sha256','scene_id','basis','catalog','guide','case_strategy','case_evaluation','debug_environment','knowledge_paths']);
@@ -33,7 +34,6 @@ function roleResult(directory,{identity=false}={}){
   const original=identity?read(path.join(directory,'answer.agent.json')):answer;
   if(!equal(JSON.parse(raw.trim().replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'')),original))throw Error('Case answer differs from original native session');return {metrics,answer};
 }
-function debugReceipts(directory){return fs.existsSync(directory)?filesUnder(directory).filter(file=>path.basename(file)==='execution.json').map(read):[];}
 function evaluationMarkdown(value){
   const lines=['# 场景关联用例评估','','仅提供设计评估，不改变执行列表或正式产品结论。','',value.summary,'','覆盖判断：'+value.coverage,'','取舍建议：'+value.selection_advice,''];
   for(const obligation of value.obligations)lines.push('- '+obligation.id+'「'+obligation.quote+'」：'+obligation.assessment);
@@ -86,7 +86,7 @@ export async function prepareCases(input,{signal}={}){
       if(command.exit_code!==0||command.timed_out||command.cancelled)throw Error('Case role interrupted or incomplete; preserve original process and side-effect evidence');}
       const {metrics,answer}=roleResult(directory,{identity:true});verifyAllowedChanges(catalog.project_root,baseline,catalog.write_roots??catalog.test_roots??[],catalog.components??[]);frozenSource(catalog);
       const identity=verifyIdentity(answer,catalog.project_root,{sceneId:input.scene_id,acceptanceId:input.acceptance_id});
-      const receipts=debugReceipts(path.join(directory,'debug'));
+      const debugEvidence=collectDebugEvidence(path.join(directory,'debug')),receipts=debugEvidence.completed.map(item=>item.receipt);
       if(['passed_local','product_failure'].includes(answer.status)&&(!receipts.length||(answer.status==='passed_local'&&!receipts.some(item=>item.exit_code===0))))throw Error('Local observations lack a real bound debug execution receipt');
       if(answer.status==='host_ready'&&!catalog.runtime)throw Error('Unexecuted host-ready handoff needs a verified runtime manifest');
       let evaluation={status:evaluate?'unavailable':'off',advisory_only:true};
@@ -102,6 +102,7 @@ export async function prepareCases(input,{signal}={}){
       atomicJson(path.join(folder,'case-evaluation.json'),evaluation);frozenSource(catalog);
       const ready=['passed_local','host_ready','product_failure'].includes(answer.status)&&answer.test_command?.length>0;
       const immutable=hashFiles(filesUnder(folder).filter(file=>!file.includes(path.sep+'active.lock.d'+path.sep))),result={schema:'acceptance-cases-result-v1',status:ready?'ready':'blocked',acceptance_id:input.acceptance_id,scene_id:input.scene_id,definitions:binding,definition_binding_sha256:caseInput.definition_binding_sha256,case_strategy:strategy,case_input:caseFile,case_answer:path.join(directory,'answer.json'),catalog:catalogFile,guide:guideFile,permanent_case_ids:identity.cases.map(item=>item.id),local_case_status:answer.status,debug_executions:receipts.length,evaluation,stopped_after:'case_preparation',formal_execution:'not_performed',product_judgment:'not_performed',...(ready?{}:{reason:answer.reason??'Case was not executable; preserve the attempt'}),directory:folder,immutable_files:immutable};
+      Object.assign(result,{debug_attempts:debugEvidence.attempts,debug_incomplete:debugEvidence.incomplete});
       atomicJson(path.join(folder,'result.json'),result);if(ready)finishScene(config,folder);return result;
     },{scene:true});
   }catch(error){const result={status:'blocked',reason:error.message,stopped_after:'case_preparation',...(folder?{directory:folder}:{})};if(folder&&fs.existsSync(folder))atomicJson(path.join(folder,'failure-'+randomUUID()+'.json'),result);return result;}
