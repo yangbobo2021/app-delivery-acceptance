@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {isDeepStrictEqual as equal} from 'node:util';
-import {object} from '../shared/definitions.mjs';
+import {object,fingerprint} from '../shared/definitions.mjs';
 
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const fail=message=>{throw Error('source input quality: '+message);};
@@ -30,6 +30,10 @@ function location(root,origin){
   if(!match)return null;
   const name=relative(root,match[1]);
   return {path:name,start:Number(match[2]),end:Number(match[3]??match[2])};
+}
+function originIdentity(origin,loc){
+  const file={...(origin.file??{}),path:loc.path,start_line:loc.start,end_line:loc.end};delete file.sha256;
+  return {...origin,file};
 }
 
 export function freezeSourceInputs(request,candidate,root,previous){
@@ -70,6 +74,12 @@ export function freezeSourceInputs(request,candidate,root,previous){
   for(const group of ['requirements','reverse_rules','scenarios'])for(const item of request.definitions[group]??[]){
     const origin=item.origin??{},loc=location(root,origin);
     if(!loc)continue;
+    const current=candidate[group].find(value=>value.id===item.id),old=previous?.[group]?.find(value=>value.id===item.id),oldLocation=old?.origin?location(root,old.origin):null;
+    const oldSha=old?.origin?.file?.sha256??prior.find(document=>document.path===oldLocation?.path)?.sha256;
+    if(old&&oldLocation&&oldSha&&old[group==='scenarios'?'description':'text']===item[group==='scenarios'?'description':'text']&&fingerprint(originIdentity(old.origin,oldLocation))===fingerprint(originIdentity(origin,loc))&&(!origin.file?.sha256||origin.file.sha256===oldSha)){
+      current.origin.file={...(origin.file??{}),path:loc.path,start_line:loc.start,end_line:loc.end,sha256:oldSha};
+      continue; // Unchanged admitted source facts remain readable in immutable prior catalogs.
+    }
     const document=sources.get(loc.path);
     if(!document)fail('file origin requires a complete source_inputs snapshot: '+item.id+' '+loc.path);
     const bytes=file(root,loc.path);
@@ -80,10 +90,12 @@ export function freezeSourceInputs(request,candidate,root,previous){
     if(typeof quote!=='string'||!quote.trim()||!lines.slice(loc.start-1,loc.end).join('\n').includes(quote))fail('source line range does not contain original text: '+item.id+' '+loc.path+':'+loc.start+'-'+loc.end);
     const declaredHash=/\bsha256:([a-f0-9]{64})\b/.exec(origin.reference??'')?.[1];
     if(declaredHash&&declaredHash!==document.sha256)fail('origin reference hash mismatch: '+item.id);
+    if(origin.file?.sha256&&origin.file.sha256!==document.sha256)fail('origin.file hash mismatch: '+item.id);
     if(origin.file){
       const human=/^(.+?):([1-9]\d*)(?:-([1-9]\d*))?(?=@|\s|$)/.exec(origin.reference??'');
       if(human&&(relative(root,human[1])!==loc.path||Number(human[2])!==loc.start||Number(human[3]??human[2])!==loc.end))fail('origin.file conflicts with human reference: '+item.id);
     }
+    current.origin.file={...(origin.file??{}),path:loc.path,start_line:loc.start,end_line:loc.end,sha256:document.sha256};
   }
   if(sources.size)candidate.context.source_documents=[...sources.values()];
   return candidate;

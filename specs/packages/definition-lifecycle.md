@@ -40,6 +40,8 @@
 
 当启动依赖定义的分析、场景设计、用例准备、调试或复审阶段时，宿主应核对该阶段输入与所引用冻结快照的内容哈希及场景依赖相符，失配时停止受影响交接。
 
+- 共同约束可为原文字符串或结构化 JSON；核对应比较完整 JSON 内容，不将重读产生的新对象引用或对象键的排列差异判为失配。
+
 ### definition-lifecycle-9
 
 当需求、规则或共同业务约束发生实质变化时，变更处理应记录受影响的场景及依赖依据，保留旧执行事实与结论，并单独标注它们对新定义的适用性。
@@ -49,6 +51,8 @@
 ### definition-lifecycle-10
 
 当只是新增独立需求或修改整体分组、执行说明而未改变已有场景的业务依赖时，变更处理应保留无关联场景的有效绑定，不将整份上下文变化机械等同于全量重测。
+
+- 完整交接的来源快照及其清单不是额外业务义务，仅新增无关来源资料不使原场景失效；实际共同约束变化仍属于业务依赖变更。
 
 ### definition-lifecycle-11
 
@@ -125,4 +129,4 @@
 
 ### definition-lifecycle-27
 
-当验证输入质量时，集成测试应通过实际冻结工具及真实官方 CLI 核对完整文件背景向后续场景输入的交接、错误行号与遗漏背景及哈希失配的发布前阻塞，并核对范围未扩大和历史未被改写 [[definition-lifecycle-26](#definition-lifecycle-26)] [acceptance_source_inputs.integration.mjs](../../tests/acceptance_source_inputs.integration.mjs)。
+当验证输入质量时，集成测试应通过实际冻结工具及真实官方 CLI 核对完整文件背景向分析及后续场景输入的交接、错误行号与遗漏背景及哈希失配的发布前阻塞 [[definition-lifecycle-26](#definition-lifecycle-26)]、新增无关来源时旧场景绑定保持有效 [[definition-lifecycle-10](#definition-lifecycle-10)] 及来源不可访问时已冻结原文仍可采用 [[definition-lifecycle-13](#definition-lifecycle-13)] [acceptance_source_inputs.integration.mjs](../../tests/acceptance_source_inputs.integration.mjs)。

@@ -4,7 +4,7 @@ import {execFileSync} from 'node:child_process';
 import {locations,read,requireCurrent,ownedAbsolute} from '../shared/store.mjs';
 import {guard,validateStore} from '../shared/validation.mjs';
 import {readKnowledge} from '../shared/knowledge.mjs';
-import {currentBinding,digest,verifyStage,loadBinding} from '../shared/definitions.mjs';
+import {currentBinding,digest,verifyStage,loadBinding,executionContext} from '../shared/definitions.mjs';
 import {canonical,cloneJson} from '../shared/json.mjs';
 const write=(file,value,exclusive=false)=>fs.writeFileSync(file,canonical(value)+'\n',exclusive?{flag:'wx'}:undefined);
 const git=(root,...args)=>execFileSync('git',args,{cwd:root,maxBuffer:24*1024*1024}).toString().trim();
@@ -14,7 +14,7 @@ export function prepareReverse(value,folder){
  const current=read(path.join(shared,'scenarios.json')),knowledge=readKnowledge(root,value.acceptance_id,value.knowledge_paths??[]);
  const fields=['base_revision','head_revision','source_paths','test_paths','noncode_paths','deleted_source_paths','submodule_paths','contract_files','context_files','pr_requirement_ids','test_modes','confirmed_contract_paths','confirmation_basis'];
  const request=Object.fromEntries(fields.filter(k=>Object.hasOwn(value,k)).map(k=>[k,cloneJson(value[k])]));
- Object.assign(request,{project_root:root,acceptance:knowledge.acceptance,definitions,requirements:{items:current.requirements,context:current.context},existing_rules:current.reverse_rules});
+ Object.assign(request,{project_root:root,acceptance:knowledge.acceptance,definitions,requirements:{items:current.requirements,context:current.context,shared_constraints:current.context.shared_constraints??''},execution_context:executionContext(current.context),user_constraints:current.context.user_constraints??[],existing_rules:current.reverse_rules});
  if(request.confirmed_contract_paths?.length&&!String(request.confirmation_basis??'').trim())throw Error('modified independent contract needs actual confirmation_basis');
  guard(request,[folder]);write(path.join(folder,'request.frozen.json'),request,true);return {request,knowledge:knowledge.contents};
 }

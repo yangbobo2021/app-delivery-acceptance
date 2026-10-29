@@ -5,12 +5,12 @@ import {fileURLToPath} from 'node:url';
 import {locations,inside,read,ownedAbsolute,requireCurrent,atomicJson} from '../shared/store.mjs';
 import {guard,validateStore} from '../shared/validation.mjs';
 import {readKnowledge} from '../shared/knowledge.mjs';
-import {currentBinding,digest,verifyStage,loadBinding} from '../shared/definitions.mjs';
+import {currentBinding,digest,verifyStage,loadBinding,executionContext} from '../shared/definitions.mjs';
 import {canonical} from '../shared/json.mjs';
 export function prepareAnalysis(input,folder){
   const {root,shared,local}=locations(input.project_root,input.acceptance_id);requireCurrent(root,input.acceptance_id);validateStore(root,input.acceptance_id);
   const definitions=currentBinding(root,input.acceptance_id);if(definitions.sha256!==input.definitions_sha256)throw Error('Analysis definitions changed');
-  const current=read(inside(shared,'scenarios.json')),knowledge=readKnowledge(root,input.acceptance_id,input.knowledge_paths??[]),request={mode:input.mode??'create',acceptance:knowledge.acceptance,definitions,project_root:root,requirements:{items:current.requirements,shared_constraints:current.context.shared_constraints??''},user_constraints:current.context.user_constraints??[],feedback:input.feedback??[]};
+  const current=read(inside(shared,'scenarios.json')),knowledge=readKnowledge(root,input.acceptance_id,input.knowledge_paths??[]),request={mode:input.mode??'create',acceptance:knowledge.acceptance,definitions,project_root:root,requirements:{items:current.requirements,shared_constraints:current.context.shared_constraints??''},execution_context:executionContext(current.context),user_constraints:current.context.user_constraints??[],feedback:input.feedback??[]};
   if(!['create','edit'].includes(request.mode))throw Error('Analysis mode must be create or edit');
   if(request.mode==='edit'){
     const reference=input.previous_analysis??{},file=ownedAbsolute(local,reference.path);if(digest(file)!==reference.sha256)throw Error('Previous analysis changed');request.previous_analysis=read(file);request.allowed_changes=input.allowed_changes;

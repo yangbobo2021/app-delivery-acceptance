@@ -6,6 +6,8 @@ import {createAcceptance} from '../skills/en/app-delivery-acceptance/playbooks/a
 import {freezeAcceptance} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/freeze/freeze.mjs';
 import {sceneInput} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/shared/definitions.mjs';
 import {prepare as prepareScenarios,finalize as finalizeScenarios} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/scenarios/stage.mjs';
+import {prepare as prepareAnalysis} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/analyze/stage.mjs';
+import {sceneFingerprint} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/shared/definitions.mjs';
 import {harness,read,sha,snapshot} from './official_workflow_harness.mjs';
 
 const h=harness('acceptance-source-inputs',[['acceptance-create','create'],['acceptance-freeze','freeze']]);
@@ -42,6 +44,8 @@ h.test('SOURCE-11','冻结完整背景后逐字交接到场景输入，范围仍
   let value=read(frozen.definitions.path);
   assert.deepEqual(value.context.source_documents.map(x=>[x.path,x.text]),Object.entries(docs));
   assert.deepEqual(value.requirements.map(x=>x.id),['INV-02']);assert.deepEqual(value.scenarios,[]);
+  const analysis=prepareAnalysis({project_root:root,acceptance_id:at,request_id:'source-analysis',definitions_sha256:frozen.definitions.sha256});
+  assert.deepEqual(read(path.join(analysis.folder,'request.frozen.json')).execution_context.source_documents,value.context.source_documents);
   const generated=designRequest(root,at);
   assert.equal(generated.mode,'replace');assert.deepEqual(generated.definitions.context.source_documents,value.context.source_documents);
   const adopted=freezeAcceptance(generated);
@@ -52,8 +56,8 @@ h.test('SOURCE-11','冻结完整背景后逐字交接到场景输入，范围仍
   h.save('frozen-stage-input.json',input);return {definitions:adopted.definitions,input};
 });
 h.test('SOURCE-12','已冻结来源被改写时拒绝新采用，原快照仍然可读',()=>{
-  const name=path.join(root,'docs/requirements.md');fs.writeFileSync(name,docs['docs/requirements.md']+'新增内容\n');
-  const request=req('outdated');delete request.source_inputs;request.base_definitions_sha256=sha(path.join(root,'.acceptance',at,'scenarios.json'));
+  const name=path.join(root,'docs/requirements.md');fs.writeFileSync(name,docs['docs/requirements.md'].replace(original,original+'新增约定。'));
+  const request=req('outdated');request.definitions.requirements[0].text=original+'新增约定。';delete request.source_inputs;request.base_definitions_sha256=sha(path.join(root,'.acceptance',at,'scenarios.json'));
   const before=snapshot(root);assert.throws(()=>freezeAcceptance(request),/frozen source differs from current file/);assert.deepEqual(snapshot(root),before);
   assert.equal(read(frozen.definitions.path).context.source_documents[0].text,docs['docs/requirements.md']);fs.writeFileSync(name,docs['docs/requirements.md']);
 });
@@ -77,6 +81,20 @@ h.test('SOURCE-16','显式完整替换可移除旧背景，旧版本仍保留完
   const result=freezeAcceptance(request),value=read(result.definitions.path);
   assert.equal(value.context.source_documents,undefined);assert.deepEqual(value.scenarios,[]);assert.equal(read(frozen.definitions.path).context.source_documents.length,2);
 });
+let incremental;
+h.test('SOURCE-17','为无关需求新增来源快照，不使原场景业务绑定失效',()=>{
+  const project=h.project('incremental'),id='AT-incremental';fs.writeFileSync(path.join(project,'A.txt'),'需求 A。\n');fs.writeFileSync(path.join(project,'B.txt'),'需求 B。\n');
+  createAcceptance({project_root:project,acceptance_id:id,request_id:'create',user_request:'按需求逐个增加独立来源，不重跑无关场景。'});
+  const source=name=>({required_documents:[name],documents:[{path:name,text:fs.readFileSync(path.join(project,name),'utf8'),sha256:sha(path.join(project,name))}]}),item=(key)=>({id:key,text:'需求 '+key+'。',origin:{kind:'file',reference:key+'.txt:1'},external_refs:[]});
+  const first=freezeAcceptance({project_root:project,acceptance_id:id,request_id:'a',base_definitions_sha256:null,basis:'先冻结 A 与已确认的独立场景。',source_inputs:source('A.txt'),definitions:{context:{business_goal:'独立增量。'},requirements:[item('A')],scenarios:[{id:'SA',requirement_id:'A',description:'需求 A。',priority:'P0',priority_reason:'独立目标 A。',origin:{kind:'conversation',reference:'fixture:A-scene'},external_refs:[],check:{method:'adopt',basis:'用户明确采用。'}}]}});
+  const before=read(first.definitions.path),second=freezeAcceptance({project_root:project,acceptance_id:id,request_id:'b',base_definitions_sha256:sha(path.join(project,'.acceptance',id,'scenarios.json')),basis:'只新增独立目标 B 及其来源。',source_inputs:source('B.txt'),definitions:{requirements:[item('B')]}}),after=read(second.definitions.path);
+  incremental={project,id,after,second};
+  assert.deepEqual(second.change.rerun_scene_ids,[]);assert.equal(sceneFingerprint(after,'SA'),sceneFingerprint(before,'SA'));
+});
+h.test('SOURCE-18','完整采用未变约定时可继续使用已核验冻结来源，原文件失去访问不改写历史',()=>{
+  const {project,id,after}=incremental,name=path.join(project,'A.txt');fs.unlinkSync(name);
+  try{const adopted=freezeAcceptance({project_root:project,acceptance_id:id,request_id:'unchanged-adoption',base_definitions_sha256:sha(path.join(project,'.acceptance',id,'scenarios.json')),mode:'replace',replace_basis:'只重新采用相同的完整定义，不刷新或删除已冻结约定。',basis:'继续使用既有冻结来源。',definitions:{context:after.context,requirements:after.requirements,reverse_rules:after.reverse_rules,scenarios:after.scenarios}});assert.equal(adopted.status,'frozen');assert.deepEqual(adopted.change.rerun_scene_ids,[]);}finally{fs.writeFileSync(name,'需求 A。\n');}
+});
 
 if(h.live){
   const r=h.project('live'),id='AT-live-source';for(const[name,text]of Object.entries(docs)){fs.mkdirSync(path.dirname(path.join(r,name)),{recursive:true});fs.writeFileSync(path.join(r,name),text);}
@@ -89,6 +107,12 @@ if(h.live){
     const value=read(path.join(r,'.acceptance',id,'scenarios.json'));assert.deepEqual(value.context.source_documents.map(x=>x.text),Object.values(docs));assert.deepEqual(value.scenarios,[]);
     const adoption=designRequest(r,id),adopted=h.cli('acceptance-freeze',adoption,'live-adopt-generated',r);h.settled(adopted,'acceptance-freeze','frozen');
     const complete=read(path.join(r,'.acceptance',id,'scenarios.json'));assert.equal(complete.scenarios.length,1);assert.deepEqual(complete.context.source_documents,value.context.source_documents);
+    const addedFile='independent.txt',addedText='这是另一个独立需求。';fs.writeFileSync(path.join(r,addedFile),addedText+'\n');
+    const add={project_root:r,acceptance_id:id,request_id:'live-add-independent',base_definitions_sha256:sha(path.join(r,'.acceptance',id,'scenarios.json')),basis:'仅新增独立需求，不复验原场景。',source_inputs:{required_documents:[addedFile],documents:[{path:addedFile,text:addedText+'\n',sha256:sha(path.join(r,addedFile))}]},definitions:{requirements:[{id:'R2',text:addedText,origin:{kind:'file',reference:addedFile+':1'},external_refs:[]}]}};
+    h.settled(h.cli('acceptance-freeze',add,'live-add-independent',r),'acceptance-freeze','frozen');
+    const withExtra=read(path.join(r,'.acceptance',id,'scenarios.json'));assert.deepEqual(withExtra.change.rerun_scene_ids,[]);assert.equal(sceneFingerprint(withExtra,'S1'),sceneFingerprint(complete,'S1'));
+    fs.unlinkSync(path.join(r,addedFile));const unchanged={project_root:r,acceptance_id:id,request_id:'live-adopt-offline',base_definitions_sha256:sha(path.join(r,'.acceptance',id,'scenarios.json')),mode:'replace',replace_basis:'继续采用未变定义与已核验来源，不刷新失去访问的源文件。',basis:'复用原冻结事实，不改变业务。',definitions:{context:withExtra.context,requirements:withExtra.requirements,reverse_rules:withExtra.reverse_rules,scenarios:withExtra.scenarios}};
+    h.settled(h.cli('acceptance-freeze',unchanged,'live-adopt-offline',r),'acceptance-freeze','frozen');assert.deepEqual(read(path.join(r,'.acceptance',id,'scenarios.json')).change.rerun_scene_ids,[]);
     h.save('live-project-snapshot.json',snapshot(r));return {project_root:r,result:result.envelope};
   });
 }

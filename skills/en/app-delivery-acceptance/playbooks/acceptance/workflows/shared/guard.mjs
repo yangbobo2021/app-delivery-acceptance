@@ -8,7 +8,7 @@ export function acceptanceGuard(config,outputs=[]){
   return guard(config,outputs);
 }
 export function verifyDefinitionsStage(requestPath){
-  verifyStage(JSON.parse(readFileSync(requestPath,'utf8')));
+  verifyStage(read(requestPath));
 }
 export function knowledgeContext(binding){
   const receipt=JSON.parse(readFileSync(binding.knowledge_receipt,'utf8'));

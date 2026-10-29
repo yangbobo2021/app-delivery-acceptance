@@ -1,10 +1,13 @@
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';
-import {harness,sha} from './official_workflow_harness.mjs';
+import {harness,sha,read} from './official_workflow_harness.mjs';
 import {createAcceptance} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/create/initialize.mjs';
 import {freezeAcceptance} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/freeze/registry.mjs';
-import {sceneInput,verifyCase,sceneFingerprint} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/shared/definitions.mjs';
+import {sceneInput,verifyCase,sceneFingerprint,verifyStage} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/shared/definitions.mjs';
+import {prepare as prepareAnalysis} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/analyze/stage.mjs';
+import {prepare as prepareScenarios} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/scenarios/stage.mjs';
 import {prepareAssessment} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/assess-cases/protocol.mjs';
-const h=harness('frozen-context',[]),root=h.project('project'),at='AT-context';
+const h=harness('frozen-context',[['acceptance-analyze','analyze'],['acceptance-scenarios','scenarios']]),root=h.project('project'),at='AT-context';
+let structuredFixture;
 createAcceptance({project_root:root,acceptance_id:at,request_id:'create',user_request:'只验收目标A，保留完整必要输入约束和相邻背景，不执行目标B。'});
 const original='原始输入约束：输入为精确整数；目标B仅作背景，不属于本次执行。\r\nREADME 原文：以项目实际入口执行，不可改写产品。\n'+('需要完整保留的原始背景段落。'.repeat(400));
 const userConstraints=['必须对真实产品子进程采集覆盖率，禁止在父进程调用内部函数补命中。','仅执行当前目标，不扩展背景义务。'];
@@ -14,4 +17,28 @@ h.test('CONTEXT-01','完整多行背景和结构化执行事实进入场景输�
 h.test('CONTEXT-02','保留正确绑定摘要仍不能删除、压缩或篡改执行背景',()=>{for(const mutate of [value=>delete value.execution_context,value=>value.execution_context={},value=>value.execution_context.shared_constraints='摘要',value=>value.execution_context.project_operating_facts.notes.pop()]){const changed=structuredClone(input);mutate(changed);assert.throws(()=>verifyCase(changed),/execution_context/);}assert.equal(sha(frozen.definitions.path),before);});
 h.test('CONTEXT-USER','冻结用户约束完整传入；保留正确指纹也不能删除、缩写或篡改',()=>{for(const constraints of [undefined,[],['摘要'],[...userConstraints,'额外要求']]){const changed={...structuredClone(input),user_constraints:constraints};assert.throws(()=>verifyCase(changed),/user_constraints/);}const value=JSON.parse(fs.readFileSync(frozen.definitions.path)),changed=structuredClone(value);changed.context.user_constraints=['仅调度说明变化'];assert.equal(sceneFingerprint(value,'S1'),sceneFingerprint(changed,'S1'),'Scheduling metadata alone does not automatically invalidate unrelated business evidence');});
 h.test('CONTEXT-03','独立评估准备保留同一执行背景，并仍只选择当前场景',()=>{const folder=path.join(h.output,'assessment');fs.mkdirSync(folder);const value=prepareAssessment({project_root:root,acceptance_id:at,definitions_sha256:frozen.definitions.sha256,scene_id:'S1',source_checkout:root,enabled:false},folder);assert.equal(value.frozen.case_input.execution_context.shared_constraints,original);assert.deepEqual(value.frozen.case_input.user_constraints,userConstraints);assert.equal(value.frozen.case_input.requirement.id,'A');assert.deepEqual(value.frozen.case_input.related_requirements,[]);});
+h.test('CONTEXT-STRUCTURED','JSON 重读后的结构化共同约束可用于实际分析与场景准备；不同键序不误报，嵌套篡改仍拒绝',()=>{
+ const project=h.project('structured'),id='AT-structured',constraints={entry:{argv:['python3','-m','invoice']},bounds:[0,1000000000],original:'原始多行背景😀\r\n第二行。'};
+ const documents={'SPEC.txt':'按账号精确汇总。\n','README.md':'原始运行背景：通过真实 CLI 执行，不能直接调用内部函数。\n'};
+ for(const [name,text]of Object.entries(documents))fs.writeFileSync(path.join(project,name),text);
+ createAcceptance({project_root:project,acceptance_id:id,request_id:'create',user_request:'冻结结构化约束并准备分析与场景。'});
+ const adopted=freezeAcceptance({project_root:project,acceptance_id:id,request_id:'freeze',base_definitions_sha256:null,basis:'实际失败输入的结构化约束形状；只准备，不执行产品。',source_inputs:{required_documents:Object.keys(documents),documents:Object.entries(documents).map(([name,text])=>({path:name,text,sha256:sha(path.join(project,name))}))},definitions:{context:{business_goal:'保留结构化共同约束。',shared_constraints:constraints},requirements:[{id:'R1',text:'按账号精确汇总。',origin:{kind:'file',reference:'SPEC.txt:1'},external_refs:[]}]}});
+ const analysis=prepareAnalysis({project_root:project,acceptance_id:id,request_id:'analysis',definitions_sha256:adopted.definitions.sha256});
+ const stages=read(path.join(analysis.folder,'request.frozen.json'));assert.deepEqual(stages.requirements.shared_constraints,constraints);verifyStage(stages);
+ stages.requirements.shared_constraints={original:constraints.original,bounds:constraints.bounds,entry:constraints.entry};verifyStage(stages);
+ stages.requirements.shared_constraints.bounds=[0,1000000001];assert.throws(()=>verifyStage(stages),/shared constraints differ/);
+ const missing=read(path.join(analysis.folder,'request.frozen.json'));delete missing.execution_context;assert.throws(()=>verifyStage(missing),/execution context differs/);
+ const design=prepareScenarios({project_root:project,acceptance_id:id,request_id:'scenarios',target_id:'R1',definitions_sha256:adopted.definitions.sha256});
+ assert.deepEqual(read(path.join(design.folder,'request.frozen.json')).requirements.shared_constraints,constraints);
+ structuredFixture={project,id,definitions_sha256:adopted.definitions.sha256,constraints};
+ h.save('structured-analysis-prepared.json',analysis);h.save('structured-scenarios-prepared.json',design);
+});
+if(h.live)h.test('CONTEXT-STRUCTURED-CLI','真实官方 CLI 的 Analyst 与 Designer 使用完整结构化约束完成各自阶段，不需改冻成字符串',()=>{
+ const {project,id,definitions_sha256,constraints}=structuredFixture;
+ const analysis=h.cli('acceptance-analyze',{project_root:project,acceptance_id:id,request_id:'live-analysis',definitions_sha256},'live-structured-analysis',project,{timeout:300000});h.settled(analysis,'acceptance-analyze','done');
+ const analyzed=read(path.join(project,'.acceptance-local',id,'workflows/analysis/live-analysis/result.json'));assert.equal(analyzed.status,'analyzed');assert.deepEqual(read(analyzed.candidate_definitions.path).context.shared_constraints,constraints);
+ const design=h.cli('acceptance-scenarios',{project_root:project,acceptance_id:id,request_id:'live-scenarios',target_id:'R1',definitions_sha256},'live-structured-scenarios',project,{timeout:300000});h.settled(design,'acceptance-scenarios','done');
+ const designed=read(path.join(project,'.acceptance-local',id,'workflows/scenarios/live-scenarios/result.json'));assert.equal(designed.status,'designed');assert.deepEqual(read(designed.candidate_definitions.path).context.shared_constraints,constraints);
+ assert.equal(sha(path.join(project,'.acceptance',id,'scenarios.json')),definitions_sha256);
+});
 h.save('actual-case-input.json',input);h.finish(['workflows/shared/definitions.mjs','workflows/assess-cases/protocol.mjs','tests/frozen_context.integration.mjs']);

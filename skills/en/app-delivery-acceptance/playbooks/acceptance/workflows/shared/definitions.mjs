@@ -17,6 +17,10 @@ export const fingerprint=value=>createHash('sha256').update(canonical(value)).di
 export const digest=file=>createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 export const content=item=>copyNumbers(item,Object.fromEntries(Object.entries(item).filter(([k])=>!generated.has(k))));
 export const executionContext=context=>copyNumbers(context,Object.fromEntries(Object.entries(context).filter(([k])=>!organization.has(k))));
+// Complete source snapshots are delivered to roles, but their inventory is not
+// an extra business obligation. Normative changes remain in requirements,
+// related references and explicit shared execution constraints.
+const bindingContext=context=>{const execution=executionContext(context);return copyNumbers(execution,Object.fromEntries(Object.entries(execution).filter(([k])=>!['source_documents','required_source_documents'].includes(k))));};
 export const refs=scene=>new Set([...(scene.related_refs??[]),...(scene.requirement_id?[scene.requirement_id]:[])]);
 export function validateDesignGaps(value,owners){
   const gaps=value.design_gaps??[],texts=Object.fromEntries([...value.requirements,...(value.reverse_rules??[])].map(r=>[r.id,r.text??'']));
@@ -91,7 +95,7 @@ function sceneClosure(value,id,legacyContext=false){
   const execution=item=>copyNumbers(item,{...Object.fromEntries(Object.entries(content(item)).filter(([k])=>!metadata.has(k))),external_basis_texts:[...new Set(item.external_refs.map(r=>r.text))].filter(t=>t!==(item.text??item.description)).sort()});
   return {scene:execution(scene),target:targets.has(scene.requirement_id)?execution(targets.get(scene.requirement_id)):null,
     related:[...refs(scene)].filter(r=>r!==scene.requirement_id).sort().map(r=>execution(targets.get(r))),
-    context:legacyContext?value.context:executionContext(value.context)};
+    context:legacyContext?value.context:bindingContext(value.context)};
 }
 export const sceneFingerprint=(value,id,{legacyContext=false}={})=>fingerprint(sceneClosure(value,id,legacyContext));
 export function sceneInput(config,id){
@@ -120,7 +124,10 @@ export function verifyStage(request){
   const value=loadBinding(request);if(!value)return;
   const actual=request.requirements?.items??[],expected=value.requirements;
   if(actual.length!==expected.length||!equal(Object.fromEntries(actual.map(r=>[r.id,r.text])),Object.fromEntries(expected.map(r=>[r.id,r.text]))))throw Error('stage requirements differ from complete frozen definitions');
-  if((request.requirements?.shared_constraints??'')!==(value.context.shared_constraints??''))throw Error('stage shared constraints differ from frozen context');
+  if(fingerprint(request.requirements?.shared_constraints??'')!==fingerprint(value.context.shared_constraints??''))throw Error('stage shared constraints differ from frozen context');
+  if(Object.hasOwn(value.context,'source_documents')||Object.hasOwn(request,'execution_context')){
+    if(fingerprint(request.execution_context??{})!==fingerprint(executionContext(value.context)))throw Error('stage execution context differs from frozen context');
+  }
   if(request.base_revision){
     const existing=request.existing_rules??[];
     if(existing.length!==value.reverse_rules.length||!equal(existing.map(r=>r.id).sort(),value.reverse_rules.map(r=>r.id).sort()))throw Error('reverse stage must retain the complete frozen existing rules');
@@ -160,7 +167,7 @@ export function compareDefinitions(previous,candidate,assessment={}){
     if(semantic&&group==='scenarios'&&after)affected.add(id);
   }
   const contextChanged=Boolean(previous&&!equal(previous.context,candidate.context));
-  const executionChanged=Boolean(previous&&(previous.schema!==schema||!equal(executionContext(previous.context),executionContext(candidate.context))));
+  const executionChanged=Boolean(previous&&(previous.schema!==schema||!equal(bindingContext(previous.context),bindingContext(candidate.context))));
   if(contextChanged)analysis=true;
   if(executionChanged)for(const target of [...candidate.requirements,...candidate.reverse_rules])if(target.status!=='needs_confirmation')changedTargets.add(target.id);
   const dependencies=new Set(changes.filter(c=>c.classification==='definition'&&!c.ref.startsWith('scenarios:')).map(c=>c.ref.slice(c.ref.indexOf(':')+1)));

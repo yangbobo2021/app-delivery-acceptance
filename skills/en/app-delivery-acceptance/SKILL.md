@@ -17,6 +17,8 @@ Freeze relevant original background and operating constraints in the definition 
 
 Before freezing file-based requirements, list the source documents and operating background required by the conversation (for example a README defining the real command). Supply that inventory and the complete byte-matching document text/hash in `source_inputs`; use actual inclusive lines in `origin.file` or `path:line[-line]` references. The freeze workflow verifies the files and embeds their complete snapshots in the downstream execution context. Do not guess line numbers, replace source text with a summary, or put unverified snapshots directly in `context.source_documents`. A workflow cannot discover context omitted from both the host's inventory and explicit input. For oral requirements, retain the actual message wording and locator; no project document is mandatory. See the [input quality contract](playbooks/acceptance/docs/frozen-definitions.md#输入质量检查).
 
+Keep operative shared constraints explicit in `context.shared_constraints` or the relevant bound definitions; this field supports original text or structured JSON. Source snapshots preserve and deliver the full reference material, while an unrelated source inventory addition alone does not invalidate existing business evidence.
+
 ## Prepare and invoke
 
 Prerequisites are Node.js >=22, npm, Git and the chosen Agents' real credentials/runtime. Project test languages/tools are separate project prerequisites; Python is not a Skill runtime requirement.

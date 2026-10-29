@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {locations,inside,ownedAbsolute,requireCurrent,read} from '../shared/store.mjs';
 import {guard,validateStore} from '../shared/validation.mjs';
 import {readKnowledge} from '../shared/knowledge.mjs';
-import {currentBinding,digest,loadBinding,validateDefinitions,fingerprint} from '../shared/definitions.mjs';
+import {currentBinding,digest,loadBinding,validateDefinitions,fingerprint,executionContext} from '../shared/definitions.mjs';
 import {canonical,cloneJson} from '../shared/json.mjs';
 import {createHash} from 'node:crypto';
 const fields=['id','title','description','priority','priority_reason'];
@@ -17,7 +17,7 @@ export function materialize(original){
  const request=cloneJson(original),value=loadBinding(request),mode=request.mode??'create';request.mode=mode;
  if(!['create','edit'].includes(mode))throw Error('scenario mode must be create or edit');
  if(!value){if(mode==='edit')throw Error('scenario edit requires current and previous frozen definitions');return request;}
- Object.assign(request,{requirements:{items:value.requirements,shared_constraints:value.context.shared_constraints??''},reverse_rules:value.reverse_rules,analysis:{...request.analysis,...value.context},user_constraints:value.context.user_constraints??[]});
+ Object.assign(request,{requirements:{items:value.requirements,shared_constraints:value.context.shared_constraints??''},execution_context:executionContext(value.context),reverse_rules:value.reverse_rules,analysis:{...request.analysis,...value.context},user_constraints:value.context.user_constraints??[]});
  const target=request.target_requirement_id,scenes=value.scenarios.filter(s=>s.requirement_id===target).map(cloneJson);request.all_existing_scenarios=cloneJson(value.scenarios);
  const admitted=[...value.requirements,...value.reverse_rules].find(r=>r.id===target);if(!admitted||admitted.status==='needs_confirmation')throw Error('scenario target is absent or still needs confirmation');
  if(!['BLACK_BOX','WHITE_BOX'].includes(request.scenario_kind))throw Error('invalid scenario kind');
