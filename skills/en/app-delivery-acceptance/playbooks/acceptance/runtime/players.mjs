@@ -49,7 +49,7 @@ export function createAgentRuntime({directory,resume=false,role='worker',model,e
   // Business gates consume only final text; intermediate prose is kept in the official journal.
   const queue={values:[],wake:null},id=String(++sequence);pending.set(id,queue);
   let job;
-  if(currentPlayerContext())job=callRole(request,event=>{queue.values.push({kind:'acceptance-player-event',event});queue.wake?.();queue.wake=null;}).then(()=>{queue.values.push({kind:'acceptance-player-end'});queue.wake?.();},error=>{queue.values.push({kind:'acceptance-player-end',error:error.message});queue.wake?.();});
+  if(currentPlayerContext())job=callRole(request,event=>{queue.values.push({kind:'acceptance-player-event',event});queue.wake?.();queue.wake=null;},options.signal).then(()=>{queue.values.push({kind:'acceptance-player-end'});queue.wake?.();},error=>{queue.values.push({kind:'acceptance-player-end',error:error.message});queue.wake?.();});
   else {process.channel?.ref();process.send({kind:'acceptance-player-call',id,request});}
   try{for(;;){if(!queue.values.length)await new Promise(resolve=>queue.wake=resolve);const message=queue.values.shift();if(message.kind==='acceptance-player-end'){if(message.error)throw Error(message.error);break;}yield message.event;}}finally{pending.delete(id);if(!pending.size)process.channel?.unref();await job;}
  }};

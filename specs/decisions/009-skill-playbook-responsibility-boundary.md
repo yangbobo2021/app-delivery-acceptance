@@ -2,6 +2,8 @@
 
 ## 状态
 
+覆盖率准备的项目输入、内部运行资料准备与自主修复由 [DR-013](013-outcome-owned-coverage-preparation.md) 局部修订；其他业务停止边界不变。
+
 用户已明确目标：切清 Skill 辅助脚本与 Playbook 的边界，任一工作流可由 Playbook 命令完整调用。
 已按本边界完成搬迁；独立 npm 安装、标准 CLI 主链路及角色/图片验证通过，范围与限制见[本轮验证记录](../../reviews/skill-playbook-boundary-20261028.md)。
 补充 [DR-007](007-complete-native-workflow-migration.md) 与 [DR-008](008-workflow-owned-source-layout.md)；本轮实施职责切分，不恢复此前停止的六项目验收。

@@ -9,6 +9,7 @@ import {readKnowledge} from '../shared/knowledge.mjs';
 import {coveragePreparation} from '../shared/coverage.mjs';
 import {setCoverageOff} from '../shared/coverage-registry.mjs';
 import {runProcess} from '../shared/process.mjs';
+import {projectCoverageInput} from './project-input.mjs';
 
 const allowed=['project_root','acceptance_id','request_id','definitions_sha256','policy','basis','runtime_manifest','runtime_sha256',
   'inventory_path','inventory_sha256','source_hashes','test_roots','components','expected_measured_sources','prior_attempts','knowledge_paths','preparation_instructions','preparation_timeout_seconds'];
@@ -28,6 +29,11 @@ function verifyCached(result){
 export async function prepareCoverage(input,{signal}={}){
   let spec;
   try{
+    const requestedBudget=input?.preparation_timeout_seconds??(input?.definitions_sha256?900:1800);
+    if(!Number.isSafeInteger(requestedBudget)||requestedBudget<1||requestedBudget>3600)throw Error('Coverage preparation_timeout_seconds must be a finite integer from 1 to 3600');
+    const workflowDeadline=Date.now()+requestedBudget*1000;
+    input=await projectCoverageInput(input,{signal});
+    if(input.unavailable)return {...input,business_tests:'not_executed',product_judgment:'not_performed'};
     spec=begin(input,'coverage',allowed);
     if(spec.completed){
       if(!spec.completed.source_definitions_match_current)return {...spec.completed,status:'stale',reason:'Coverage definitions superseded',historical_report_preserved:true};
@@ -70,23 +76,39 @@ export async function prepareCoverage(input,{signal}={}){
     const config={acceptance:knowledge.acceptance,source_checkout:runtime.workspace,test_roots:value.test_roots};
     acceptanceGuard(config,[spec.folder]);
     return await workspaceLease(config,spec.folder,async({env})=>{
-      const stage=path.join(spec.folder,'preparation'),args=[path.join(packageRoot,'workflows/coverage/roles/preparer.mjs'),requestFile,stage];
-      const observation=await runProcess(process.execPath,args,{cwd:value.project_root,env,
-        output:path.join(spec.folder,'commands/preparation'),timeoutSeconds:preparationBudget,signal});
-      fs.writeFileSync(path.join(spec.folder,'command.json'),json({...observation,executable:process.execPath,preparation_timeout_seconds:preparationBudget}),{flag:'wx'});
-      if(observation.timed_out||observation.cancelled)throw Error('Coverage preparation interrupted; inspect process and file effects before any new attempt; requested budget='+preparationBudget+'s');
-      if(observation.exit_code!==0){
-        const metrics=path.join(stage,'metrics.json'),detail=fs.existsSync(metrics)?read(metrics).error:null;
-        throw Error('Coverage preparation blocked: '+(detail||'No stage diagnostic; inspect command.json and commands/preparation/combined.log')+'; metrics='+metrics);
+      const deadline=workflowDeadline,attempts=[];let stage,observation,sequence=0;
+      for(;;){
+        if(signal?.aborted)throw signal.reason??Error('Coverage preparation cancelled');
+        const remaining=(deadline-Date.now())/1000;
+        if(remaining<=0)throw Error('Coverage preparation budget exhausted; last unresolved issue: '+(attempts.at(-1)?.reason??'not completed'));
+        sequence++;stage=path.join(spec.folder,sequence===1?'preparation':'repairs/'+String(sequence).padStart(4,'0'));
+        fs.mkdirSync(path.dirname(stage),{recursive:true});
+        const attemptRequest=sequence===1?requestFile:path.join(spec.folder,'repair-request-'+sequence+'.json');
+        if(sequence>1)fs.writeFileSync(attemptRequest,json({...request,prior_attempts:[...priors,...attempts.map(x=>x.directory)],repair_feedback:attempts.at(-1),remaining_seconds:remaining}),{flag:'wx'});
+        const args=[path.join(packageRoot,'workflows/coverage/roles/preparer.mjs'),attemptRequest,stage];
+        observation=await runProcess(process.execPath,args,{cwd:value.project_root,env,output:path.join(spec.folder,'commands',sequence===1?'preparation':'repair-'+sequence),timeoutSeconds:remaining,signal});
+        const metricsFile=path.join(stage,'metrics.json'),metrics=fs.existsSync(metricsFile)?read(metricsFile):null;
+        attempts.push({sequence,directory:stage,exit_code:observation.exit_code,reason:metrics?.error??null,status:metrics?.status??'interrupted',command:observation});
+        atomicAttemptLog();
+        if(observation.timed_out||observation.cancelled)throw Error('Coverage preparation interrupted by actual budget or cancellation; unresolved: '+(metrics?.error??'see '+observation.log.path));
+        if(observation.exit_code===0)break;
+        if(!metrics)throw Error('Coverage preparation process could not start; inspect '+observation.log.path);
+        if(metrics.agent_status!=='success')await new Promise(resolve=>setTimeout(resolve,Math.min(1000,Math.max(0,deadline-Date.now()))));
+        // The Agent completed a proposal but actual tool/protocol validation
+        // failed. Repair belongs to this workflow, not to the Skill caller.
       }
+      function atomicAttemptLog(){fs.writeFileSync(path.join(spec.folder,'attempts.json'),json(attempts));}
+      fs.writeFileSync(path.join(spec.folder,'command.json'),json({...observation,executable:process.execPath,preparation_timeout_seconds:preparationBudget,attempts:attempts.map(({command,...item})=>item)}),{flag:'wx'});
       const handoff=read(path.join(stage,'handoff.json'));
+      const prefix=path.relative(spec.folder,stage).split(path.sep).join('/');
+      if(handoff.status==='unavailable')return complete(spec,{status:'unavailable',reason:handoff.reason,limitations:handoff.limitations??[],preparation_directory:stage,attempts:attempts.map(({command,...item})=>item),stopped_after:'coverage_preparation',business_tests:'not_executed',product_judgment:'not_performed'},['request.frozen.json','command.json','attempts.json',prefix+'/handoff.json',prefix+'/metrics.json']);
       if(!['ready','partial'].includes(handoff.status))throw Error('Coverage stage returned no verified handoff');
       const profile=path.join(handoff.prepared,'prepared.json');
       if(sha(profile)!==handoff.prepared_sha256)throw Error('Coverage profile changed before handoff');
       return complete(spec,{status:handoff.status,coverage:{policy:'required',protocol:'project-coverage-v1',prepared:handoff.prepared,prepared_sha256:handoff.prepared_sha256,inventory_path:inventory},
-        stopped_after:'coverage_preparation',business_tests:'not_executed',product_judgment:'not_performed',
+        preparation_directory:stage,attempts:attempts.map(({command,...item})=>item),stopped_after:'coverage_preparation',business_tests:'not_executed',product_judgment:'not_performed',
         runtime:'Node store, runtime, probes and profile verification; official Playbook CLI role execution'},
-        ['request.frozen.json','command.json','preparation/handoff.json','preparation/metrics.json','preparation/workspace-baseline.json','preparation/prepared/prepared.json']);
+        ['request.frozen.json','command.json','attempts.json',prefix+'/handoff.json',prefix+'/metrics.json',prefix+'/workspace-baseline.json',prefix+'/prepared/prepared.json']);
     });
   }catch(error){return failure(spec,error.message,{stopped_after:'coverage_preparation'});}
 }

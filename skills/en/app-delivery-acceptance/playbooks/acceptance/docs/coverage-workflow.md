@@ -1,61 +1,54 @@
-# 独立覆盖率准备与修复
+# 项目覆盖率准备
 
-当用户只要求准备或修复采集器时，调用 `/acceptance-coverage-prepare`，在准备后停止，不启动场景设计、用例或产品测试。
-注册模块为 `workflows/coverage/registry.mjs`。
-先用[独立运行准备](runtime-workflow.md)获得同 AT、同版本的真实运行环境。
+目标是构建可供实际测试用例采集覆盖率的执行环境，或说明不能支持的具体原因和范围。
+项目检查、必要运行准备、工具选择、适配代码、验证与内部修复都属于此工作流。
+它不生成业务需求、场景或用例，也不产生产品通过结论。
 
-## 显式请求
+## 普通调用
 
-```json
-{
-  "project_root": "/absolute/user-project",
-  "acceptance_id": "AT-example",
-  "request_id": "coverage-prepare-1",
-  "definitions_sha256": "<current scenarios.json SHA-256>",
-  "policy": "required",
-  "basis": "用户要求准备采集链，暂不运行用例。",
-  "preparation_instructions": "后续用例通过父进程启动真实 CLI 子进程；准备时验证同一路由，不调用产品内部函数补覆盖。",
-  "runtime_manifest": "/absolute/this-AT/workflows/runtime/attempt/runtime/runtime.json",
-  "runtime_sha256": "<runtime manifest SHA-256>",
-  "inventory_path": "/absolute/this-AT/workflows/inventory.json",
-  "inventory_sha256": "<complete inventory SHA-256>",
-  "source_hashes": {"project/source": "<same frozen inventory digest>"},
-  "test_roots": ["project/tests"],
-  "expected_measured_sources": ["project/source"],
-  "knowledge_paths": []
-}
+通过官方 `playbook run --with overlay.json --no-provision --json` 的 stdin 输入：
+
+```text
+/acceptance-coverage-prepare {"project_root":"/absolute/project"}
 ```
 
-`source_hashes` 必须与完整冻结 inventory 同名字段一致。
-写入目录属于运行环境已验证的测试目录；组件版本从运行环境派生，显式提供 `components` 时必须一致。
-`off` 只用于用户明确关闭；`unavailable` 记录实际原因，两者均要求非空 `basis` 后停止。
-已有工作区启用过必需采集时，明确 off 会在独占边界记录实际关闭策略并保存前后策略；旧必需 catalog 不能继续执行，须交接当前关闭决定。重新启用后旧 off 回执仅为历史，不表示当前仍关闭；采集失败或不可用不会隐式触发这种策略变更。
-修复使用新的 `request_id`，并用 `prior_attempts` 提供同 AT 本机资料内的既有准备目录；前次资料只读。
-准备角色默认预算为 900 秒；确有已确认进展、工具安装或模型耗时依据时，可在新请求中显式给出 `preparation_timeout_seconds`（1–3600 的整数），固定并记录本次预算。扩大预算不代替定位失败、核对旧副作用或有限修正，也不改变就绪判据。
+当前目录就是目标项目时，也可只输入 `/acceptance-coverage-prepare`。
+角色、实际 Agent、模型及认证按[官方配置](independent-workflows.md#注册与调用)准备，不将凭据放入业务输入。
 
-## 执行及通过依据
+项目文档不能说明真实用例启动方式时，可补充 `execution_entry`，例如实际命令、工作目录或测试父进程启动产品子进程的关系。
+`request_id` 可用于明确复用本次请求，省略时创建新准备。
+`acceptance_id` 默认复用当前验收，没有时建立纯技术准备上下文，不虚构业务需求。
+可提供 `source_checkout`、`revision` 指定实际版本，否则检查项目所属 Git checkout 和 HEAD。
+当前实现使用 Git 隔离工作树，非 Git 项目会报告该运行前提缺失。
+“完整验收”“一个场景”“发现实现问题后先不改代码”等由宿主选择和组合入口，不成为采集环境内部禁止修复的条件，见[职责边界](intent-inputs.md)。
 
-1. 核对当前 AT、定义、完整源码、运行时与知识，取得本 AT 独占工作区声明。
-2. Node 工具通过官方 CLI 的独立 `coverage_preparer` 角色检查项目后端、选择成熟工具并提出计划；宿主生成固定协议入口和唯一工具绑定，先实测工具名称与版本。
-3. 宿主冻结项目后端与固定协议代码，用 Node 执行每路由的新零命中、非零命中探针，核对适配器与专用工具对同份只读原生资料输出一致。
-4. 通过最终入口执行每路由的两次零命中和一次非零命中，跑完 `run → finish → verify-report → summarize`；逐次对照独立原生读取，验证全零/混合汇总及指标篡改拒绝。
-5. 完整链路通过后冻结准备及验证证据，执行实际 `verify-preparation`，保存 `ready / partial / blocked` 和限制后停止；失败保留原始资料，不发布就绪交接。
+## 工作流承担的工作
 
-这不代表业务覆盖率或产品通过。
-同请求重入只校验已有绑定，资料变化返回 `stale` 并保留历史，不自动重跑。
-更改采集器后另建准备及下游 catalog，不把旧执行改绑到新准备。
-完整工具约束与激活方式见[项目覆盖率协议](../contracts/project-coverage-protocol.md)。
+- 检查真实依赖、源码和测试入口，形成采集范围及运行方案，实际验证环境。
+- 自主复用、安装或配置工具，生成必要适配器，按真实进程路径验证原生采集、读取及收尾。
+- 将实际环境错误或程序核验失败的诊断交回内部 Agent 继续修复，不以修复次数决定是否允许处理。
+- 返回实际验证的 `ready`、部分能力及限制的 `partial`，或有具体原因的 `unavailable`；认证、取消、资源预算等执行阻塞单独说明，不说成项目本身不支持。
 
-## 证据
+准备数字来自成熟工具，零命中、没有采集及工具不支持的指标保持区别。
+中间命令失败属于准备历史，不直接等于最终失败；成功仍需真实核验，不以 Agent 自述代替可用性。
+适配及探针写入隔离工作树的测试目录，失败和修复资料各自保留。
+项目输入默认总预算为 1800 秒，包含发现、运行资料及采集器核验；已有完整显式绑定的采集准备默认 900 秒。
+实际需要时可显式提供 `preparation_timeout_seconds`（1–3600 秒）。
+这是调用的资源边界，不是修复次数限制；停止时说明实际未解决原因。
 
-`.acceptance-local/<AT>/workflows/coverage/<request_id>/` 保留请求、实际命令与输出、工作区基线、原答与 CLI 会话、每次宿主检查、探针收据、原生数据、冻结副本及准备回执。
-`backend-binding.json` 和 `tool-check.*` 记录通用入口、后端命令及真实工具核验；`lifecycle/lifecycle-gate.json` 绑定最终入口、命令、收尾报告、重算、汇总及原生证据，不能只用旧的采集探针声明准备就绪。
-新后端只提供 `tools / run / read`；同一个 read 负责单组和多组原生统计，避免单次读取和合并时的初始化方式不同。
+## 已有验收的精确绑定
 
-`preparation_instructions` 是可选的本次准备要求，非空文本随请求冻结并完整传递给准备角色；`basis` 记录策略依据。未提供时按实际项目材料准备，不凭空补出用户要求。
-工具原生数值指标均可被核验；行或分支不支持时保留原因。没有可测源码及路由时只保存 `partial` 证明，不能发布 `ready`。
-固定 Node 入口拥有准备核验、收尾封装、报告一致性判断及汇总交接；原始文件哈希与工具稳定指标必须一致，生成时间和展示描述不参与比较。
-核对实际退出码、原生哈希、零/非零输出、旧失败保留及业务测试未运行，不仅依据角色自报或命令成功。
-Node 不自行识别覆盖单位或计算分母。
-该入口的身份、知识、运行时、探针及准备协议校验已使用 Node；正式采集、原生资料复核、注册和专用工具汇总也已提供 Node 工具。项目本身的覆盖率工具仍按项目真实依赖执行，例如 Python 项目使用 coverage.py；Skill 正常业务调度与校验不依赖 Python；被测 Python 项目及 coverage.py 自身仍需要项目的 Python。
-服务与标准命令的范围见[运行边界](native-cli-boundaries.md)。
+组合流程已有运行资料时，仍可显式提供 `project_root`、`acceptance_id`、`request_id`、`definitions_sha256`、`runtime_manifest/runtime_sha256`、`inventory_path/inventory_sha256`、`source_hashes`、`test_roots` 和 `policy:required`。
+可补充实际进程事实 `preparation_instructions`、`expected_measured_sources` 或只读 `prior_attempts`，不重复发现仍有效的资料。
+这些是机器交接能力，不是普通用户输入要求。
+显式关闭使用 `policy:off` 及真实依据，不在准备失败后自动改为 off。
+
+## 结果与记录
+
+项目发现资料位于 `.acceptance-local/<AT>/workflows/coverage-inputs/<request>/`，运行记录由同 AT 的运行准备模块保存。
+采集准备位于 `workflows/coverage/<request>/`，保留请求、`attempts.json`、命令、原答、原生数据及核验。
+首个尝试在 `preparation/`，后续内部修复在 `repairs/<序号>/`；结果 `preparation_directory` 指向最终交接来源，不覆盖旧尝试。
+成功的 `coverage.prepared/prepared_sha256` 交给项目及执行工作流使用。
+同请求复用核对已有不可变资料；只提供项目时，也可重新核验当前验收中仍适用的就绪配置，避免重复发现和生成。
+显式提供新 `request_id` 可发起新准备；源码或工具变更使旧环境失效时继续准备，不改写历史。
+协议细节见[项目覆盖率协议](../contracts/project-coverage-protocol.md)。

@@ -34,6 +34,7 @@ meta.md       SPEX 原生规约规则
 | [DR-009](decisions/009-skill-playbook-responsibility-boundary.md) | 009-skill-playbook-responsibility-boundary.md | Skill 对话接入与完整独立 Playbook 包的职责、依赖和命令验收边界 |
 | [DR-010](decisions/010-deterministic-coverage-protocol.md) | 010-deterministic-coverage-protocol.md | 固定覆盖率协议、唯一工具元数据及项目工具后端边界 |
 | [DR-012](decisions/012-project-command-generality.md) | 012-project-command-generality.md | 项目命令透明传递、非语义门槛移除及泛化优先 |
+| [DR-013](decisions/013-outcome-owned-coverage-preparation.md) | 013-outcome-owned-coverage-preparation.md | 宿主意图筛选、项目级覆盖率输入及内部自主修复 |
 | [DR-011](decisions/011-coverage-readiness-and-recount.md) | 011-coverage-readiness-and-recount.md | 固定报告核验、工具原生重算及就绪前完整调用链验证 |
 
 ## 规约包

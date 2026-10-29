@@ -18,7 +18,7 @@
 | `/acceptance-reverse` | `workflows/reverse/registry.mjs` | [提交／PR 逆向分析](reverse-workflow.md)，物化完整清单、规则候选和待确认问题后停止。 |
 | `/acceptance-runtime` | `workflows/runtime/registry.mjs` | [独立运行准备](runtime-workflow.md)，角色提出计划、宿主真实安装并复验 smoke 后停止。 |
 | `/acceptance-find-cases` | `workflows/find-cases/registry.mjs` | [静态查找与关联](find-cases-workflow.md)，只读查找、宿主核验 ID 并发布未执行关联。 |
-| `/acceptance-coverage-prepare` | `workflows/coverage/registry.mjs` | [独立覆盖率准备及修复](coverage-workflow.md)，执行新探针并冻结准备后停止，不运行业务用例。 |
+| `/acceptance-coverage-prepare` | `workflows/coverage/registry.mjs` | [项目覆盖率准备](coverage-workflow.md)，从项目或当前目录自行发现资料、准备并修复采集环境，返回就绪或实际限制，不运行业务用例。 |
 | `/acceptance-cases` | `workflows/cases/registry.mjs` | [动态查找／复用／生成](cases-workflow.md)，实际调试并独立评估后停止，不正式执行。 |
 | `/acceptance-execute` | `workflows/execute/registry.mjs` | [正式执行及指定 TC 重跑](execute-workflow.md)，冻结真实证据并独立复审，保留完整场景与部分重跑的结论边界。 |
 

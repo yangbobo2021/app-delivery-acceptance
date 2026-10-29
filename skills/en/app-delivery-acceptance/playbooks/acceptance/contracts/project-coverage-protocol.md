@@ -1,6 +1,6 @@
 # 项目覆盖率准备与通用协议
 
-覆盖率工具选择是**独立覆盖率准备 Agent** 的职责，且只在本次验收要求覆盖率时运行。它消费先前独立运行环境 Agent 冻结的 `runtime.json`，根据实际语言、框架、编译链、运行进程和现有测试入口选择成熟工具，在项目测试树中实现配置与调用适配，并实测其采集、零命中单位、导航/子进程和可靠收尾能力。它不运行任何业务验收场景。不能因为 Skill 未附带某语言实现就结束准备；确实无法采集时保存实际尝试与具体缺口。换验收 ID 时先读项目知识，重建并验证本次环境，再验证或重建覆盖率适配，不复用旧 ID 的安装物或探针通过结论。
+覆盖率工具选择是**独立覆盖率准备 Agent** 的职责，且只在本次验收要求覆盖率时运行。它消费本工作流内部准备或显式交接的已验证 `runtime.json`，根据实际语言、框架、编译链、运行进程和现有测试入口选择成熟工具，在项目测试树中实现配置与调用适配，并实测其采集、零命中单位、导航/子进程和可靠收尾能力。它不运行任何业务验收场景。不能因为 Skill 未附带某语言实现就结束准备；确实无法采集时保存实际尝试与具体缺口。换验收 ID 时先读项目知识，重建并验证本次环境，再验证或重建覆盖率适配，不复用旧 ID 的安装物或探针通过结论。
 
 通用 Skill 不注册语言、工具品牌或项目类型白名单，也不推断产品入口。它验证冻结输入、目录、工具来源、执行收据、场景/版本关联与证据字节，再调用项目入口。项目适配只可调用成熟工具、管理生命周期、转换格式/路径和绑定证据；覆盖率单位识别、命中、分母、合并和统计仍由专用工具完成。具体工具和依赖、夹具导入、命令、源码分类及支持范围属于项目准备和项目知识，不写进通用 Skill。
 
@@ -25,9 +25,9 @@
 每次改变源码、工具、适配器、配置或统计范围都新建准备目录与 catalog，保留旧资料。prep spec 的 `coverage_test_files` 声明所有适配器及必要测试夹具；宿主冻结哈希并自动绑定到每次调试和正式执行。
 覆盖率准备 Agent 用 `adapter_paths` 声明复用及创建的适配器依赖。宿主在产品源码、版本及授权测试目录检查通过后，以实际工作区差异自动补齐新增或修改的测试文件，保存声明与自动发现清单，并在探针前逐一哈希冻结。模型未重复列出某个已授权修改不应导致重新调用角色；越界、产品变更、删除既有测试或冻结后漂移仍应阻塞。
 
-激活准备前，按现有测试入口/进程的不同采集路由，用最少的隔离非业务探针检查零命中和非零命中。运行 `node <package>/tools/coverage-probes.mjs run <probe-plan.json> <new-output-dir>`；计划是 `project-coverage-probe-plan-v1`，列出每路由的源码、零/非零探针的 `collect / adapter / direct` 三条 argv。首个程序必须是运行环境 manifest 中验证过的执行器；项目命令可以使用 `{raw_dir}`、`{probe_dir}`、`{workspace}` 占位。采集器写入非空原生数据，适配器与专用工具直接读取**同一份只读原生数据**，分别向 stdout 输出 `coverage-probe-normalized-v1` JSON；通用门禁只比较它们的源码路径、指标和数值，不自行计算覆盖率单位。零命中要求至少一个真实非零分母且所有实测命中为零；非零命中要求至少一个命中大于零。空原生数据经 source map 转换显示 100% 必须被挡下。探针计划、命令/退出码、两份输出、原生哈希及首次失败都留在本 ID 的 local 工作流目录。发现矛盾时新建准备尝试后复测，不发布该范围为 `measured`。还要用轻量的失败路径证明“采集路由未启动、原生快照缺失或收尾未完成”与“路由已运行但计数为零”可区分；前者的受影响文件/指标应为 `incomplete` 或 `unavailable` 并说明缺口，不能借零命中基线显示为实测 0%。失败路径不执行业务场景，原始输出与重验结果留在本 ID 的 local 目录。
+激活准备前，按现有测试入口/进程的不同采集路由，用最少的隔离非业务探针检查零命中和非零命中。运行 `node <package>/tools/coverage-probes.mjs run <probe-plan.json> <new-output-dir>`；计划是 `project-coverage-probe-plan-v1`，列出每路由的源码、零/非零探针的 `collect / adapter / direct` 三条 argv。程序按实际 cwd/PATH 执行并记录解析结果；项目命令可以使用 `{raw_dir}`、`{probe_dir}`、`{workspace}` 占位。采集器写入非空原生数据，适配器与专用工具直接读取**同一份只读原生数据**，分别向 stdout 输出 `coverage-probe-normalized-v1` JSON；通用门禁只比较它们的源码路径、指标和数值，不自行计算覆盖率单位。零命中要求至少一个真实非零分母且所有实测命中为零；非零命中要求至少一个命中大于零。空原生数据经 source map 转换显示 100% 必须被挡下。探针计划、命令/退出码、两份输出、原生哈希及首次失败都留在本 ID 的 local 工作流目录。发现矛盾时新建准备尝试后复测，不发布该范围为 `measured`。还要用轻量的失败路径证明“采集路由未启动、原生快照缺失或收尾未完成”与“路由已运行但计数为零”可区分；前者的受影响文件/指标应为 `incomplete` 或 `unavailable` 并说明缺口，不能借零命中基线显示为实测 0%。失败路径不执行业务场景，原始输出与重验结果留在本 ID 的 local 目录。
 
-公开调用入口为官方 Playbook CLI 的 `/acceptance-coverage-prepare`，输入与停止点见[独立覆盖率工作流](../docs/coverage-workflow.md)；内部 preparer 脚本由工作流调用，不由 Skill 宿主直接调度。工作流冻结的内部请求 `project-coverage-agent-request-v1` 至少包含本 ID 最新的 `acceptance` 知识读取绑定、`runtime_manifest / runtime_sha256`、完整 `source_hashes`、`inventory_path / inventory_sha256 / registry_path`、`test_roots`；Agent 输出项目适配器和探针计划，工作流的 Node 宿主实际执行上述探针、冻结准备文件并调用 `coveragePreparation()`。本次新知识读取凭证可以比运行环境创建时的新，但 ID 和 scope 必须一致。Agent **不得直接修改共享知识**；它只提出 `knowledge_candidate`，宿主在探针和准备文件通过核验后审查，再写入项目 `.acceptance/knowledge` 并通过分层索引校验。结果 `handoff.json` 明确 `ready / partial`、准备路径/摘要、运行环境路径/摘要、探针路径和限制；失败时保留 `agent.jsonl`、首次回答、探针与 gate 输出及 `metrics.json`，状态为 `blocked`。实际安装物和探针留在本次验收 local。零/非零探针只证明采集能力，后续业务用例仍须按下述 `run → finish → verify-report → summarize` 逐次采集和验证，探针数字不得算入业务结果。
+公开调用入口为官方 Playbook CLI 的 `/acceptance-coverage-prepare`，输入与停止点见[独立覆盖率工作流](../docs/coverage-workflow.md)；内部 preparer 脚本由工作流调用，不由 Skill 宿主直接调度。工作流冻结的内部请求 `project-coverage-agent-request-v1` 至少包含本 ID 最新的 `acceptance` 知识读取绑定、`runtime_manifest / runtime_sha256`、完整 `source_hashes`、`inventory_path / inventory_sha256 / registry_path`、`test_roots`；Agent 输出项目适配器和探针计划，工作流的 Node 宿主实际执行上述探针、冻结准备文件并调用 `coveragePreparation()`。本次新知识读取凭证可以比运行环境创建时的新，但 ID 和 scope 必须一致。Agent **不得直接修改共享知识**；它只提出 `knowledge_candidate`，宿主在探针和准备文件通过核验后审查，再写入项目 `.acceptance/knowledge` 并通过分层索引校验。结果 `handoff.json` 明确 `ready / partial / unavailable`、准备路径/摘要、运行环境路径/摘要、探针路径和限制；失败时保留 `agent.jsonl`、首次回答、探针与 gate 输出及 `metrics.json`，状态为 `blocked`。实际安装物和探针留在本次验收 local。零/非零探针只证明采集能力，后续业务用例仍须按下述 `run → finish → verify-report → summarize` 逐次采集和验证，探针数字不得算入业务结果。
 
 若本项目有明确预期可测的源码，请求可给 `expected_measured_sources`（冻结 `source_hashes` 中的路径）。Agent 须针对这些文件验证已有方法、尝试修正或替代，并给出零命中、定向命中及独立读取依据；不能把首次工具失败直接当作项目不支持。`handoff.json` 同时列出目标与 `unmet_expected_sources`，供宿主核对本项目准备目标。它不改变 `partial` 的通用含义，其他项目可以按自己的范围接受部分采集。准备探针通过后，宿主还须使用实际用例入口检查 `run → finish → verify-report → summarize`，确认目标源码在真实用例的同次原生数据中有可信指标，然后才宣称该项目目标已实现。
 
@@ -35,7 +35,7 @@
 
 准备 Agent 的实际输入同时包含完整的 [覆盖率工具规约](coverage-tool-contract.md)。项目适配器与独立读取器均应使用专用工具的原生报告或受支持统计入口；读取工具内部 parser、原始行或 arcs 后自行计算分母与命中仍不符合规约。宿主检查最终 argv、运行 cwd 和源码路径绑定，并以真实零/非零探针及完整准备验证决定是否就绪。
 
-首次准备失败不等于项目无法采集。调用方先查看失败收据和已冻结的适配器，再用新尝试目录及 `prior_attempts` 交给同一职责的 Agent 做有依据的最小修正，复用已验证环境，不重新安装或推翻已有路线。连续两次修正后先衡量进展、用户影响和替代入口；有明确小缺口且正在收敛时才继续，避免无界重试。仍失败的路由与范围保留为具体限制；不得改成 `ready`、擅自关闭用户要求的覆盖率，或用人工修好的适配器冒充 Agent 自主准备成功。宿主在运行探针之前冻结源码、适配器和哈希清单，失败尝试也可复现；后续探针及完整准备核验仍须确认活跃文件没有改变。
+首次准备错误不等于项目无法采集。工作流内部将实际失败收据、冻结适配器及原生资料交回准备 Agent，自主诊断、修复并重新验证，不要求 Skill 宿主另发修复请求，不设置修复次数配额。失败资料保留，可用的运行环境和既有方法由 Agent 按实际情况复用。确实无法支持的路由和范围说明具体原因；实际预算耗尽或取消说明未解决状态，不伪造 `ready` 或擅自关闭用户要求的覆盖率。宿主在运行探针之前冻结源码、适配器和哈希清单，失败尝试也可复现；后续探针及完整准备核验仍须确认活跃文件没有改变。
 
 catalog 的 `coverage` 使用：
 
