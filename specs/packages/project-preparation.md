@@ -25,6 +25,7 @@
 当首次准备 SKILL 自身依赖时，准备入口应安装并核对仓库锁定的依赖，后续复用已验证安装，不要求被测项目或系统全局承担这些工具依赖。
 
 - 并发复核可有界等待已确认活动的安装归属正常释放，不抢占未知、遗留或仍活动的声明。
+- 复用安装时应核对实际 Playbook 与 SPEX 命令链接解析到本包已验证依赖中的对应入口；复制安装物后链接仍指向旧目录或源码仓库时，应拒绝就绪复用并以锁定安装修复。
 
 ### project-preparation-4
 
@@ -101,6 +102,8 @@
 ### project-preparation-17
 
 当验证 Node 依赖准备入口时，集成测试应核对锁定的本地安装、重复复核、损坏后修复及失败不发布就绪 [[project-preparation-3](#project-preparation-3)]，并核对外部符号链接和活跃安装声明被拒绝，控制进程夹具与真实包安装证据应分别标明。
+
+- 实际安装树的命令路径验证应覆盖相对链接的有效复用、同版本但指向源码目录的链接拒绝及修复后复核 [[project-preparation-3](#project-preparation-3)] [runtime_cli_isolation.integration.mjs](../../tests/runtime_cli_isolation.integration.mjs)。
 
 ### project-preparation-18
 

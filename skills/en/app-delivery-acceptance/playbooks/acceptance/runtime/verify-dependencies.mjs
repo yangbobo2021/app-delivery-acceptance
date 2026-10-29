@@ -1,6 +1,6 @@
 // No bootstrap import here: the preparer uses this probe before marking an install ready.
 import {readFileSync, realpathSync} from 'node:fs';
-import {dirname, join, relative} from 'node:path';
+import {dirname, join, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
 import {createRequire} from 'node:module';
@@ -9,6 +9,13 @@ import {installedPackage} from './installed.mjs';
 const root = fileURLToPath(new URL('..',import.meta.url));
 const modules = join(root, 'node_modules');
 const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+const cliPaths={};
+for(const [name,packageName]of [['playbook','@sublang/playbook'],['spex','@sublang/spex']]){
+  const dependency=installedPackage(packageName),declared=typeof dependency.manifest.bin==='string'?dependency.manifest.bin:dependency.manifest.bin?.[name];
+  const actual=realpathSync(join(modules,'.bin',name)),expected=realpathSync(join(dependency.root,declared));
+  if(!actual.startsWith(realpathSync(modules)+sep)||actual!==expected)throw Error('Package CLI alias resolves outside its verified local dependency tree: '+name);
+  cliPaths[name]=actual;
+}
 const versions = {};
 const locked=JSON.parse(readFileSync(join(root,'npm-shrinkwrap.json'),'utf8'));
 for (const [name, expected] of Object.entries(manifest.dependencies)) {
@@ -49,4 +56,4 @@ if (selectedAgent==='claude-code') {
   claudeVersion=execFileSync(binary,['--version'],{encoding:'utf8',timeout:30000}).trim();
 }
 const opencodeVersion=selectedAgent==='opencode'?execFileSync('opencode',['--version'],{encoding:'utf8',timeout:30000}).trim():null;
-console.log(JSON.stringify({versions, spexVersion, codexVersion, claudeVersion, opencodeVersion, selectedAgent:selectedAgent??null, modules}));
+console.log(JSON.stringify({versions, spexVersion, codexVersion, claudeVersion, opencodeVersion, selectedAgent:selectedAgent??null, modules,cliPaths}));
