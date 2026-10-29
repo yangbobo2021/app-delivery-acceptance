@@ -11,6 +11,7 @@ import {acceptanceGuard, knowledgeContext} from '../../shared/guard.mjs';
 import {workspaceSnapshot,verifyAllowedChanges} from '../../shared/workspace.mjs';
 import {materializeCoverageEntry} from '../protocol/materialize.mjs';
 import {runLifecycleGate} from '../protocol/lifecycle.mjs';
+import {freezeAdapterFiles} from '../protocol/adapters.mjs';
 import {runtimeEnvironment} from '../../shared/runtime.mjs';
 
 const [requestArg, outputArg] = process.argv.slice(2);
@@ -100,7 +101,7 @@ run 接收实际冻结会话的 cwd、command、env、output；通过成熟工�
 read 是唯一统计实现，同时处理一组及多组原生数据：接收 {groups:[{status:"measured|incomplete",raw_evidence:[{path:已解析的同哈希文件路径,original_path,sha256,role}]}],sources:{"冻结相对源码":"当前实际文件"},project_root,inventory,output,tools}。调用工具公开报告/合并 API，响应 {tools:request.tools,status:"measured|incomplete",components:[{id,source_paths,line,branch}],scopes:{project:{status,components,...工具实际总计},changed_files:{...},changed_lines:{...}},derived_evidence:[{path,sha256,role}]}。project.components 必须与顶层 components 相同；所有派生资料只写 request.output。输入已经解析同哈希映射，不需要再实现 artifact_map 或框架来源校验。不能回显旧指标；不得从原生 arcs 自算计数，不能对不同操作分别编写统计路径。全零、多组全零及零/非零混合均须保留工具的真实分母与分支模式；缺字段不能补造0或自造命中单位。无数据/收尾不完整须保持 incomplete。源码相对路径按冻结 project_root 规范化，不依赖调用者 cwd。异常保留完整堆栈。
 交付 entry 为实际后端 argv，执行器和脚本为本次 workspace 内绝对路径，不留占位符。协议及统计字段以当前合同为准，不复用旧后端私有请求。
 
-写入项目测试目录内的适配器/配置/探针助手（不可写产品源码），并只使用上面运行环境的已验证执行器调用轻量**非业务**探针。adapter_paths 必须列全这些项目脚本、配置和必要夹具，也必须包含本阶段修改过的全部受版本控制测试文件，即便其中某个文件只是自检助手；每个路径都必须位于请求声明的 test_roots 内；项目根目录的依赖清单或源码不能填入 adapter_paths，它们分别由运行环境和源码清单绑定。宿主会冻结适配器哈希及归档副本。**绝对不要修改 .acceptance/knowledge、任何 INDEX.md 或共享验收知识；只在回答中提出 knowledge_candidate，待探针与宿主核验通过后由宿主发布。**每条不同进程/测试入口路由分别准备零命中和非零命中探针。宿主在每个 collect 前已经创建 {raw_dir}，collect 只能向其中写入原生数据，不得再用 exist_ok=False 创建它。adapter/direct 必须只读 {raw_dir}，所有派生文件只能写到 {probe_dir} 的其他位置或 stdout；宿主会检查 raw 目录在两个 reader 后逐字节不变。零命中必须有非空原生数据及非零分母而 covered=0；非零命中须有 covered>0。每个探针先采集原生数据，再让项目适配器与专用工具直接从同一原生数据独立输出规范化 JSON，二者源码路径、指标、数值须一致。直接工具读取命令不得调用适配器。若某部分无法验证，标记 unsupported 并给出真实尝试依据，不能把它称为 measured。保留首次异常和重试原始资料；探针只证明采集链路，不得算业务覆盖率。
+写入项目测试目录内的适配器/配置/探针助手（不可写产品源码），并只使用上面运行环境的已验证执行器调用轻量**非业务**探针。adapter_paths 应列明复用或创建的项目脚本、配置和必要夹具；宿主另以实际工作区差异自动补齐本阶段新增或修改的测试文件，记录自动补齐依据并逐一冻结，不依赖模型列全文件名。不得删除已有测试文件；每个路径都必须位于请求声明的 test_roots 内；项目根目录的依赖清单或源码不能填入 adapter_paths，它们分别由运行环境和源码清单绑定。宿主会冻结适配器哈希及归档副本。**绝对不要修改 .acceptance/knowledge、任何 INDEX.md 或共享验收知识；只在回答中提出 knowledge_candidate，待探针与宿主核验通过后由宿主发布。**每条不同进程/测试入口路由分别准备零命中和非零命中探针。宿主在每个 collect 前已经创建 {raw_dir}，collect 只能向其中写入原生数据，不得再用 exist_ok=False 创建它。adapter/direct 必须只读 {raw_dir}，所有派生文件只能写到 {probe_dir} 的其他位置或 stdout；宿主会检查 raw 目录在两个 reader 后逐字节不变。零命中必须有非空原生数据及非零分母而 covered=0；非零命中须有 covered>0。每个探针先采集原生数据，再让项目适配器与专用工具直接从同一原生数据独立输出规范化 JSON，二者源码路径、指标、数值须一致。直接工具读取命令不得调用适配器。若某部分无法验证，标记 unsupported 并给出真实尝试依据，不能把它称为 measured。保留首次异常和重试原始资料；探针只证明采集链路，不得算业务覆盖率。
 
 准备只证明实际验证过的进程拓扑，不代表任意后续入口均已支持。若后续用例由测试父进程启动 CLI、服务或其他产品子进程，非零生命周期探针必须由同类最小父进程启动真实产品子进程；不能只将产品 CLI 本身作为 coverage 的直接入口后就声称父→子采集可用。父进程不得 import 产品或调用内部函数来补命中。保存各进程原生快照、实际父/子启动命令与独立工具读取结果，证明命中来自产品子进程。特别验证当前工具的实际安装位置和启动钩子是否对新子进程生效；仅把 --target 目录加入 PYTHONPATH 不等于 .pth 已被 Python 执行。若后续入口尚未知，明确已验证与未验证的拓扑；后续调试发现差异应新建覆盖率准备，不能改业务入口求命中。
 
@@ -138,26 +139,10 @@ try {
   const answer = JSON.parse(raw.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, ''));
   if (typeof answer.knowledge_candidate !== 'string') throw Error('Coverage Agent omitted knowledge candidate');
   writeFileSync(join(output, 'knowledge-candidate.md'), answer.knowledge_candidate + '\n');
-  if (!Array.isArray(answer.adapter_paths) || !answer.adapter_paths.length) throw Error('Agent omitted project adapters');
-  const adapters = {};
-  if (!Array.isArray(request.test_roots) || !request.test_roots.length) throw Error('Coverage test roots missing');
-  const allowedRoots = request.test_roots.map(name => resolve(runtime.workspace, name));
-  for (const name of answer.adapter_paths) {
-    if (typeof name !== 'string' || isAbsolute(name) || name.split('/').includes('..')) throw Error('Adapter path escapes workspace');
-    if (name in sourceHashes) throw Error('Coverage adapter cannot be frozen product source');
-    const path = resolve(runtime.workspace, name);
-    if (relative(runtime.workspace, path).startsWith('..')) throw Error('Adapter path escapes workspace');
-    if (!allowedRoots.some(root => path === root || path.startsWith(root + '/'))) throw Error('Adapter path is outside declared test roots');
-    if (!allowedRoots.some(root => realpathSync(path).startsWith(realpathSync(root) + '/')))
-      throw Error('Adapter resolves outside declared test roots');
-    adapters[name] = hash(readFileSync(path));
-  }
-  const omitted = modifications.changes.filter(name =>
-    allowedRoots.some(root => {
-      const file = resolve(runtime.workspace, name);
-      return file === root || file.startsWith(root + '/');
-    }) && !(name in adapters));
-  if (omitted.length) throw Error('Coverage Agent omitted changed test files from adapter_paths: ' + omitted.join(', '));
+  const frozenAdapters=freezeAdapterFiles({workspace:runtime.workspace,testRoots:request.test_roots,
+    sourceHashes,declaredPaths:answer.adapter_paths,modifiedPaths:modifications.changes});
+  const adapters=frozenAdapters.files;
+  writeFileSync(join(output,'adapter-discovery.json'),JSON.stringify(frozenAdapters.discovery,null,2)+'\n');
   const protocolEntry = materializeCoverageEntry({workspace:runtime.workspace,testRoots:request.test_roots,
     attempt:output,entry:answer.entry,tools:answer.tools,adapterFiles:{...adapters},sourceHashes,revision:runtime.revision,executionEnv:runtimeEnvironment(runtime)});
   for (const name of protocolEntry.paths) adapters[name] = hash(readFileSync(resolve(runtime.workspace,name)));
@@ -227,7 +212,8 @@ try {
       inventory_path: request.inventory_path, inventory_sha256: hash(readFileSync(request.inventory_path)),
       registry_path: request.registry_path, runtime_manifest: runtimePath,
       runtime_sha256: request.runtime_sha256, probe_report: probePath, probe_report_sha256: hash(readFileSync(probePath))},
-    preparation_evidence: [{path: planPath, sha256: hash(readFileSync(planPath))},
+    preparation_evidence: [{path:join(output,'adapter-discovery.json'),sha256:hash(readFileSync(join(output,'adapter-discovery.json'))),role:'adapter_discovery'},
+      {path: planPath, sha256: hash(readFileSync(planPath))},
       {path: probePath, sha256: hash(readFileSync(probePath))}],
     artifact_aliases: artifactAliases};
   // Candidate identity is frozen before certification; the final profile binds
