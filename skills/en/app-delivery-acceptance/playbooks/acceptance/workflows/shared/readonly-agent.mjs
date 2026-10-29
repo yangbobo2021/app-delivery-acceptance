@@ -3,7 +3,7 @@ import {finalMessage} from '../../runtime/final-message.mjs';
 // provider sessions. Business JSON is submitted verbatim to deterministic gates;
 // it is never reparsed by a second model as a generic developer outcome.
 import {randomUUID} from 'node:crypto';
-export function readonlyAgentRegistry({id,role,intent,prepare,finalize,fail,advisory=false}){
+export function readonlyAgentRegistry({id,role,intent,prepare,finalize,fail,advisory=false,resultSchema}){
  const validateOptions=(value={})=>{if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length)throw Error(id+' accepts no config options');return {};};
  function createRuntime(_options,capabilities){
   let session,position='ready',result=null,sequence=0,turn=0,calls=0,spec=null;
@@ -22,7 +22,7 @@ export function readonlyAgentRegistry({id,role,intent,prepare,finalize,fail,advi
      else{
       let answer=spec.savedAnswer;
       if(!answer){await transition('perform');const callId='player-'+(++calls),stepId=randomUUID(),resume=session.playerSessions?.select(role)??false;await session.ports.recordStep?.({id:stepId,kind:'player',stateId:'perform'},snapshot());await trace('player.call.started',{stateId:'perform',sourceItem:id,roleId:role,playerId:session.roleBindings[role].playerId,resume},callId);
-       const final=finalMessage(),structured=session.roleBindings[role]?.agent?.adapter==='opencode';const response=await session.ports.callPlayer(role,spec.prompt+(structured?'\nUse native StructuredOutput: place the complete required JSON object inside result.':''),signal,{resume,nativeSkills:false,onEvent:event=>final.observe(event),...(structured?{outputSchema:{type:'object',additionalProperties:true}}:{})});if(response.resumeToken)session.playerSessions?.update(role,response.resumeToken);await trace('player.call.finished',{stateId:'perform',sourceItem:id,roleId:role,playerId:session.roleBindings[role].playerId,resume,...response},callId);await session.ports.recordStep?.({id:stepId,kind:'player',stateId:'perform',result:response},snapshot());
+       const final=finalMessage(),structured=session.roleBindings[role]?.agent?.adapter==='opencode';const response=await session.ports.callPlayer(role,spec.prompt+(structured?'\nUse native StructuredOutput: place the complete required JSON object inside result.':''),signal,{resume,nativeSkills:false,onEvent:event=>final.observe(event),...(structured?{outputSchema:resultSchema?resultSchema(spec):{type:'object',additionalProperties:true}}:{})});if(response.resumeToken)session.playerSessions?.update(role,response.resumeToken);await trace('player.call.finished',{stateId:'perform',sourceItem:id,roleId:role,playerId:session.roleBindings[role].playerId,resume,...response},callId);await session.ports.recordStep?.({id:stepId,kind:'player',stateId:'perform',result:response},snapshot());
        if(response.status!=='ok'||typeof response.finalText!=='string'||!response.finalText.trim())throw Error(response.error??'Official Player did not submit a complete raw answer');answer=final.select(response).text;
       }
       await transition('finalizing');result=await finalize(spec,answer);

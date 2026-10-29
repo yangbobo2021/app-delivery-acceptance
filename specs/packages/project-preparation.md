@@ -92,6 +92,8 @@
 
 当验证独立运行准备入口时，集成测试应通过真实官方 CLI 的独立准备角色核对项目数据选型 [[project-preparation-4](#project-preparation-4)]、宿主实际安装和非业务 smoke [[project-preparation-11](#project-preparation-11)]、执行器及原始收据 [[project-preparation-5](#project-preparation-5)]、相同环境不重复安装 [[project-preparation-6](#project-preparation-6)] 和新 AT 独立核验 [[project-preparation-7](#project-preparation-7)]。
 
+- 所选 Agent 的原生运行方案提交应核对完整字段、真实知识逻辑键及命令参数合同，格式符合后仍须通过实际安装和轻量验证 [acceptance_runtime.integration.mjs](../../tests/acceptance_runtime.integration.mjs)。
+
 ### project-preparation-16
 
 当验证官方命令和角色端口时，集成测试应通过真实角色调用核对显式 Agent、模型与服务 [[project-preparation-1](#project-preparation-1)]、同会话继续及绑定变化拒绝 [[project-preparation-2](#project-preparation-2)]，并分别保存实际工具操作、原生 JSON 回执和冻结图像交接的适用配置及未验证组合 [[project-preparation-9](#project-preparation-9)]。
