@@ -33,3 +33,7 @@ Node 工具验证查找原文、取舍、正式测试树及永久 ID；原 Agent
 
 产物在 `.acceptance-local/<AT>/workflows/cases/<request_id>/`：冻结输入、catalog/guide 副本、查找检查点、调试原生资料、原答与正式 ID、独立评估、实际命令输出及结果。
 就绪回执给出下一入口的 case_input、case_answer、catalog、guide 和永久 TC IDs；候选代码留在本 AT 工作区，不冒称已集成开发主干。
+
+`blocked` 是本次准备的真实结果，不自动结束调用者的完整验收目标。
+例如真实用例已跑通但既有覆盖率 profile 漏采产品子进程时，宿主按[跨工作流接续](intent-inputs.md#跨工作流接续)将实际路径和失败证据交回覆盖率准备，再绑定新 profile 并为原场景调用新的 cases 请求，优先复用已有测试和永久 TC。
+不要重入原已完成请求期待它改变结果，也不要直接改写旧 profile 或通过用例改成内部函数调用来补覆盖率。

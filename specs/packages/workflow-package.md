@@ -22,6 +22,10 @@
 
 当处理项目命令及阶段交接数据时，工作流包应根据实际执行与可解释的结果事实判断可用性，不因空字符串参数、普通花括号、项目文件名、启动包装形式或非语义的展示长度和条数拒绝合法工作，并记录实际解析的执行器及必要来源，不用参数形状猜测调用图 [DR-012](../decisions/012-project-command-generality.md)。
 
+### workflow-package-6
+
+给定用户授权的交付目标尚未完成，当子工作流暴露可修复的前提遗漏时，Skill 应指导宿主依据真实诊断调用负责该前提的公开工作流并接续原选定工作，保留失败历史与已有身份，不将子工作流的 blocked 自动当作整个任务终点，也不越过用户明确的停止点或实际未解决的输入、权限、资源与副作用边界 [DR-014](../decisions/014-host-owned-goal-continuation.md)。
+
 ## 验证
 
 ### workflow-package-4
@@ -30,3 +34,7 @@
 
 - 通用输入集成验证通过实际命令及公开执行入口核对空参数、内联脚本、PATH、普通同名数据参数、模块入口及非语义描述差异不会误拒绝 [[workflow-package-5](#workflow-package-5)] [command_portability.integration.mjs](../../tests/command_portability.integration.mjs)。
 - 正常路径验证须包括新请求的实际处理，不仅重放已完成回执；生命周期命令使用独立新夹具核对文件、指针及不执行产品测试的边界 [acceptance_lifecycle_cli.integration.mjs](../../tests/acceptance_lifecycle_cli.integration.mjs)。
+
+### workflow-package-7
+
+当验证宿主跨工作流接续时，系统测试应通过公开 Playbook CLI 从已有真实准备缺口继续同一验收与选定场景，核对诊断交接、准备修复、重新绑定、原用例身份保留、正式执行和独立结果，以及原失败证据不被改写 [[workflow-package-6](#workflow-package-6)] [host_goal_continuation.audit.mjs](../../tests/host_goal_continuation.audit.mjs)。
