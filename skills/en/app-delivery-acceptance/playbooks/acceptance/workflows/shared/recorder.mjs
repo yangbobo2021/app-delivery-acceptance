@@ -1,3 +1,4 @@
+import {validArgv} from './argv.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
@@ -12,7 +13,7 @@ import {isDeepStrictEqual as equal} from 'node:util';
 
 export async function recordExecution(request,{signal,timeoutSeconds=600,env=process.env}={}){
   const root=fs.realpathSync(request.cwd),out=path.resolve(request.output),command=request.command;
-  if(!Array.isArray(command)||!command.length||command.some(x=>typeof x!=='string'||!x))throw Error('Frozen execution needs an argv array');
+  if(!validArgv(command))throw Error('Frozen execution needs an argv array');
   const active=projectCoverage(root);
   if(active?.policy==='required'){
     if(!request.coverage_session)throw Error('Active project requires its frozen coverage session; direct recording cannot bypass collection');

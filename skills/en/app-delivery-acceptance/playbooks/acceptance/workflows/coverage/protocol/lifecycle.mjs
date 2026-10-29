@@ -1,5 +1,6 @@
 // Bounded non-business checks of the exact frozen public entry. No Agent calls,
 // coverage arithmetic, activation, registration or product judgment occurs here.
+import {validArgv,resolveExecutable} from '../../shared/argv.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
@@ -81,7 +82,6 @@ export function runLifecycleGate({prepared, plan: planPath, output}) {
   fs.mkdirSync(output, {recursive: true});
   const profileFile = path.join(prepared, 'prepared.json'), profile = read(profileFile), plan = read(planPath);
   const runtime = read(profile.spec.runtime_manifest), root = profile.spec.project_root, routes = [];
-  const allowed = new Set(runtime.executables.flatMap(item => [item.path, item.resolved_path].filter(Boolean).map(file => fs.realpathSync(file))));
   let sequence = 0;
   const invoke = (operation, request, folder, expected = 0, cwd = root) => {
     const requestFile = path.join(folder, 'request-' + (++sequence) + '.json'), response = path.join(folder, operation === 'run' ? 'run-response.json' : 'response-' + sequence + '.json');
@@ -114,30 +114,15 @@ export function runLifecycleGate({prepared, plan: planPath, output}) {
         metric_names: Object.keys(component).filter(name => ['measured', 'incomplete', 'unavailable'].includes(component[name]?.status))})),
       project_root: root, inventory: read(profile.spec.inventory_path), output: derived});
     const command = route.lifecycle.direct?.map(value => value.replaceAll('{request}', query).replaceAll('{workspace}', root).replaceAll('{probe_dir}', folder));
-    if (!command?.length || !allowed.has(fs.realpathSync(command[0]))) throw Error('Coverage lifecycle needs an independent native reader command');
-    const binding = read(path.join(path.dirname(profile.entry[1]), 'binding.json'));
-    // A shared interpreter option or subcommand (for example `go run`) is not
-    // backend identity. Compare the actual frozen project files, including
-    // alternate spellings resolving to the same file, rather than any argv token.
-    // Interpreter loading/classpath options name dependencies, not the program.
-    // The first frozen file used as the program is the backend entry point;
-    // later arguments may be configuration shared with an independent reader.
-    const dependencyOptions = new Set(['-cp','-classpath','--class-path','--module-path','-p',
-      '-r','--require','--import','--loader','--experimental-loader','-overlay','-modfile']);
-    let backendFile;
-    for(let i=0;i<binding.entry.length;i++){
-      const value=binding.entry[i];
-      if(dependencyOptions.has(value)){i++;continue;}
-      if(path.isAbsolute(value)&&Object.hasOwn(binding.adapter_files,path.relative(root,value))){backendFile=fs.realpathSync(value);break;}
-    }
-    if(!backendFile)throw Error('Coverage backend has no frozen program entry point');
-    const invokedBackend = command.find(value => {
-      const candidate = path.resolve(root, value);
-      return fs.existsSync(candidate) && backendFile===fs.realpathSync(candidate);
-    });
-    if (invokedBackend) throw Error('Coverage oracle must not invoke the project backend: ' + invokedBackend);
-    const started_at = new Date().toISOString(), result = spawnSync(command[0], command.slice(1), {cwd: root, env:{...process.env,...runtimeEnvironment(runtime)}, encoding: 'utf8', timeout: 30000, maxBuffer: 32 * 1024 * 1024});
-    const record = {command, started_at, finished_at: new Date().toISOString(), exit_code: result.status, signal: result.signal,
+    if (!validArgv(command)) throw Error('Coverage lifecycle needs an independent native reader command');
+    const executionEnv={...process.env,...runtimeEnvironment(runtime)};
+    const executable=resolveExecutable(command[0],{cwd:root,env:executionEnv});
+    // A generic argv parser cannot prove a program's imports or independence.
+    // Preserve both invocations and validate actual native output instead of
+    // inferring a call graph from option names or file-looking arguments.
+    const backend=read(path.join(path.dirname(profile.entry[1]), 'binding.json')).entry;
+    const started_at = new Date().toISOString(), result = spawnSync(executable, command.slice(1), {cwd: root, env:executionEnv, encoding: 'utf8', timeout: 30000, maxBuffer: 32 * 1024 * 1024});
+    const record = {command, resolved_executable:executable, backend_entry:backend, independence_validation:'Actual native reader outputs and recorded source; no argv-shape inference', started_at, finished_at: new Date().toISOString(), exit_code: result.status, signal: result.signal,
       stdout: result.stdout, stderr: result.stderr, error: result.error?.message};write(path.join(folder, 'oracle-command.json'), record);
     unchangedEvidence(snapshots);
     if (result.error || result.signal || result.status !== 0) throw Error('Coverage lifecycle independent reader failed: ' + JSON.stringify(record));
@@ -170,10 +155,8 @@ export function runLifecycleGate({prepared, plan: planPath, output}) {
       const result = {id: route.id, source_paths: route.source_paths};
       for (const mode of ['zero', 'zero_repeat', 'nonzero']) {
         const commandSpec = route.lifecycle?.[mode === 'zero_repeat' ? 'zero' : mode], folder = path.join(output, route.id, mode);
-        if (!commandSpec || !Array.isArray(commandSpec.command) || !commandSpec.command.length ||
-            commandSpec.command.some(part => typeof part !== 'string' || !part) ||
-            !allowed.has(fs.realpathSync(commandSpec.command[0])))
-          throw Error('Coverage lifecycle route requires exact zero/nonzero commands from the verified runtime: ' + route.id);
+        if (!commandSpec || !validArgv(commandSpec.command))
+          throw Error('Coverage lifecycle route requires exact zero/nonzero commands: ' + route.id);
         fs.mkdirSync(folder, {recursive: true});
         const substitute = text => text.replaceAll('{probe_dir}', folder).replaceAll('{workspace}', root);
         const env = {...runtimeEnvironment(runtime),...Object.fromEntries(Object.entries(commandSpec.env ?? {}).map(([key, value]) => {

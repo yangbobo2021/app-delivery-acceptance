@@ -9,7 +9,7 @@
 项目准备命令自行选择，输出新的 `prepared/prepared.json`，schema 为 `project-coverage-preparation-v1`：
 
 - `entry`：宿主将包内固定 Node 协议入口复制到项目测试树并冻结后的 argv；由宿主追加操作名、request JSON 路径、response JSON 路径。不使用 shell 插值。项目后端 argv 同样冻结在 `binding.json` 内，必须可直接执行，不能保留探针命令占位符；探针通过后仍须用最终 `entry` 实测 `verify-preparation`。
-- `adapter_files`：项目相对路径到 SHA256 的映射，包含适配器、必要夹具、配置及锁文件。入口至少包含其中一个文件。路径和实际解析目录都不得逃出项目。
+- `adapter_files`：项目相对路径到 SHA256 的映射，包含适配器、必要夹具、配置及锁文件。后端实际使用的代码、配置及必要来源随此清单冻结；不要求 argv 直接出现某个文件路径，允许模块或包装器启动。路径和实际解析目录都不得逃出项目。
 - `tools`：实际验证过的 `{name, version, role}`；准备资料记录实际命令/API及官方文档依据。工具身份仅为名称和版本，`role` 是可读用途描述；描述的语言、措辞或列表顺序不改变身份。Agent 返回的工具元数据冻结为唯一 `binding.json`，固定入口传给后端的每个 request.tools、准备清单和最终报告均使用此来源，不能另写一份 TOOLS 常量。安装包名称或版本标签不能代替验证。
 - `spec.project_root / revision / components / source_hashes`：实际执行工作区、完整冻结版本与全部源码范围。静态资源仍在清单内。
 - 新准备的 `spec.runtime_manifest / runtime_sha256 / probe_report / probe_report_sha256`：绑定本次验收的运行时环境和独立覆盖率探针报告。后续用例每次执行前复核环境、依赖、执行器、源码、适配器及探针字节；任一变化须重新准备。旧归档中不存在这些字段的历史准备保持可读，不将旧结果伪装成本轮运行环境验证。
@@ -96,7 +96,7 @@ derived_evidence 为工具原始报告等 `{path,sha256,role}` 数组，派生�
 {"lifecycle":{"zero":{"command":["/verified/executor","/frozen/probe","zero"],"env":{}},"nonzero":{"command":["/verified/executor","/frozen/probe","nonzero"],"env":{},"expected_exit_code":0},"direct":["/verified/executor","/frozen/independent-reader","{request}"]}}
 ```
 
-zero/nonzero 为原始非业务启动命令，最终 entry 包装采集，从 workspace 根目录执行；执行器须已验证，仅支持 `{workspace} / {probe_dir}`。
+zero/nonzero 为原始非业务启动命令，最终 entry 包装采集，从 workspace 根目录执行；程序按实际项目 PATH/cwd 解析并记录；只替换明确的 `{workspace} / {probe_dir}` 标记，普通脚本花括号原样保留。
 探针走真实 CLI、子进程或页面路由，不通过在父进程额外调用产品内部函数补充覆盖。
 direct 接收 `{request}` 指向的只读查询，形状与 read 相同，另含 `component_sources:[{id,source_paths,metric_names}]`；仅给出需要读取的指标名称，不提供预期数值。
 它不得调用或导入主后端，须独立调用成熟工具，从同份原生资料向 stdout 返回 `{schema:"coverage-native-oracle-v1",status,components}`。

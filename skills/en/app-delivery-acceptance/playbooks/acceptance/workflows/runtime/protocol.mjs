@@ -1,3 +1,4 @@
+import {validArgv} from '../shared/argv.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -41,7 +42,7 @@ export function prepareRuntimeRequest(value,folder){
 }
 function expand(value,workspace,runtimeRoot){if(typeof value!=='string')throw Error('Runtime command values must be strings');return value.replaceAll('{workspace}',workspace).replaceAll('{runtime_root}',runtimeRoot);}
 function command(item,workspace,runtimeRoot,defaults={}){
-  if(!object(item)||!Array.isArray(item.command)||!item.command.length||item.command.some(x=>typeof x!=='string'||!x))throw Error('Runtime command must contain a nonempty argv string array');
+  if(!object(item)||!validArgv(item.command))throw Error('Runtime command must contain a nonempty argv string array');
   const argv=item.command.map(x=>expand(x,workspace,runtimeRoot)),cwd=fs.realpathSync(expand(item.cwd??'{workspace}',workspace,runtimeRoot));
   if(![workspace,runtimeRoot].some(root=>cwd===root||cwd.startsWith(root+path.sep))||!fs.statSync(cwd).isDirectory())throw Error('Runtime command cwd escapes acceptance workspace/runtime root or is missing');
   if(!object(item.env??{})||Object.values(item.env??{}).some(x=>typeof x!=='string'))throw Error('Runtime command env must have string values');

@@ -84,12 +84,12 @@ test('LIFECYCLE-SHARED-FLAGS', '独立真实读取器与后端共用解释器参
   const gate = runLifecycleGate(value);assert.equal(gate.status, 'passed');
   return {gate: path.join(value.output, 'lifecycle-gate.json')};
 });
-for(const spelling of ['absolute','relative','alias'])test('LIFECYCLE-SAME-BACKEND-'+spelling, '仍拒绝真实主后端或同文件别名作为独立读取器：'+spelling, () => {
+for(const spelling of ['absolute','relative','alias'])test('LIFECYCLE-SAME-BACKEND-'+spelling, '主后端直接启动无法满足实际独立读取协议，保留原始失败：'+spelling, () => {
   const value=fixture('same-backend-'+spelling,'normal',0,['-B']),plan=read(value.plan),backend=path.join(value.root,'tests/backend.py');
   const alias=path.join(value.root,'tests/backend-alias.py');if(spelling==='alias')fs.symlinkSync(backend,alias);
   plan.routes[0].lifecycle.direct=[python,spelling==='absolute'?backend:spelling==='relative'?'tests/backend.py':alias,'{request}'];
   fs.writeFileSync(value.plan,JSON.stringify(plan));
-  assert.throws(()=>runLifecycleGate(value),/must not invoke the project backend/);
+  assert.throws(()=>runLifecycleGate(value),/independent reader failed/);
   assert.equal(read(path.join(value.output,'failure.json')).status,'blocked');
 });
 test('LIFECYCLE-01', '真实零/非零 CLI 子进程完成采集、收尾、重复核验及汇总，描述和时间变化不误拒绝', () => {

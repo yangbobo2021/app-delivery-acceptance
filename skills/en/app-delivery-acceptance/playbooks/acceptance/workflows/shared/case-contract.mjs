@@ -14,8 +14,8 @@ export function caseContext(input,answer){
 }
 function validators(prefix){
   const require=(condition,message)=>{if(!condition)throw Error(prefix+message);};
-  const text=(item,field,maximum,empty=false)=>{const value=item?.[field];require(typeof value==='string'&&(empty||Boolean(value.trim()))&&len(value)<=maximum,field+' 缺失或超过长度限制');return value;};
-  const rows=(item,field,maximum)=>{const value=item?.[field];require(Array.isArray(value)&&value.length<=maximum&&value.every(object),field+' 必须是结构化列表');return value;};
+  const text=(item,field,_displayBudget,empty=false)=>{const value=item?.[field];require(typeof value==='string'&&(empty||Boolean(value.trim())),field+' 缺失或类型无效');return value;};
+  const rows=(item,field,_displayBudget)=>{const value=item?.[field];require(Array.isArray(value)&&value.every(object),field+' 必须是结构化列表');return value;};
   const index=(items,field)=>{const found=new Map();for(const item of items){const key=text(item,field,80);require(/^[A-Za-z][A-Za-z0-9_-]{0,79}$/.test(key)&&!found.has(key),field+' 重复或格式无效');found.set(key,item);}return found;};
   const refs=(item,field,known,required=false)=>{const value=item[field];require(Array.isArray(value)&&value.every(x=>typeof x==='string')&&new Set(value).size===value.length&&value.every(x=>known.has(x))&&(!required||value.length>0),field+' 缺失、重复或包含未知标识/未知引用');return value;};
   return {require,text,rows,index,refs};
@@ -37,7 +37,7 @@ export function validateDiscovery(answer,input,root,baseline=null,{discoveryOnly
   for(const item of scope){source(text(item,'path',1000),true);require(['manifest','tests','source'].includes(item.kind),'未知查找范围类型');text(item,'summary',180);}
   const evidence=index(rows(discovery,'evidence',200),'id');
   for(const item of evidence.values()){
-    const file=source(text(item,'file',1000)),body=span(item,file);require(item.line_end-item.line_start<30,'单条引用过长');require(body.includes(text(item,'quote',1800)),'引用与连续源码原文不符：'+item.file);item.file_sha256=digest(file);
+    const file=source(text(item,'file',1000)),body=span(item,file);require(body.includes(text(item,'quote',1800)),'引用与连续源码原文不符：'+item.file);item.file_sha256=digest(file);
   }
   const cases=index(rows(answer,'case_descriptions',500),'id'),files=answer.test_files;
   require(Array.isArray(files)&&files.every(x=>typeof x==='string')&&new Set(files).size===files.length,'test_files 无效');for(const name of files)source(name);
@@ -57,7 +57,7 @@ export function validateDiscovery(answer,input,root,baseline=null,{discoveryOnly
   for(const item of rows(discovery,'excluded_candidates',12)){
     const name=text(item,'file',1000),file=source(name);text(item,'reason',180);const title=text(item,'title',500);require(sourceText(file).includes(title)||[name,path.basename(file)].includes(title),'排除候选标题并不存在');require(refs(item,'evidence_ids',evidence,true).some(id=>evidence.get(id).file===name),'排除候选缺少自身引用');
   }
-  require(Array.isArray(discovery.limitations)&&discovery.limitations.length<=5&&discovery.limitations.every(x=>typeof x==='string'&&len(x)>0&&len(x)<=180),'限制说明无效');
+  require(Array.isArray(discovery.limitations)&&discovery.limitations.every(x=>typeof x==='string'&&len(x)>0),'限制说明无效');
   if(discoveryOnly)require(answer.status==='not_executed'&&Array.isArray(answer.observations)&&!answer.observations.length&&Array.isArray(answer.evidence_paths)&&!answer.evidence_paths.length,'静态查找不得声称执行');
   discovery.citation_check='source_quotes_verified';return answer;
 }
@@ -65,10 +65,10 @@ export function validateEvaluation(value,input,answer,root,{requireTargetChecks=
   value=cloneJson(value);const {require,text,rows,index,refs}=validators('评估引用或结构校验失败：');require(object(value)&&value.schema==='case-evaluation-v2','需要 case-evaluation-v2');text(value,'summary',180);require(['sufficient','partial','gap','uncertain'].includes(value.coverage),'未知支持程度');
   const context=caseContext(input,answer),known=new Map(context.cases.map(c=>[c.case_id,c])),evidence=index(rows(value,'evidence',80),'id');
   for(const item of evidence.values()){
-    const name=text(item,'file',1000),file=sourcePath(root,name,'引用必须在源码工作区内');require(fs.existsSync(file)&&fs.statSync(file).isFile(),'引用文件不存在：'+name);const start=item.line_start,end=item.line_end,body=lines(file);require(Number.isSafeInteger(start)&&Number.isSafeInteger(end)&&start>=1&&start<=end&&end-start<30,'引用行号无效');require(end<=body.length,'引用行号越界：'+name);const quote=text(item,'quote',1800);
+    const name=text(item,'file',1000),file=sourcePath(root,name,'引用必须在源码工作区内');require(fs.existsSync(file)&&fs.statSync(file).isFile(),'引用文件不存在：'+name);const start=item.line_start,end=item.line_end,body=lines(file);require(Number.isSafeInteger(start)&&Number.isSafeInteger(end)&&start>=1&&start<=end,'引用行号无效');require(end<=body.length,'引用行号越界：'+name);const quote=text(item,'quote',1800);
     if(!body.slice(start-1,end).join('\n').includes(quote)){
       const full=body.join('\n'),position=full.indexOf(quote),actualStart=position>=0?full.slice(0,position).split('\n').length:null,actualEnd=actualStart===null?null:actualStart+quote.split('\n').length-1;
-      require(position>=0&&full.indexOf(quote,position+quote.length)<0&&actualStart===start&&actualEnd===end+1&&actualEnd-start<30,'引用原文与行号不符：'+name);item.reported_line_end=end;item.line_end=actualEnd;item.citation_resolution='unique_exact_quote_end_boundary';
+      require(position>=0&&full.indexOf(quote,position+quote.length)<0&&actualStart===start&&actualEnd===end+1,'引用原文与行号不符：'+name);item.reported_line_end=end;item.line_end=actualEnd;item.citation_resolution='unique_exact_quote_end_boundary';
     }
     item.file_sha256=digest(file);
   }
@@ -78,7 +78,6 @@ export function validateEvaluation(value,input,answer,root,{requireTargetChecks=
   for(const item of findings.values()){
     require(['gap','quality','uncertainty','enhancement'].includes(item.kind),'未知问题类型');refs(item,'obligation_ids',obligations,item.kind==='gap');for(const [key,max]of [['statement',180],['impact',200],['recommendation',180]])text(item,key,max);refs(item,'evidence_ids',evidence,known.size>0&&['gap','quality'].includes(item.kind));
   }
-  require([...findings.values()].filter(f=>f.kind==='enhancement').length<=2,'可选增强过多');
   const assessments=index(rows(value,'case_assessments',200),'case_id');require(assessments.size===known.size&&[...assessments.keys()].every(id=>known.has(id)),'逐用例评价与当前关联不一致');
   const overlaps=(e,c)=>e.file===c.file&&(!c.line_start||e.line_start<=(c.line_end??c.line_start)&&e.line_end>=c.line_start);
   for(const [id,item]of assessments){
@@ -87,10 +86,10 @@ export function validateEvaluation(value,input,answer,root,{requireTargetChecks=
     if(item.role==='duplicate')for(const other of compared)require(ids.some(id=>overlaps(evidence.get(id),known.get(other))),'重复判断缺少对照用例证据');
     for(const id of ids){const e=evidence.get(id);if(e.file===caseItem.file)require(!caseItem.file_sha256||caseItem.file_sha256===e.file_sha256,'关联测试源码已变化');}
     if(requireTargetChecks||Object.hasOwn(item,'checks')){
-      require(Array.isArray(item.checks)&&item.checks.length>=1&&item.checks.length<=20&&item.checks.every(object),id+' 缺少逐目标核验');const checks=item.checks;for(const check of checks){text(check,'target',120);text(check,'assessment',180);if(requireTargetChecks)text(check,'counterexample',180);refs(check,'evidence_ids',evidence,item.role!=='uncertain');}
+      require(Array.isArray(item.checks)&&item.checks.length>=1&&item.checks.every(object),id+' 缺少逐目标核验');const checks=item.checks;for(const check of checks){text(check,'target',120);text(check,'assessment',180);if(requireTargetChecks)text(check,'counterexample',180);refs(check,'evidence_ids',evidence,item.role!=='uncertain');}
     }
   }
-  text(value,'selection_advice',180);require(Array.isArray(value.limitations)&&value.limitations.length<=3&&value.limitations.every(x=>typeof x==='string'&&len(x)>0&&len(x)<=180),'限制说明应简洁');
+  text(value,'selection_advice',180);require(Array.isArray(value.limitations)&&value.limitations.every(x=>typeof x==='string'&&len(x)>0),'限制说明应简洁');
   const statuses=new Set([...obligations.values()].map(o=>o.status));
   if(value.coverage==='sufficient')require(statuses.size===1&&statuses.has('supported')&&![...findings.values()].some(f=>f.kind==='gap'),'充分结论与必要缺口冲突');
   if(['partial','gap'].includes(value.coverage)){const empty=!known.size&&value.coverage==='gap'&&statuses.size===1&&statuses.has('unsupported');require(empty||[...findings.values()].some(f=>f.kind==='gap'),'不足结论未列必要缺口');}

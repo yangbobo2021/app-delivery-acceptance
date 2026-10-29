@@ -47,10 +47,13 @@ h.test('PROBE-04','适配器与独立输出不一致、零探针出现命中时�
   const mismatch=runProbePlan(plan('mismatch',{adapter:'mismatch'}),path.join(folder,'mismatch'));assert.equal(mismatch.status,'partial');assert.match(mismatch.routes[0].probes.zero.reason,/differs from direct/);
   const falseZero=runProbePlan(plan('false-zero',{zero:'nonzero'}),path.join(folder,'false-zero'));assert.equal(falseZero.status,'partial');assert.match(falseZero.routes[0].probes.zero.reason,/Zero-hit native probe/);
 });
-h.test('PROBE-05','重复目录及未准备执行器在真实命令前被拒绝',()=>{
+h.test('PROBE-05','重复目录仍保留，未列入清单的合法程序按实际执行及采集事实判断',()=>{
   assert.throws(()=>runProbePlan(goodPlan,path.join(folder,'good')),/already exists/);
-  const file=plan('unprepared'),value=read(file);value.routes[0].zero.collect=['/bin/echo','must-not-run'];fs.writeFileSync(file,JSON.stringify(value));
-  const result=runProbePlan(file,path.join(folder,'unprepared'));assert.equal(result.status,'partial');assert.match(result.routes[0].probes.zero.reason,/bypasses prepared runtime/);
+  const file=plan('unprepared'),value=read(file);value.routes[0].zero.collect=['/bin/echo','ACTUAL_PROJECT_COMMAND'];fs.writeFileSync(file,JSON.stringify(value));
+  const result=runProbePlan(file,path.join(folder,'unprepared'));assert.equal(result.status,'partial');assert.match(result.routes[0].probes.zero.reason,/no nonempty native data/);
+  const receipt=read(path.join(folder,'unprepared/fixture/zero/collect/receipt.json'));
+  assert.equal(receipt.exit_code,0);assert.equal(receipt.resolved_executable,fs.realpathSync('/bin/echo'));
+  assert.match(fs.readFileSync(receipt.stdout.path,'utf8'),/ACTUAL_PROJECT_COMMAND/);
 });
 h.test('PROBE-06','Node 报告可由当前 Node 校验器只读复核，保持历史格式兼容',()=>{
   assert.equal(verifyProbeReport(path.join(folder,'good/coverage-probes.json'),prepared.runtime.manifest,prepared.runtime.sha256,['src/unit.fixture']).status,'ready');

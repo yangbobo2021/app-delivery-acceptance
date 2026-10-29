@@ -1,3 +1,4 @@
+import {validArgv} from './argv.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -21,7 +22,7 @@ export function projectEnvironment(catalog){
 }
 
 export function observeRuntime(item){
-  if(!Array.isArray(item.command)||!item.command.length||item.command.some(x=>typeof x!=='string'||!x)||!item.cwd||
+  if(!validArgv(item.command)||!item.cwd||
     !item.env||Array.isArray(item.env)||Object.values(item.env).some(x=>typeof x!=='string')||!Number.isInteger(item.timeout_seconds)||item.timeout_seconds<1||item.timeout_seconds>1800)throw Error('Invalid frozen runtime command');
   // A real file descriptor combines stdout/stderr in native write order, as the
   // former Python subprocess did. No persistent log or frozen receipt changes.

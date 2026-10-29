@@ -5,7 +5,7 @@
 
 本项目为 App Delivery Acceptance 测试 SKILL。
 先从本索引定位需求，再阅读 [`meta.md`](meta.md) 的格式规则。
-当前包含 12 个包、201 条带唯一 ID 的行为及验证条目；本轮登记独立工作流、输入质量门禁及完整迁移的集成验证，实际执行结论和未实测边界另行保存。
+当前包含 12 个包、202 条带唯一 ID 的行为及验证条目；本轮登记独立工作流、输入质量门禁及完整迁移的集成验证，实际执行结论和未实测边界另行保存。
 随附 SPEX 框架的许可文本保存在 [`LICENSE.spex`](../LICENSE.spex)，不声明整个项目的许可证。
 
 ## 目录结构
@@ -33,6 +33,7 @@ meta.md       SPEX 原生规约规则
 | [DR-008](decisions/008-workflow-owned-source-layout.md) | 008-workflow-owned-source-layout.md | 按工作流职责组织源码、移除旧执行器和路径包装器 |
 | [DR-009](decisions/009-skill-playbook-responsibility-boundary.md) | 009-skill-playbook-responsibility-boundary.md | Skill 对话接入与完整独立 Playbook 包的职责、依赖和命令验收边界 |
 | [DR-010](decisions/010-deterministic-coverage-protocol.md) | 010-deterministic-coverage-protocol.md | 固定覆盖率协议、唯一工具元数据及项目工具后端边界 |
+| [DR-012](decisions/012-project-command-generality.md) | 012-project-command-generality.md | 项目命令透明传递、非语义门槛移除及泛化优先 |
 | [DR-011](decisions/011-coverage-readiness-and-recount.md) | 011-coverage-readiness-and-recount.md | 固定报告核验、工具原生重算及就绪前完整调用链验证 |
 
 ## 规约包
@@ -50,7 +51,7 @@ meta.md       SPEX 原生规约规则
 | [coverage-reporting.md](packages/coverage-reporting.md) | `coverage-reporting-1` 至 `coverage-reporting-16` | 16 | 工具覆盖率与范围说明：提供与真实执行绑定、由成熟专用工具计算的源码覆盖率，并清楚展示不可计算的范围。 |
 | [acceptance-storage.md](packages/acceptance-storage.md) | `acceptance-storage-1` 至 `acceptance-storage-23` | 23 | 验收身份、资料与恢复：让同一项目的验收工作可持续接续、可校验和可共享，同时隔离本机状态及历史证据。 |
 | [traceability-view.md](packages/traceability-view.md) | `traceability-view-1` 至 `traceability-view-19` | 19 | 统一追踪与可信阅读：使用户从需求起点直观看到关系和完整当前状态，并按需查看有限而有用的细节。 |
-| [workflow-package.md](packages/workflow-package.md) | `workflow-package-1` 至 `workflow-package-4` | 4 | Skill 接入与完整独立包、标准 CLI 和官方角色会话边界。 |
+| [workflow-package.md](packages/workflow-package.md) | `workflow-package-1` 至 `workflow-package-5` | 5 | Skill 接入与完整独立包、标准 CLI 和官方角色会话边界。 |
 
 ## 阅读与后续边界
 

@@ -1,5 +1,6 @@
 // Language-neutral execution/binding only. Every count comes from the project's
 // mature tool; this module never discovers executable units or computes totals.
+import {substituteArgv,resolveExecutable} from './argv.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
@@ -41,6 +42,12 @@ function counts(value,expected){
   if(!isDeepStrictEqual([...measured].sort(),[...new Set(expected)].sort()))throw Error('Coverage probe has no measured units for a declared source');
   return metrics;
 }
+// Compare coverage facts, not presentation order or explanatory metadata.
+function probeFacts(value){
+  return {schema:value.schema,components:value.components.map(component=>({id:component.id,source_paths:[...component.source_paths].sort(),
+    metrics:Object.fromEntries(Object.entries(component.metrics).sort(([a],[b])=>a.localeCompare(b)).map(([name,metric])=>[name,{status:metric.status,...(metric.status==='measured'?{covered:metric.covered,total:metric.total}:{})}]))
+  })).sort((a,b)=>String(a.id).localeCompare(String(b.id)))};
+}
 function nativeSnapshot(root){
   const result={};
   function visit(folder){for(const entry of fs.readdirSync(folder).sort()){
@@ -50,18 +57,15 @@ function nativeSnapshot(root){
   }}visit(root);return result;
 }
 function execute(argv,runtime,substitutions,output){
-  if(!Array.isArray(argv)||!argv.length||argv.some(x=>typeof x!=='string'||!x))throw Error('Coverage probe command must be an argv array');
-  const command=argv.map(part=>part.replace(/\{([^{}]+)\}/g,(_match,key)=>{
-    if(!(key in substitutions))throw Error('Unknown coverage probe placeholder: '+key);return substitutions[key];
-  }));
-  const allowed=new Set(runtime.executables.flatMap(item=>[item.path,item.resolved_path].filter(Boolean).map(file=>fs.realpathSync(file))));
-  if(!allowed.has(fs.realpathSync(command[0])))throw Error('Coverage probe bypasses prepared runtime executable');
+  const command=substituteArgv(argv,substitutions);
+  const executionEnv={...process.env,...runtimeEnvironment(runtime)};
+  const executable=resolveExecutable(command[0],{cwd:runtime.workspace,env:executionEnv});
   fs.mkdirSync(output,{recursive:true});
   const stdout=path.join(output,'stdout.txt'),stderr=path.join(output,'stderr.txt');
   const out=fs.openSync(stdout,'wx'),err=fs.openSync(stderr,'wx'),started_at=new Date().toISOString(),started=performance.now();let result;
-  try{result=spawnSync(command[0],command.slice(1),{cwd:runtime.workspace,env:{...process.env,...runtimeEnvironment(runtime)},stdio:['ignore',out,err],timeout:180000});}
+  try{result=spawnSync(executable,command.slice(1),{cwd:runtime.workspace,env:executionEnv,stdio:['ignore',out,err],timeout:180000});}
   finally{fs.closeSync(out);fs.closeSync(err);}
-  const receipt={command,cwd:runtime.workspace,exit_code:result.status,
+  const receipt={command,resolved_executable:executable,cwd:runtime.workspace,exit_code:result.status,
     started_at,finished_at:new Date().toISOString(),seconds:(performance.now()-started)/1000,
     stdout:{path:stdout,sha256:sha(stdout)},stderr:{path:stderr,sha256:sha(stderr)},
     ...(result.error?{error:result.error.code??result.error.message}:{}),...(result.signal?{signal:result.signal}:{})};
@@ -90,7 +94,7 @@ function probe(mode,route,runtime,output){
     }
   }
   const adapter=read(receipts.adapter.stdout.path),direct=read(receipts.direct.stdout.path),metrics=counts(adapter,route.source_paths);counts(direct,route.source_paths);
-  if(!isDeepStrictEqual(adapter,direct))throw Error('Coverage adapter differs from direct tool result');
+  if(!isDeepStrictEqual(probeFacts(adapter),probeFacts(direct)))throw Error('Coverage adapter differs from direct tool result');
   if(mode==='zero'&&metrics.some(x=>x.covered!==0))throw Error('Zero-hit native probe reported covered units');
   if(mode==='nonzero'&&!metrics.some(x=>x.covered>0))throw Error('Nonzero probe did not exercise measured source');
   return {status:'passed',receipts:Object.fromEntries(Object.keys(receipts).map(name=>{const file=path.join(folder,name,'receipt.json');return [name,{path:file,sha256:sha(file)}];})),

@@ -1,3 +1,4 @@
+import {validArgv} from '../../shared/argv.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
@@ -7,10 +8,8 @@ import {toolIdentities} from './tools.mjs';
 export function materializeCoverageEntry({workspace, testRoots, attempt, entry, tools, adapterFiles, sourceHashes = {}, revision, executionEnv = {}}) {
   toolIdentities(tools);
   if (tools.some(tool => typeof tool.role !== 'string' || !tool.role.trim())) throw Error('Coverage tool purpose missing');
-  if (!Array.isArray(entry) || entry.length < 2 || !path.isAbsolute(entry[0]) || entry.some(item => typeof item !== 'string' || !item))
-    throw Error('Coverage backend entry must contain absolute executable and adapter paths');
-  if (!Object.keys(adapterFiles).some(name => entry.includes(path.join(workspace, name))))
-    throw Error('Coverage backend entry must include a frozen project adapter');
+  if (!validArgv(entry)) throw Error('Coverage backend entry requires an executable and string arguments');
+  if (!Object.keys(adapterFiles).length) throw Error('Coverage backend needs frozen project files');
   const root = path.resolve(workspace), testRoot = path.resolve(root, testRoots[0]);
   if (!testRoot.startsWith(root + path.sep) || !fs.realpathSync(testRoot).startsWith(fs.realpathSync(root) + path.sep))
     throw Error('Coverage protocol directory escapes the project test tree');

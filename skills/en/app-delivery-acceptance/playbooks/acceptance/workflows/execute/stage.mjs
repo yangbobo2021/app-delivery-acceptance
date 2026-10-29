@@ -1,3 +1,4 @@
+import {validArgv} from '../shared/argv.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
@@ -93,9 +94,7 @@ export async function executeScenario(input,{signal}={}){
     if(!Array.isArray(selection)||!selection.length||new Set(selection).size!==selection.length||selection.some(id=>!allIds.includes(id)))throw Error('Selected permanent case IDs are empty, duplicate or unknown');
     if(input.execution_command&&(!input.selection_basis||!input.selected_case_ids))throw Error('An exact rerun command needs explicit permanent IDs and its actual selection basis');
     if(!input.execution_command&&selection.length!==allIds.length)throw Error('A subset rerun needs an explicit command; cannot silently execute all cases');
-    const command=input.execution_command??answer.test_command;if(!Array.isArray(command)||!command.length||command.some(x=>typeof x!=='string'||!x))throw Error('Executable case command required');
-    // A nested old collector is never treated as an ordinary business command.
-    if(command.some(part=>['run_coverage.py','run_evidence_v2.py','coverage-tool.mjs'].includes(path.basename(part))))throw Error('Supply the underlying business command; this workflow owns its one frozen collector');
+    const command=input.execution_command??answer.test_command;if(!validArgv(command))throw Error('Executable case command required');
     const knowledge=readKnowledge(root,input.acceptance_id,[]),config={acceptance:knowledge.acceptance,definitions:caseInput.definitions,source_checkout:workspace,workspace_policy:'single-acceptance-v1',allowed_test_roots:catalog.write_roots??catalog.test_roots??[],...settings};
     guard(config,[folder]);
     fs.mkdirSync(folder,{recursive:true});saveOnce(inside(folder,'input.json'),normalized);
@@ -189,7 +188,6 @@ export async function executeScenario(input,{signal}={}){
         activeAnswerPath=repaired.answer;activeAnswer=read(activeAnswerPath);activeCommand=activeAnswer.test_command;
         if(activeAnswer.status==='needs_contract'){review={...review,status:'needs_scope_or_contract'};break;}
         if(activeAnswer.status==='blocked'||!Array.isArray(activeCommand)||!activeCommand.length){review={...review,status:'repair_parked'};break;}
-        if(activeCommand.some(part=>['run_coverage.py','run_evidence_v2.py','coverage-tool.mjs'].includes(path.basename(part))))throw Error('Repair returned a collector wrapper instead of the underlying business command');
         if(!input.selected_case_ids){allIds=activeAnswer.case_descriptions.map(item=>item.id);selection=allIds;}
         if(stop('repair'))return {...stop('repair'),repair_attempt:iteration+1,active_case_answer:activeAnswerPath};
       }

@@ -18,10 +18,15 @@
 
 当配置或执行工作流角色时，包应使用同一份官方 player/role 配置和公开会话端口确定实际 Agent、模型、权限与会话，不依赖第二份环境角色映射或自定义 CLI 启动包装器，并将本地修订的官方运行时以可独立安装的固定构建分发并保留源码与版本依据，不声称已公开发布。
 
+### workflow-package-5
+
+当处理项目命令及阶段交接数据时，工作流包应根据实际执行与可解释的结果事实判断可用性，不因空字符串参数、普通花括号、项目文件名、启动包装形式或非语义的展示长度和条数拒绝合法工作，并记录实际解析的执行器及必要来源，不用参数形状猜测调用图 [DR-012](../decisions/012-project-command-generality.md)。
+
 ## 验证
 
 ### workflow-package-4
 
 当系统测试在无 Skill 的新目录安装 npm 包并调用标准命令时，应验证全部公开入口的注册与必要输入边界、真实业务链路及停止点、包内路径闭合 [[workflow-package-1](#workflow-package-1)]，并检查 Skill 层无业务实现 [[workflow-package-2](#workflow-package-2)] 和角色配置、真实事件及本地运行时版本来源 [[workflow-package-3](#workflow-package-3)]。
 
+- 通用输入集成验证通过实际命令及公开执行入口核对空参数、内联脚本、PATH、普通同名数据参数、模块入口及非语义描述差异不会误拒绝 [[workflow-package-5](#workflow-package-5)] [command_portability.integration.mjs](../../tests/command_portability.integration.mjs)。
 - 正常路径验证须包括新请求的实际处理，不仅重放已完成回执；生命周期命令使用独立新夹具核对文件、指针及不执行产品测试的边界 [acceptance_lifecycle_cli.integration.mjs](../../tests/acceptance_lifecycle_cli.integration.mjs)。
