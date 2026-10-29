@@ -7,4 +7,10 @@ function test(id,purpose,body){try{results.push({id,purpose,status:'passed',...b
 test('CLI-LOCAL','Actual copied runtime resolves both commands inside its own installed dependencies',()=>{const r=call();assert.equal(r.exit_code,0,r.stderr);const p=JSON.parse(r.stdout);for(const name of ['playbook','spex'])assert.ok(p.cliPaths[name].startsWith(fs.realpathSync(root)+'/node_modules/'));return{probe:r};});
 for(const name of ['playbook','spex'])test('CLI-ESCAPE-'+name,'Reject same-version command link into original source dependency tree: '+name,()=>{const link=root+'/node_modules/.bin/'+name,original=fs.readlinkSync(link);fs.unlinkSync(link);fs.symlinkSync(fs.realpathSync(source+'/node_modules/.bin/'+name),link);try{const r=call();assert.notEqual(r.exit_code,0);assert.match(r.stderr,/CLI alias resolves outside/);return{probe:r};}finally{fs.unlinkSync(link);fs.symlinkSync(original,link);}});
 test('CLI-RESTORED','Original relative links recover readiness without modifying dependency source',()=>{const r=call();assert.equal(r.exit_code,0,r.stderr);return{probe:r};});
+test('SDK-PLATFORM-MISSING','A Codex host cannot certify a cached graph whose importable Claude SDK lost its declared native executable',()=>{
+  const normal=call();assert.equal(normal.exit_code,0,normal.stderr);const probe=JSON.parse(normal.stdout),native=path.dirname(probe.claudeExecutable),held=native+'.held-for-test';
+  assert.ok(native.startsWith(fs.realpathSync(root)+'/node_modules/'));fs.renameSync(native,held);
+  try{const broken=call();assert.notEqual(broken.exit_code,0);assert.match(broken.stderr,/Claude SDK platform executable is missing or inconsistent/);return{probe:broken};}
+  finally{fs.renameSync(held,native);const restored=call();assert.equal(restored.exit_code,0,restored.stderr);}
+});
 fs.rmSync(root,{recursive:true,force:true});fs.writeFileSync(out+'/rebuildable-copy-cleanup.json',JSON.stringify({at:new Date().toISOString(),removed:root,preserved:'All command stdout/stderr and actual resolved path receipts remain in summary.json.'},null,2));

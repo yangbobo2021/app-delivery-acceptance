@@ -49,11 +49,25 @@ const codexEntry = join(dirname(cliManifest), cliPackage.bin.codex);
 const selectedAgent=process.env.ACCEPTANCE_AGENT;
 if (selectedAgent&&!['codex','claude-code','opencode'].includes(selectedAgent)) throw Error('Unknown ACCEPTANCE_AGENT');
 const codexVersion = selectedAgent==='codex' ? execFileSync(process.execPath, [codexEntry, '--version'], {encoding: 'utf8', timeout: 30000}).trim() : null;
+// A cached graph must retain the platform executable declared by the installed
+// SDK, including when the current host is Codex and a later role selects Claude.
+// Importing query() alone cannot certify that graph.
+const claudeSdk=installedPackage('@anthropic-ai/claude-agent-sdk');
+const musl=process.platform==='linux'&&!process.report.getReport().header.glibcVersionRuntime;
+const claudePlatformPackage=`@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}${musl?'-musl':''}`;
+let claudeExecutable;
+if(Object.hasOwn(claudeSdk.manifest.optionalDependencies??{},claudePlatformPackage)){
+  try{
+    const fromSdk=createRequire(join(claudeSdk.root,'package.json'));
+    claudeExecutable=fromSdk.resolve(claudePlatformPackage+'/claude');
+    const platformManifest=JSON.parse(readFileSync(join(dirname(claudeExecutable),'package.json'),'utf8'));
+    if(platformManifest.name!==claudePlatformPackage||platformManifest.version!==claudeSdk.manifest.optionalDependencies[claudePlatformPackage])throw Error('SDK-owned platform package version mismatch');
+  }catch(error){throw Error('Claude SDK platform executable is missing or inconsistent: '+claudePlatformPackage+'; restore this package with its locked optional dependencies. '+error.message);}
+}
 let claudeVersion=null;
 if (selectedAgent==='claude-code') {
-  const musl=process.platform==='linux'&&!process.report.getReport().header.glibcVersionRuntime;
-  const binary=join(installedPackage(`@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}${musl?'-musl':''}`).root,'claude');
-  claudeVersion=execFileSync(binary,['--version'],{encoding:'utf8',timeout:30000}).trim();
+  if(!claudeExecutable)throw Error('The installed Claude SDK has no declared executable for this host');
+  claudeVersion=execFileSync(claudeExecutable,['--version'],{encoding:'utf8',timeout:30000}).trim();
 }
 const opencodeVersion=selectedAgent==='opencode'?execFileSync('opencode',['--version'],{encoding:'utf8',timeout:30000}).trim():null;
-console.log(JSON.stringify({versions, spexVersion, codexVersion, claudeVersion, opencodeVersion, selectedAgent:selectedAgent??null, modules,cliPaths}));
+console.log(JSON.stringify({versions, spexVersion, codexVersion, claudeVersion, opencodeVersion, selectedAgent:selectedAgent??null, modules,cliPaths,claudeExecutable:claudeExecutable??null}));
