@@ -71,6 +71,7 @@ node <package>/bin/configure.mjs --agent codex --model <实际模型> --output /
 
 - 首次冻结基线明确为 `null`；已有定义时必须使用当前 `scenarios.json` 文件的 SHA-256。
 - `definitions` 由宿主读懂实际来源后整理，保留原文和定位；本工具不抓取 SPEC、解析网页或替用户发明业务目标。
+- 项目文件来源与必要背景通过 `source_inputs.required_documents/documents` 交接完整原文和真实文件哈希，行定位经冻结门禁核验；合同及失败边界见[输入质量检查](frozen-definitions.md#输入质量检查)。口述输入不强制项目文档。
 - 默认 `mode: append` 按 ID 合并，保留旧需求、规则、场景和上下文；只提供新对象不会删除其他对象。
 - `mode: replace` 表示明确采用完整集合，必须有 `replace_basis`，用于已确认的删除或完整场景替换。
 - 完整定义使用现有 `acceptance-catalog-v2` 校验；可以直接采用来源明确的既有场景，也可以只冻结需求，场景集合保持空。

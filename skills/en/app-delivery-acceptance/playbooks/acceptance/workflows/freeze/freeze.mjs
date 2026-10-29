@@ -7,8 +7,9 @@ import {workspaceMetadataLock} from '../shared/workspace.mjs';
 import {validateStore} from '../shared/validation.mjs';
 import {collections,object,versioned,compareDefinitions,digest,fingerprint} from '../shared/definitions.mjs';
 import {canonical,cloneJson,copyNumbers} from '../shared/json.mjs';
+import {freezeSourceInputs} from './source-inputs.mjs';
 const generated=new Set(['acceptance_id','scope_sha256','updated_at','definition_record','definition_version','previous_catalog_sha256','change']);
-const allowed=new Set(['project_root','acceptance_id','request_id','basis','definitions','scope','base_definitions_sha256','mode','replace_basis','assessment']);
+const allowed=new Set(['project_root','acceptance_id','request_id','basis','definitions','scope','base_definitions_sha256','mode','replace_basis','assessment','source_inputs']);
 function save(file,value,exclusive=false){
   fs.mkdirSync(path.dirname(file),{recursive:true});const raw=canonical(value)+'\n';
   if(exclusive){fs.writeFileSync(file,raw,{flag:'wx'});return;}
@@ -35,6 +36,7 @@ function candidateFor(request,previous,manifest,root){
     const merged=new Map((mode==='replace'?[]:previous?.[group]??[]).map(item=>[item.id,cloneJson(item)]));
     for(const item of additions){const copy=cloneJson(item);delete copy.version;delete copy.content_sha256;merged.set(item.id,copy);}candidate[group]=[...merged.values()];
   }
+  freezeSourceInputs(request,candidate,root,previous);
   candidate.basis=request.basis;versioned(candidate,previous);compareDefinitions(previous,candidate,request.assessment);return candidate;
 }
 export function freezeAcceptance(request){

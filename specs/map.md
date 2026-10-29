@@ -5,7 +5,7 @@
 
 本项目为 App Delivery Acceptance 测试 SKILL。
 先从本索引定位需求，再阅读 [`meta.md`](meta.md) 的格式规则。
-当前包含 11 个包、191 条带唯一 ID 的行为及验证条目；本轮登记独立工作流、Node 工具及完整迁移的集成验证，实际执行结论和未实测边界另行保存。
+当前包含 12 个包、201 条带唯一 ID 的行为及验证条目；本轮登记独立工作流、输入质量门禁及完整迁移的集成验证，实际执行结论和未实测边界另行保存。
 随附 SPEX 框架的许可文本保存在 [`LICENSE.spex`](../LICENSE.spex)，不声明整个项目的许可证。
 
 ## 目录结构
@@ -40,7 +40,7 @@ meta.md       SPEX 原生规约规则
 | 文件 | 唯一 ID 范围 | 条数 | 用户需要获得的保证 |
 | --- | --- | --- | --- |
 | [delivery-acceptance.md](packages/delivery-acceptance.md) | `delivery-acceptance-1` 至 `delivery-acceptance-14` | 14 | 交付验收目标与范围：让用户依据已确认的需求、真实测试和独立证据判断交付状态，并明确未完成范围。 |
-| [definition-lifecycle.md](packages/definition-lifecycle.md) | `definition-lifecycle-1` 至 `definition-lifecycle-25` | 25 | 需求来源、冻结与变更：完整保存本次验收的约定及出处，使执行有固定依据，并能在约定变化后确定必要的后续工作。 |
+| [definition-lifecycle.md](packages/definition-lifecycle.md) | `definition-lifecycle-1` 至 `definition-lifecycle-27` | 27 | 需求来源、冻结与变更：完整保存本次验收的约定及出处，核对文件来源与声明背景，使执行有固定依据，并能在约定变化后确定必要的后续工作。 |
 | [scenario-design.md](packages/scenario-design.md) | `scenario-design-1` 至 `scenario-design-12` | 12 | 场景采用与增量设计：将已确认的约定转成足以区分正确和错误行为的简明测试点，保留设计缺口和人工修改。 |
 | [project-preparation.md](packages/project-preparation.md) | `project-preparation-1` 至 `project-preparation-19` | 19 | 可移植环境与运行准备：让同一测试流程能使用不同项目的真实工具环境，并明确每次执行已验证的平台与能力边界。 |
 | [case-design.md](packages/case-design.md) | `case-design-1` 至 `case-design-20` | 20 | 已有用例查找、复用与补充：为当前场景采用足以验证其判据的实际用例组，优先利用已有测试并避免制造冗余。 |
