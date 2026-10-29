@@ -31,6 +31,8 @@ Prerequisites are Node.js >=22, npm, Git and the chosen Agents' real credentials
 
 For runtime preparation, `source_checkout` is the complete Git checkout root (`git rev-parse --show-toplevel`), even when `project_root` is a nested application. Prefix `inspection_files` and `test_roots` relative to that checkout root. Runtime knowledge references use the supplied logical `knowledge_keys`, such as `INDEX.md`, rather than a `.acceptance/knowledge/...` filesystem path.
 
+Run long official CLI calls in the host tool's persistent session or supervised background mode, retaining stdout, stderr, process identity and exit status. A host tool's shorter timeout must not cut off the declared workflow budget. On interruption, inspect/recover the original operation before retrying. Coverage preparation has a finite default budget and an explicitly bounded per-request budget; use the [coverage contract](playbooks/acceptance/docs/coverage-workflow.md) when measured progress justifies a different budget.
+
 ## Select the requested scope
 
 | User request | Entry/composition |

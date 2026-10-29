@@ -11,7 +11,7 @@ import {setCoverageOff} from '../shared/coverage-registry.mjs';
 import {runProcess} from '../shared/process.mjs';
 
 const allowed=['project_root','acceptance_id','request_id','definitions_sha256','policy','basis','runtime_manifest','runtime_sha256',
-  'inventory_path','inventory_sha256','source_hashes','test_roots','components','expected_measured_sources','prior_attempts','knowledge_paths','preparation_instructions'];
+  'inventory_path','inventory_sha256','source_hashes','test_roots','components','expected_measured_sources','prior_attempts','knowledge_paths','preparation_instructions','preparation_timeout_seconds'];
 function ownedArtifact(input,file){
   if(typeof file!=='string'||!path.isAbsolute(file))throw Error('Absolute acceptance artifact path required');
   const base=owned(input.project_root,'.acceptance-local/'+input.acceptance_id);
@@ -34,6 +34,8 @@ export async function prepareCoverage(input,{signal}={}){
       try{return verifyCached(spec.completed);}catch(error){return {...spec.completed,status:'stale',reason:error.message,historical_report_preserved:true};}
     }
     const value=spec.normalized;
+    const preparationBudget=value.preparation_timeout_seconds??900;
+    if(!Number.isSafeInteger(preparationBudget)||preparationBudget<1||preparationBudget>3600)throw Error('Coverage preparation_timeout_seconds must be a finite integer from 1 to 3600');
     if(value.preparation_instructions!==undefined&&(typeof value.preparation_instructions!=='string'||!value.preparation_instructions.trim()))throw Error('Explicit coverage preparation instructions must be nonempty text');
     if(!['required','off','unavailable'].includes(value.policy)||typeof value.basis!=='string'||!value.basis.trim())throw Error('Coverage policy and actual decision basis required');
     if(value.policy!=='required'){
@@ -70,9 +72,9 @@ export async function prepareCoverage(input,{signal}={}){
     return await workspaceLease(config,spec.folder,async({env})=>{
       const stage=path.join(spec.folder,'preparation'),args=[path.join(packageRoot,'workflows/coverage/roles/preparer.mjs'),requestFile,stage];
       const observation=await runProcess(process.execPath,args,{cwd:value.project_root,env,
-        output:path.join(spec.folder,'commands/preparation'),timeoutSeconds:900,signal});
-      fs.writeFileSync(path.join(spec.folder,'command.json'),json({...observation,executable:process.execPath}),{flag:'wx'});
-      if(observation.timed_out||observation.cancelled)throw Error('Coverage preparation interrupted; inspect process and file effects before any new attempt');
+        output:path.join(spec.folder,'commands/preparation'),timeoutSeconds:preparationBudget,signal});
+      fs.writeFileSync(path.join(spec.folder,'command.json'),json({...observation,executable:process.execPath,preparation_timeout_seconds:preparationBudget}),{flag:'wx'});
+      if(observation.timed_out||observation.cancelled)throw Error('Coverage preparation interrupted; inspect process and file effects before any new attempt; requested budget='+preparationBudget+'s');
       if(observation.exit_code!==0){
         const metrics=path.join(stage,'metrics.json'),detail=fs.existsSync(metrics)?read(metrics).error:null;
         throw Error('Coverage preparation blocked: '+(detail||'No stage diagnostic; inspect command.json and commands/preparation/combined.log')+'; metrics='+metrics);
