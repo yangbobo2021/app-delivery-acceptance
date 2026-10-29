@@ -21,7 +21,7 @@ const tool = spawnSync(python, ['-c', 'import coverage; print(coverage.__version
 assert.equal(tool.status, 0, tool.stderr);
 const tools = [{name: 'coverage.py', version: tool.stdout.trim(), role: '中文用途描述'}];
 const results = [], started = performance.now();
-function fixture(label, behavior = 'normal', expectedExit = 0) {
+function fixture(label, behavior = 'normal', expectedExit = 0, sharedFlags = [], launcher = 'python') {
   const root = path.join(output, label), tests = path.join(root, 'tests'), prepared = path.join(root, 'candidate');
   for (const name of ['src', 'tests/hook', 'candidate']) fs.mkdirSync(path.join(root, name), {recursive: true});
   fs.writeFileSync(path.join(root, 'src/calc.py'), 'import sys\ndef classify(value):\n    if value > 0:\n        return "positive"\n    return "nonpositive"\nif __name__ == "__main__":\n    print(classify(int(sys.argv[1])))\n');
@@ -30,17 +30,29 @@ function fixture(label, behavior = 'normal', expectedExit = 0) {
   fs.copyFileSync(fileURLToPath(new URL('./fixtures/coverage/python/backend_v2.py', import.meta.url)), path.join(tests, 'backend.py'));
   fs.copyFileSync(fileURLToPath(new URL('./fixtures/coverage/python/oracle_v2.py', import.meta.url)), path.join(tests, 'oracle.py'));
   write(path.join(tests, 'settings.json'), {root, behavior});
-  const files = Object.fromEntries(['tests/backend.py', 'tests/oracle.py', 'tests/settings.json', 'tests/route.py', 'tests/hook/sitecustomize.py'].map(name => [name, sha(path.join(root, name))]));
-  const materialized = materializeCoverageEntry({workspace: root, testRoots: ['tests'], attempt: root, entry: [python, path.join(tests, 'backend.py')], tools, adapterFiles: files,
+  const names=['tests/backend.py', 'tests/oracle.py', 'tests/settings.json', 'tests/route.py', 'tests/hook/sitecustomize.py'];
+  let backendEntry=[python,...sharedFlags,path.join(tests,'backend.py')],oracleEntry=[python,...sharedFlags,path.join(tests,'oracle.py')];
+  if(launcher==='node-import'){
+    fs.writeFileSync(path.join(tests,'common-loader.mjs'),'export const loaderIdentity = "shared-non-statistical-runtime-loader";\n');
+    names.push('tests/common-loader.mjs');
+    for(const name of ['backend','oracle']){
+      const wrapper='tests/'+name+'-wrapper.mjs';names.push(wrapper);
+      fs.writeFileSync(path.join(root,wrapper),`import {spawnSync} from 'node:child_process';const result=spawnSync(${JSON.stringify(python)},[${JSON.stringify(path.join(tests,name+'.py'))},...process.argv.slice(2)],{stdio:'inherit'});process.exit(result.status??2);\n`);
+    }
+    backendEntry=[process.execPath,'--import',path.join(tests,'common-loader.mjs'),path.join(tests,'backend-wrapper.mjs')];
+    oracleEntry=[process.execPath,'--import',path.join(tests,'common-loader.mjs'),path.join(tests,'oracle-wrapper.mjs')];
+  }
+  const files = Object.fromEntries(names.map(name => [name, sha(path.join(root, name))]));
+  const materialized = materializeCoverageEntry({workspace: root, testRoots: ['tests'], attempt: root, entry: backendEntry, tools, adapterFiles: files,
     sourceHashes: {'src/calc.py': sha(path.join(root, 'src/calc.py'))}, revision: 'fixture-revision', executionEnv:{PROJECT_EXECUTION_ENV:'lifecycle-runtime-default'}});
   for (const name of materialized.paths) files[name] = sha(path.join(root, name));
   const runtimeFile = path.join(root, 'runtime.json'), inventory = path.join(root, 'inventory.json');
-  write(runtimeFile, {workspace: root, revision: 'fixture-revision', executables: [{path: python}],execution_env:{PROJECT_EXECUTION_ENV:'lifecycle-runtime-default'}});
+  write(runtimeFile, {workspace: root, revision: 'fixture-revision', executables: [{path: python},{path:process.execPath}],execution_env:{PROJECT_EXECUTION_ENV:'lifecycle-runtime-default'}});
   write(inventory, {source_hashes: {'src/calc.py': sha(path.join(root, 'src/calc.py'))}});
   const plan = {workspace: root, revision: 'fixture-revision', runtime_sha256: sha(runtimeFile),
     routes: [{id: 'python-cli-subprocess', source_paths: ['src/calc.py'], lifecycle: Object.fromEntries(['zero', 'nonzero'].map(mode => [mode,
       {command: [python, '-B', path.join(tests, 'route.py'), mode], env: {PYTHONDONTWRITEBYTECODE: '1'}, expected_exit_code: mode === 'nonzero' ? expectedExit : 0}]))}]};
-  plan.routes[0].lifecycle.direct = [python, path.join(tests, 'oracle.py'), '{request}'];
+  plan.routes[0].lifecycle.direct = [...oracleEntry, '{request}'];
   const planFile = path.join(root, 'plan.json');write(planFile, plan);
   const profile = {schema: 'project-coverage-preparation-v1', protocol_revision: 2, entry: materialized.entry,
     adapter_files: files, tools, source_dispositions: {'src/calc.py': {kind: 'measured', reason: 'Actual coverage.py native sources'}},
@@ -62,6 +74,24 @@ function writeResult() {
     seconds: (performance.now() - started) / 1000, results}, null, 2) + '\n');
 }
 let normal;
+test('LIFECYCLE-SHARED-LOADER', '真实独立后端与读取器共用冻结运行时加载文件，不将加载器误认作主程序', () => {
+  const value=fixture('shared-loader','normal',0,[],'node-import');
+  const gate=runLifecycleGate(value);assert.equal(gate.status,'passed');
+  return {gate:path.join(value.output,'lifecycle-gate.json')};
+});
+test('LIFECYCLE-SHARED-FLAGS', '独立真实读取器与后端共用解释器参数时不误判为同一后端', () => {
+  const value = fixture('shared-flags', 'normal', 0, ['-B']);
+  const gate = runLifecycleGate(value);assert.equal(gate.status, 'passed');
+  return {gate: path.join(value.output, 'lifecycle-gate.json')};
+});
+for(const spelling of ['absolute','relative','alias'])test('LIFECYCLE-SAME-BACKEND-'+spelling, '仍拒绝真实主后端或同文件别名作为独立读取器：'+spelling, () => {
+  const value=fixture('same-backend-'+spelling,'normal',0,['-B']),plan=read(value.plan),backend=path.join(value.root,'tests/backend.py');
+  const alias=path.join(value.root,'tests/backend-alias.py');if(spelling==='alias')fs.symlinkSync(backend,alias);
+  plan.routes[0].lifecycle.direct=[python,spelling==='absolute'?backend:spelling==='relative'?'tests/backend.py':alias,'{request}'];
+  fs.writeFileSync(value.plan,JSON.stringify(plan));
+  assert.throws(()=>runLifecycleGate(value),/must not invoke the project backend/);
+  assert.equal(read(path.join(value.output,'failure.json')).status,'blocked');
+});
 test('LIFECYCLE-01', '真实零/非零 CLI 子进程完成采集、收尾、重复核验及汇总，描述和时间变化不误拒绝', () => {
   normal = fixture('normal');
   const gate = runLifecycleGate(normal);assert.equal(gate.status, 'passed');

@@ -115,8 +115,27 @@ export function runLifecycleGate({prepared, plan: planPath, output}) {
       project_root: root, inventory: read(profile.spec.inventory_path), output: derived});
     const command = route.lifecycle.direct?.map(value => value.replaceAll('{request}', query).replaceAll('{workspace}', root).replaceAll('{probe_dir}', folder));
     if (!command?.length || !allowed.has(fs.realpathSync(command[0]))) throw Error('Coverage lifecycle needs an independent native reader command');
-    const backend = read(path.join(path.dirname(profile.entry[1]), 'binding.json')).entry;
-    if (backend.slice(1).some(value => command.includes(value))) throw Error('Coverage oracle must not invoke the project backend');
+    const binding = read(path.join(path.dirname(profile.entry[1]), 'binding.json'));
+    // A shared interpreter option or subcommand (for example `go run`) is not
+    // backend identity. Compare the actual frozen project files, including
+    // alternate spellings resolving to the same file, rather than any argv token.
+    // Interpreter loading/classpath options name dependencies, not the program.
+    // The first frozen file used as the program is the backend entry point;
+    // later arguments may be configuration shared with an independent reader.
+    const dependencyOptions = new Set(['-cp','-classpath','--class-path','--module-path','-p',
+      '-r','--require','--import','--loader','--experimental-loader','-overlay','-modfile']);
+    let backendFile;
+    for(let i=0;i<binding.entry.length;i++){
+      const value=binding.entry[i];
+      if(dependencyOptions.has(value)){i++;continue;}
+      if(path.isAbsolute(value)&&Object.hasOwn(binding.adapter_files,path.relative(root,value))){backendFile=fs.realpathSync(value);break;}
+    }
+    if(!backendFile)throw Error('Coverage backend has no frozen program entry point');
+    const invokedBackend = command.find(value => {
+      const candidate = path.resolve(root, value);
+      return fs.existsSync(candidate) && backendFile===fs.realpathSync(candidate);
+    });
+    if (invokedBackend) throw Error('Coverage oracle must not invoke the project backend: ' + invokedBackend);
     const started_at = new Date().toISOString(), result = spawnSync(command[0], command.slice(1), {cwd: root, env:{...process.env,...runtimeEnvironment(runtime)}, encoding: 'utf8', timeout: 30000, maxBuffer: 32 * 1024 * 1024});
     const record = {command, started_at, finished_at: new Date().toISOString(), exit_code: result.status, signal: result.signal,
       stdout: result.stdout, stderr: result.stderr, error: result.error?.message};write(path.join(folder, 'oracle-command.json'), record);
