@@ -28,7 +28,7 @@ const answer=()=>({dependency_files:['package.json'],knowledge_used:['INDEX.md']
 const conclude=(spec,value)=>{try{return finalize(spec,JSON.stringify(value));}catch(e){fail(spec,e.message);throw e;}};
 let req,spec,result;
 h.test('RUNTIME-01','创建本 AT 唯一隔离工作树并交接实际项目资料与知识',()=>{
-  req=input('first');spec=prepare(req);assert.ok(spec.data.inspection.workspace.endsWith('/.acceptance-local/'+f.at+'/workspace'));assert.ok(spec.prompt.includes('RUNTIME_SMOKE_READY'));assert.ok(spec.data.inspection.knowledge['INDEX.md']);
+  req=input('first');spec=prepare(req);assert.ok(spec.data.inspection.workspace.endsWith('/.acceptance-local/'+f.at+'/workspace'));assert.ok(spec.prompt.includes('RUNTIME_SMOKE_READY'));assert.ok(spec.data.inspection.knowledge['INDEX.md']);assert.deepEqual(spec.data.inspection.knowledge_keys,['INDEX.md']);
 });
 h.test('RUNTIME-02','宿主真实执行 setup、版本探针和 smoke，记录可复验清单后停止',()=>{
   const before=sha(latest(f));result=conclude(spec,answer());assert.equal(result.status,'ready');assert.equal(result.product_judgment,'not_performed');assert.equal(sha(latest(f)),before);
@@ -64,6 +64,18 @@ h.test('RUNTIME-09','不同 AT 必须建立并核验自己的环境，不复制�
 });
 h.test('RUNTIME-10','过期修订、无实际项目资料及请求身份冲突在角色前拒绝',()=>{
   assert.throws(()=>prepare(input('wrong-revision',{revision:'0'.repeat(40)})),/source revision differs/);assert.throws(()=>prepare(input('no-inspection',{inspection_files:[]})),/inspection_files/);assert.throws(()=>prepare({...req,test_roots:['different']}),/request_id conflicts/);
+});
+h.test('RUNTIME-INPUT-01','Monorepo subdirectory is rejected before worktree creation with the actual checkout root and relative-path correction',()=>{
+  const x=fixture('nested-checkout'),sub=path.join(x.root,'subproject');fs.mkdirSync(sub);
+  let error;try{prepare(input('nested-root',{source_checkout:sub},x));}catch(e){error=e;}
+  assert.ok(error);assert.ok(error.message.includes('complete Git checkout root: '+fs.realpathSync(x.root)));assert.match(error.message,/Prefix inspection_files and test_roots/);
+  assert.equal(fs.existsSync(path.join(x.root,'.acceptance-local',x.at,'workspace')),false);
+  const corrected=conclude(prepare(input('corrected-root',{},x)),answer());assert.equal(corrected.status,'ready');
+});
+h.test('RUNTIME-INPUT-02','A filesystem-form knowledge path is rejected with exact allowed logical keys and can be corrected in a new attempt',()=>{
+  const attempt=prepare(input('wrong-knowledge-path'));assert.throws(()=>conclude(attempt,{...answer(),knowledge_used:['.acceptance/knowledge/INDEX.md']}),/allowed logical keys: \["INDEX.md"\]/);
+  assert.equal(fs.existsSync(path.join(attempt.folder,'result.json')),false);
+  const corrected=conclude(prepare(input('corrected-knowledge-path')),answer());assert.equal(corrected.status,'ready');
 });
 h.test('RUNTIME-ENV-01','Project command environment is expanded, verified by actual smoke and frozen separately from model settings',()=>{
   const attempt=prepare(input('execution-env')),value={...answer(),execution_env:{PROJECT_TOOL_FLAG:'ready',PROJECT_TOOL_CACHE:'{runtime_root}/cache'},smoke:{command:[process.execPath,'-e','const a=require("node:assert/strict");a.equal(process.env.PROJECT_TOOL_FLAG,"ready");a.ok(process.env.PROJECT_TOOL_CACHE.endsWith("/runtime/cache"));console.log("PROJECT_ENV_VERIFIED")']}};

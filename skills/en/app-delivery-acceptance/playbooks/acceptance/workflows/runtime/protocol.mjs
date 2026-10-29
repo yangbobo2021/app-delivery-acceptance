@@ -29,12 +29,15 @@ export function prepareRuntimeRequest(value,folder){
   if(!Array.isArray(value.test_roots)||!value.test_roots.length)throw Error('Explicit project test_roots required');
   const names=value.inspection_files;if(!Array.isArray(names)||!names.length||new Set(names).size!==names.length)throw Error('Explicit unique runtime inspection_files required');
   const knowledge=readKnowledge(root,value.acceptance_id,value.knowledge_paths??[]),request={...Object.fromEntries(['source_checkout','revision','test_roots','components','component_sources'].filter(k=>Object.hasOwn(value,k)).map(k=>[k,value[k]])),schema:'project-runtime-agent-request-v1',acceptance:knowledge.acceptance,definitions};
-  if(!request.revision||!request.source_checkout)throw Error('Actual source_checkout and immutable revision required');guard(request,[folder]);saveOnce(path.join(folder,'request.frozen.json'),request);
+  if(!request.revision||!request.source_checkout)throw Error('Actual source_checkout and immutable revision required');guard(request,[folder]);
+  const source=fs.realpathSync(request.source_checkout),checkout=fs.realpathSync(git(source,'rev-parse','--show-toplevel').trim());
+  if(source!==checkout)throw Error('source_checkout must be the complete Git checkout root: '+checkout+'; provided subdirectory '+path.relative(checkout,source)+'. Prefix inspection_files and test_roots relative to that checkout root; project_root remains unchanged. No acceptance worktree was created by this request.');
+  saveOnce(path.join(folder,'request.frozen.json'),request);
   const observations=[],workspace=boundary(request,folder,()=>ensureWorkspace(request,request.source_checkout,request.revision,request.components??[],request.component_sources??{},observations));saveOnce(path.join(folder,'bootstrap.json'),{workspace,revision:request.revision,commands:observations});
   const files={};for(const name of names){const file=inspectionFile(workspace,name);files[name]={sha256:digest(file),text:new TextDecoder('utf-8',{fatal:true}).decode(fs.readFileSync(file))};}
   if(Object.values(files).reduce((sum,item)=>sum+[...item.text].length,0)>500000)throw Error('Runtime inspection exceeds 500000 characters; select necessary project materials');
   const executables=(value.available_executables??[]).map(item=>{if(typeof item.path!=='string'||!path.isAbsolute(item.path)||!fs.existsSync(item.path)||!fs.statSync(item.path).isFile())throw Error('Available executable is not an actual executable file');fs.accessSync(item.path,fs.constants.X_OK);return {...item,resolved_path:fs.realpathSync(item.path),sha256:digest(fs.realpathSync(item.path))};});
-  const inspection={workspace,files,available_executables:executables,inherited_environment:{PATH:process.env.PATH??''},knowledge:knowledge.contents,baseline:workspaceSnapshot(workspace,request.components??[]).files,baseline_modes:snapshotExisting({project_root:workspace,components:request.components??[]})};saveOnce(path.join(folder,'inspection.json'),inspection);return {request,inspection};
+  const inspection={workspace,files,available_executables:executables,inherited_environment:{PATH:process.env.PATH??''},knowledge:knowledge.contents,knowledge_keys:Object.keys(knowledge.contents),baseline:workspaceSnapshot(workspace,request.components??[]).files,baseline_modes:snapshotExisting({project_root:workspace,components:request.components??[]})};saveOnce(path.join(folder,'inspection.json'),inspection);return {request,inspection};
 }
 function expand(value,workspace,runtimeRoot){if(typeof value!=='string')throw Error('Runtime command values must be strings');return value.replaceAll('{workspace}',workspace).replaceAll('{runtime_root}',runtimeRoot);}
 function command(item,workspace,runtimeRoot,defaults={}){
@@ -55,7 +58,7 @@ export function installRuntimeSpec(specFile,output){
   specFile=fs.realpathSync(specFile);const spec=read(specFile);if(spec.schema!=='project-runtime-spec-v1')throw Error('Unsupported runtime spec schema');const binding=guard(spec,[output]);
   if(fs.existsSync(output)&&fs.readdirSync(output).length)throw Error('Runtime preparation output is immutable; use a new workflow attempt');
   const receipt=read(binding.knowledge_receipt),knowledgeUsed=spec.knowledge_used??['INDEX.md'];
-  if(!Array.isArray(knowledgeUsed)||!knowledgeUsed.length||!knowledgeUsed.includes('INDEX.md')||knowledgeUsed.some(name=>!Object.hasOwn(receipt.read_files,name)))throw Error('Runtime knowledge_used must name actually read indexed assets including INDEX.md');
+  if(!Array.isArray(knowledgeUsed)||!knowledgeUsed.length||!knowledgeUsed.includes('INDEX.md')||knowledgeUsed.some(name=>!Object.hasOwn(receipt.read_files,name)))throw Error('Runtime knowledge_used must name actually read indexed assets including INDEX.md; allowed logical keys: '+JSON.stringify(Object.keys(receipt.read_files))+'. Use INDEX.md, not a filesystem path such as .acceptance/knowledge/INDEX.md.');
   if(typeof spec.recipe_candidate!=='string'||!spec.recipe_candidate.trim())throw Error('Runtime preparation needs a reusable recipe candidate');
   fs.mkdirSync(output,{recursive:true});const runtimeRoot=path.join(output,'runtime');fs.mkdirSync(runtimeRoot);fs.writeFileSync(path.join(output,'recipe-candidate.md'),spec.recipe_candidate.trim()+'\n',{flag:'wx'});
   boundary(spec,output,()=>{

@@ -10,6 +10,7 @@
 `source_checkout` 是完整 Git checkout 根目录，`test_roots` 与 `inspection_files` 相对该根目录；`project_root` 仍是保存本轮验收的用户项目目录，两者可以不同。例如验收位于 `/repo/projects/python-cli` 时，checkout 为 `/repo`，测试根为 `projects/python-cli/tests`，README 输入为 `projects/python-cli/README.md`，不要把 checkout 子目录误作仓库根。
 `available_executables` 可列 `{name,path}`，路径须为实际绝对可执行文件；角色据项目资料选择，不预设语言。
 可交接原协议的 `components`、`component_sources` 和已索引 `knowledge_paths`。
+准备输入同时列出 `inspection.knowledge_keys`；角色返回的 `knowledge_used` 使用这些实际已读逻辑键，必须含 `INDEX.md`，不添加项目目录或 `.acceptance/knowledge/` 前缀。传错时保留失败并返回准确允许键，修正调用须使用新请求 ID。
 本次 AT 唯一工作树创建在 `.acceptance-local/<AT>/workspace`；不会在用户原源码树安装依赖。
 必要项目资料完整交给角色，当前上限 500000 字符；缺少实际资料或超限时明确报告限制，保留原入口。
 选择实际业务测试入口及必要依赖；旧覆盖率适配器的机器绑定配置由后续覆盖率准备负责重新绑定，不应代替本阶段的真实业务入口。

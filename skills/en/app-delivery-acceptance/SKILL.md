@@ -29,6 +29,8 @@ Prerequisites are Node.js >=22, npm, Git and the chosen Agents' real credentials
 4. Run the official `<package>/node_modules/.bin/playbook run --with <overlay> --no-provision --json`, passing exact `/acceptance-<workflow> JSON` through stdin. Credentials stay in the actual Agent environment/configuration, never in inputs or reports. See [runtime build and service boundaries](playbooks/acceptance/docs/native-cli-boundaries.md).
 5. Inspect workflow receipt, frozen inputs, actual terminal state and evidence. Explain what completed, what remains and any limitation. Exit 0/Captain prose alone do not prove business success. Call only further workflows authorized by the user.
 
+For runtime preparation, `source_checkout` is the complete Git checkout root (`git rev-parse --show-toplevel`), even when `project_root` is a nested application. Prefix `inspection_files` and `test_roots` relative to that checkout root. Runtime knowledge references use the supplied logical `knowledge_keys`, such as `INDEX.md`, rather than a `.acceptance/knowledge/...` filesystem path.
+
 ## Select the requested scope
 
 | User request | Entry/composition |
