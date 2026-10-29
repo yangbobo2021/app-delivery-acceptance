@@ -33,9 +33,12 @@ function location(root,origin){
 }
 
 export function freezeSourceInputs(request,candidate,root,previous){
-  const prior=request.mode==='replace'?[]:previous?.context.source_documents??[];
+  const supplied=request.definitions.context??{};
+  const inherit=request.mode!=='replace'||Object.hasOwn(supplied,'source_documents');
+  const prior=inherit?previous?.context.source_documents??[]:[];
   if(!Array.isArray(prior))fail('context.source_documents must be an array');
-  for(const key of ['source_documents','required_source_documents'])if(Object.hasOwn(request.definitions.context??{},key)&&(request.mode==='replace'||!equal(request.definitions.context[key],previous?.context[key])))fail('use source_inputs to supply verified '+key);
+  for(const key of ['source_documents','required_source_documents'])if(Object.hasOwn(supplied,key)&&!equal(supplied[key],previous?.context[key]))fail('use source_inputs to supply verified '+key);
+  if(prior.length)candidate.context.required_source_documents??=prior.map(document=>document.path);
   const sources=new Map(prior.map(document=>[document.path,document]));
   const input=request.source_inputs;
   if(input!==undefined){

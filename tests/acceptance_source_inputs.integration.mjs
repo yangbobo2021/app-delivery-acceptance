@@ -5,6 +5,7 @@ import {createHash} from 'node:crypto';
 import {createAcceptance} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/create/initialize.mjs';
 import {freezeAcceptance} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/freeze/freeze.mjs';
 import {sceneInput} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/shared/definitions.mjs';
+import {prepare as prepareScenarios,finalize as finalizeScenarios} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/scenarios/stage.mjs';
 import {harness,read,sha,snapshot} from './official_workflow_harness.mjs';
 
 const h=harness('acceptance-source-inputs',[['acceptance-create','create'],['acceptance-freeze','freeze']]);
@@ -17,6 +18,12 @@ createAcceptance({project_root:root,acceptance_id:at,request_id:'create',user_re
 const inputs=()=>({required_documents:Object.keys(docs),documents:Object.entries(docs).map(([name,text])=>({path:name,sha256:createHash('sha256').update(text).digest('hex'),text,purpose:name==='README.md'?'实际命令背景':'需求及合法输入背景'}))});
 const req=(id,project=root,acceptance=at)=>({project_root:project,acceptance_id:acceptance,request_id:id,basis:'用户明确仅冻结 INV-02，需求全文与 README 为必要背景。',base_definitions_sha256:null,
   source_inputs:inputs(),definitions:{context:{business_goal:'只验收 INV-02。'},requirements:[{id:'INV-02',text:original,origin:{kind:'SPEC',reference:'docs/requirements.md:5@fixture'},external_refs:[]}]}});
+function designRequest(project,acceptance){
+  const scene={id:'S1',title:'金额精确汇总',description:original,priority:'P0',priority_reason:'精确整数是核心结果。'};
+  const spec=prepareScenarios({project_root:project,acceptance_id:acceptance,request_id:'design-quality',target_id:'INV-02',definitions_sha256:sha(path.join(project,'.acceptance',acceptance,'scenarios.json'))});
+  const designed=finalizeScenarios(spec,JSON.stringify({scenarios:[scene],change_summary:['只设计选定原始约定。'],selfcheck:{obligations:[{quote:original,scene_ids:['S1']}],ui_requirement:{required:false,reason:'纯 CLI 金额结果。'},scene_checks:[{scene_id:'S1',owner_quote:original,distinguishing_failure:'大整数被截断导致汇总错误。',observable_result:'真实 CLI 返回精确整数总额。',failure_impact:'金额汇总错误。',ui_visual_expectation:''}]}}));
+  return JSON.parse(fs.readFileSync(designed.next_freeze_command,'utf8').slice('/acceptance-freeze '.length));
+}
 function rejected(id,edit,pattern){h.test(id,'拒绝无效输入且不创建冻结版本/范围/工作区',()=>{const request=req(id);edit(request);const before=snapshot(root);assert.throws(()=>freezeAcceptance(request),pattern);assert.deepEqual(snapshot(root),before);});}
 rejected('SOURCE-01',r=>r.definitions.requirements[0].origin.reference='docs/requirements.md:4@fixture',/source line range does not contain original text/);
 rejected('SOURCE-02',r=>r.source_inputs.documents.pop(),/missing required document snapshot: README/);
@@ -35,8 +42,9 @@ h.test('SOURCE-11','冻结完整背景后逐字交接到场景输入，范围仍
   let value=read(frozen.definitions.path);
   assert.deepEqual(value.context.source_documents.map(x=>[x.path,x.text]),Object.entries(docs));
   assert.deepEqual(value.requirements.map(x=>x.id),['INV-02']);assert.deepEqual(value.scenarios,[]);
-  const scene={id:'S1',requirement_id:'INV-02',description:original,priority:'P0',priority_reason:'精确整数是核心结果。',origin:{kind:'conversation',reference:'fixture:user adopts S1'},external_refs:[],check:{method:'adopt',basis:'用户明确采用场景。'}};
-  const adopted=freezeAcceptance({project_root:root,acceptance_id:at,request_id:'adopt',basis:'用户仅追加明确采用的场景。',base_definitions_sha256:sha(path.join(root,'.acceptance',at,'scenarios.json')),definitions:{scenarios:[scene]}});
+  const generated=designRequest(root,at);
+  assert.equal(generated.mode,'replace');assert.deepEqual(generated.definitions.context.source_documents,value.context.source_documents);
+  const adopted=freezeAcceptance(generated);
   const input=sceneInput({acceptance:{project_root:root,id:at,scope_sha256:adopted.scope.sha256},definitions:adopted.definitions},'S1');
   assert.deepEqual(input.execution_context.source_documents,value.context.source_documents);
   assert.ok(!fs.existsSync(path.join(root,'.acceptance-local',at,'workspace')));
@@ -79,6 +87,8 @@ if(h.live){
     }
     const request=req('valid',r,id),result=h.cli('acceptance-freeze',request,'live-valid',r);h.settled(result,'acceptance-freeze','frozen');
     const value=read(path.join(r,'.acceptance',id,'scenarios.json'));assert.deepEqual(value.context.source_documents.map(x=>x.text),Object.values(docs));assert.deepEqual(value.scenarios,[]);
+    const adoption=designRequest(r,id),adopted=h.cli('acceptance-freeze',adoption,'live-adopt-generated',r);h.settled(adopted,'acceptance-freeze','frozen');
+    const complete=read(path.join(r,'.acceptance',id,'scenarios.json'));assert.equal(complete.scenarios.length,1);assert.deepEqual(complete.context.source_documents,value.context.source_documents);
     h.save('live-project-snapshot.json',snapshot(r));return {project_root:r,result:result.envelope};
   });
 }
