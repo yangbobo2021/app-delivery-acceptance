@@ -2,11 +2,12 @@
 
 ```text
 Skill/
-├── SKILL.md                       # 对话理解、授权、输入来源和入口选择
+├── SKILL.md                       # 对话理解、授权、来源；只委托总调度
 ├── scripts/setup.mjs              # 可选接入便利，只调用包的依赖准备
 └── playbooks/acceptance/           # 可单独 npm pack/install 的完整包
     ├── bin/configure.mjs          # 全部注册与角色配置生成
-    ├── workflows/<workflow>/     # registry、stage、角色、合同和专用工具
+    ├── workflows/orchestrate/    # 总调度公开入口、角色及持久化任务委托
+    ├── workflows/<workflow>/     # 独立子入口、stage、角色、合同和专用工具
     ├── workflows/shared/         # 实际跨工作流共用的业务基础机制
     ├── tools/                    # 多工作流共用确定性工具入口
     ├── contracts/                # 多工作流共用的输出、证据合同

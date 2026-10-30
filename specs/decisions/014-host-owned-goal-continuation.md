@@ -2,6 +2,8 @@
 
 ## 状态
 
+宿主跨工作流选择与接续职责由 [DR-015](015-playbook-owned-task-orchestration.md) 局部修订为总调度 Playbook 所有；独立子工作流其余边界保留。
+
 已接受，依据用户明确要求：主 Agent 应推动 Playbook 工作流调用完成最终任务，准备遗漏可修复并继续。
 补充 [DR-009](009-skill-playbook-responsibility-boundary.md) 的跨工作流调度与 [DR-013](013-outcome-owned-coverage-preparation.md) 的内部准备修复，不改变独立工作流的停止边界。
 

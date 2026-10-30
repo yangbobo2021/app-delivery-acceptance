@@ -2,6 +2,8 @@
 
 ## 状态
 
+宿主跨工作流选择与接续职责由 [DR-015](015-playbook-owned-task-orchestration.md) 局部修订为总调度 Playbook 所有；独立子工作流其余边界保留。
+
 覆盖率准备的项目输入、内部运行资料准备与自主修复由 [DR-013](013-outcome-owned-coverage-preparation.md) 局部修订；其他业务停止边界不变。
 
 用户已明确目标：切清 Skill 辅助脚本与 Playbook 的边界，任一工作流可由 Playbook 命令完整调用。

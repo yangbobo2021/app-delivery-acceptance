@@ -12,7 +12,7 @@
 
 ### workflow-package-2
 
-当宿主通过 Skill 发起交付工作时，Skill 应只解释对话意图和授权、保留来源原文、选择或组合入口、按目标工作流筛选领域输入和解释结果，不将跨工作流调度及修改实现的安排混入领域约束，便利脚本仅可定位包或调用其依赖准备，而业务门禁、执行、证据及结论由工作流包完成。
+当宿主通过 Skill 发起交付工作时，Skill 应只解释对话意图和授权、保留来源原文、向总调度工作流交接目标与上下文和解释结果，不直接调用子工作流，不将跨工作流调度及修改实现的安排混入领域约束，便利脚本仅可定位包或调用其依赖准备，而业务门禁、执行、证据及结论由工作流包完成。
 
 ### workflow-package-3
 
@@ -24,7 +24,15 @@
 
 ### workflow-package-6
 
-给定用户授权的交付目标尚未完成，当子工作流暴露可修复的前提遗漏时，Skill 应指导宿主依据真实诊断调用负责该前提的公开工作流并接续原选定工作，保留失败历史与已有身份，不将子工作流的 blocked 自动当作整个任务终点，也不越过用户明确的停止点或实际未解决的输入、权限、资源与副作用边界 [DR-014](../decisions/014-host-owned-goal-continuation.md)。
+给定用户授权的交付目标尚未完成，当子工作流暴露可修复的前提遗漏时，总调度工作流应依据真实诊断调用负责该前提的公开子工作流并接续原选定工作，保留失败历史与已有身份，不将子工作流的 blocked 自动当作整个任务终点，也不越过用户明确的停止点或实际未解决的输入、权限、资源与副作用边界 [DR-014](../decisions/014-host-owned-goal-continuation.md)，调度责任按 [DR-015](../decisions/015-playbook-owned-task-orchestration.md) 迁至总调度工作流。
+
+### workflow-package-8
+
+当接收用户任务委托或后续调整时，总调度工作流应通过独立官方角色依据完整原话、来源、当前状态和停止点动态选择检查、公开子调用或返回结果，不强制固定阶段序列 [DR-015](../decisions/015-playbook-owned-task-orchestration.md)。
+
+### workflow-package-9
+
+当调用或继续子工作流时，总调度工作流应通过官方嵌套会话保存任务／消息／子调用身份及原始结果，已完成消息重入不重放子效果，遇到活跃或未知效果时保留资料并要求核对原会话，所述跨阶段接续遵守 [[workflow-package-6](#workflow-package-6)]。
 
 ## 验证
 
@@ -37,4 +45,8 @@
 
 ### workflow-package-7
 
-当验证宿主跨工作流接续时，系统测试应通过公开 Playbook CLI 从已有真实准备缺口继续同一验收与选定场景，核对诊断交接、准备修复、重新绑定、原用例身份保留、正式执行和独立结果，以及原失败证据不被改写 [[workflow-package-6](#workflow-package-6)] [host_goal_continuation.audit.mjs](../../tests/host_goal_continuation.audit.mjs)。
+当验证跨工作流接续时，系统测试应只向总调度交接目标，通过其官方子调用观察真实阻塞后的诊断修正和任务继续，核对失败保留、同一验收身份、所选场景的实际执行及独立结果 [[workflow-package-6](#workflow-package-6)] [orchestrated_goal.audit.mjs](../../tests/orchestrated_goal.audit.mjs)。
+
+### workflow-package-10
+
+当系统测试验证总调度接入时，应仅向总调度入口交接真实用户任务，核对动态子调用、只创建／冻结等停止点、同任务后续调整、不重复执行及完整所选场景的真实结果和独立证据 [[workflow-package-8](#workflow-package-8)] [[workflow-package-9](#workflow-package-9)] [acceptance_orchestrate.integration.mjs](../../tests/acceptance_orchestrate.integration.mjs)。

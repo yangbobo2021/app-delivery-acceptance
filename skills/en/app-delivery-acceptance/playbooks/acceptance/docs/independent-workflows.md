@@ -1,6 +1,7 @@
 # 独立交付测试入口
 
-宿主使用完整用户对话选择入口、准备显式输入并决定后续调用；Playbook 不自动读取宿主会话。
+总调度根据宿主的显式任务委托选择和组合以下子入口，Playbook 不自动读取宿主会话。
+Skill／Codex 的业务入口仅为 `/acceptance-orchestrate`；下列直接调用说明供总调度、人工和 CI 使用。
 每次只执行本次授权的过程，单个入口完成不代表整项验收结束。
 这些模块由锁定的官方 Playbook 本地固定构建 CLI 加载。
 先核对 [官方 CLI 的服务、写入和图片边界](native-cli-boundaries.md)；使用标准官方命令和公开 Player 端口。
@@ -10,6 +11,7 @@
 
 | 命令 | 注册模块（相对独立工作流包） | 输入与停止点 |
 | --- | --- | --- |
+| `/acceptance-orchestrate` | `workflows/orchestrate/registry.mjs` | [任务委托与继续](orchestration-workflow.md)，独立调度角色动态调用公开子入口。 |
 | `/acceptance-create` | `workflows/create/registry.mjs` | [仅创建](create-acceptance.md)，创建空容器即停止。 |
 | `/acceptance-freeze` | `workflows/freeze/registry.mjs` | 以下冻结请求，保存明确约定后停止，不生成场景。 |
 | `/acceptance-analyze` | `workflows/analyze/registry.mjs` | [完整需求分析](analysis-workflow.md)，输出目标、范围和分组候选后停止。 |
@@ -98,3 +100,5 @@ node <repository>/tests/acceptance_freeze.integration.mjs --live-cli --output /a
 
 实际调用官方 CLI、当前 Node 存储工具和文件系统，检查原文、增量、不可覆盖历史、同请求重入、过期基线、场景影响、工作区互斥及创建→冻结后停止。
 `--live-cli` 使用测试中明确记录的 Codex Captain；可用 `ACCEPTANCE_MODEL / ACCEPTANCE_EFFORT` 显式选择模型和 effort，实际配置与角色回执随证据保存。省略则仅执行确定性协议集成检查。
+
+Skill/host business requests now enter only `/acceptance-orchestrate`; see [总调度委托](orchestration-workflow.md). Independent entries remain public for human/CI use; the orchestrator owns child selection and continuation.

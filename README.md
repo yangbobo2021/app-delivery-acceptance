@@ -28,7 +28,7 @@
 
 **当前源码环境：** macOS / Linux、Git、Node.js >=22 与 npm；Codex、Claude Code 或 OpenCode 已能调用模型。Skill 的新业务入口使用官方 Playbook CLI 和 Node 工具；被测 Python 项目或其覆盖率工具仍可能需要 Python。首次会下载依赖并多次调用模型。[环境与运行说明](skills/en/app-delivery-acceptance/playbooks/acceptance/README.md)
 
-当前源码已改为可组合的[独立工作流入口](skills/en/app-delivery-acceptance/playbooks/acceptance/docs/independent-workflows.md)，尚未发布为新标签。下方 `v0.1` 安装示例仍是历史发布，不能据此获得本次迁移。使用当前源码时挂载或复制 `skills/en/app-delivery-acceptance` 到所选 Agent 的 Skill 目录，按[运行配置](skills/en/app-delivery-acceptance/playbooks/acceptance/docs/agent-runtime.md)提供实际模型和既有服务环境；OpenCode 使用完整 `provider/model` 标识。
+当前源码使用[总调度工作流](skills/en/app-delivery-acceptance/playbooks/acceptance/docs/orchestration-workflow.md)：Skill／宿主只向 `/acceptance-orchestrate` 交接用户目标和上下文，由总调度通过官方 Playbook 嵌套调用完成后续工作；[独立子入口](skills/en/app-delivery-acceptance/playbooks/acceptance/docs/independent-workflows.md)继续供人工和 CI 使用。尚未发布为新标签，下方 `v0.1` 安装示例仍是历史发布，不能据此获得本次迁移。使用当前源码时挂载或复制 `skills/en/app-delivery-acceptance` 到所选 Agent 的 Skill 目录，按[运行配置](skills/en/app-delivery-acceptance/playbooks/acceptance/docs/agent-runtime.md)提供实际模型和既有服务环境；OpenCode 使用完整 `provider/model` 标识。
 
 ### 第 1 步：安装 Skill
 

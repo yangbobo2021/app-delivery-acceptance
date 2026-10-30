@@ -24,3 +24,5 @@ vendor/       pinned local official runtime builds and source provenance
 `runtime/players.mjs` projects official Player events to one-shot role programs; `runtime/session.mjs` calls the official session port. It creates no SDK session, picks no alternate model and invokes no private CLI. `workflows/shared/process.mjs` preserves subprocess isolation, receipts, timeout/cancellation and forwards role requests over IPC. Official Playbook/Cligent own actual Agent invocation and session journals. Per-call permissions can only narrow the declared configuration ceiling.
 
 `acceptance-create` stops at an empty AT. Other entries may legitimately require frozen definitions, a prepared runtime/catalog or prior receipts: missing prerequisites are explicit blocked results, not an invitation to run additional business stages. Reports judge actual receipts/evidence, not only command exit status.
+
+Skill/host business requests now enter only `/acceptance-orchestrate`; see [task delegation](docs/orchestration-workflow.md). Independent entries remain public for human/CI use; the orchestrator owns child selection and continuation.

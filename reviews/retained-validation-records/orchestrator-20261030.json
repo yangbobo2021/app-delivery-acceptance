@@ -1,0 +1,389 @@
+{
+  "schema": "orchestration-validation-summary-v1",
+  "at": "2026-10-30T00:13:10.089Z",
+  "native_agent": "codex",
+  "model": "gpt-6-sol",
+  "effort": "high",
+  "fixture_revision": "be952659c7d93018e26793daf2e58fa8321601f4",
+  "coverage": "off",
+  "source_branch": "codex/acceptance-playbook-migration",
+  "runs": [
+    {
+      "message_id": "full-message-01",
+      "host_workflow": "orchestrate",
+      "started_at": "2026-10-29T23:42:02.179Z",
+      "finished_at": "2026-10-30T00:01:32.907Z",
+      "elapsed_seconds": 1170.7399644159998,
+      "status": "completed",
+      "caller_session": "6de2ad33-5db3-4813-beb5-e48b3150ad5a",
+      "receipt_sha256": "8d9e10d29d8b19ff8f1c31ea5904575ae6b48e203b1030e1c2491efadd98e31c"
+    },
+    {
+      "message_id": "rerun-message-01",
+      "host_workflow": "orchestrate",
+      "started_at": "2026-10-30T00:06:17.517Z",
+      "finished_at": "2026-10-30T00:10:21.353Z",
+      "elapsed_seconds": 243.832188041,
+      "status": "completed",
+      "caller_session": "74777e97-423c-42b3-9d10-a043e5226a55",
+      "receipt_sha256": "0e9b28c95118372c126a464ffe9b4bb4b7f4ca22a45fb949a8b13174d6d73617"
+    }
+  ],
+  "calls": [
+    {
+      "id": "child-e69ddc6a-76b7-45ca-9b67-e68591388d9c",
+      "workflow": "acceptance-create",
+      "native_child": "fdfff5d2-c381-43d3-978e-d692431848b6",
+      "status": "created",
+      "started_at": "2026-10-29T23:42:44.931Z",
+      "finished_at": "2026-10-29T23:42:45.443Z",
+      "result_sha256": "cf8a2d76b46789c5f1c7370042b869f1c957f43dcc57308e84db857cf0f926ea"
+    },
+    {
+      "id": "child-cd77426b-e89f-45fb-964d-80101065811b",
+      "workflow": "acceptance-freeze",
+      "native_child": "5199ef81-4282-4f13-9fa8-fdc476d42825",
+      "status": "blocked",
+      "started_at": "2026-10-29T23:43:13.812Z",
+      "finished_at": "2026-10-29T23:43:14.327Z",
+      "result_sha256": "c8431982651c430810e165df33caa9ef309a6f75e7938a334877704d999819eb"
+    },
+    {
+      "id": "child-f91e14a0-8cc2-43d4-8520-5ec9451388d4",
+      "workflow": "acceptance-freeze",
+      "native_child": "337b9cb3-a1c9-46a4-8ab3-a2a110a8aa00",
+      "status": "frozen",
+      "started_at": "2026-10-29T23:43:35.297Z",
+      "finished_at": "2026-10-29T23:43:35.780Z",
+      "result_sha256": "41823f8dba0ac7dbc51faae79a6c9242ba1c474d21258ffd43beb9b3af38299a"
+    },
+    {
+      "id": "child-d23eabd9-ef1e-4e1b-9411-df048a594470",
+      "workflow": "acceptance-analyze",
+      "native_child": "ff4a314a-f2dc-4302-b1f8-508566f36b9d",
+      "status": "analyzed",
+      "started_at": "2026-10-29T23:44:04.010Z",
+      "finished_at": "2026-10-29T23:44:25.410Z",
+      "result_sha256": "500a2282daea11c0bc7527a8c0be28b559ebe5f1a3a1b15936d90bc8c7cb493e"
+    },
+    {
+      "id": "child-6cde4f3f-040b-43de-b1ad-fd3f4eded0d1",
+      "workflow": "acceptance-freeze",
+      "native_child": "a204d107-d196-439b-8a80-f9d077d9b037",
+      "status": "frozen",
+      "started_at": "2026-10-29T23:44:49.813Z",
+      "finished_at": "2026-10-29T23:44:50.355Z",
+      "result_sha256": "3050ec58b092b7eca5af46026d40c37250ef1c6eb548e86c3d4bc62f9554abea"
+    },
+    {
+      "id": "child-2ea6d49e-a462-4253-997d-269ba6dd35cb",
+      "workflow": "acceptance-scenarios",
+      "native_child": "26fe40ff-8811-4d89-8cd6-e1c9b7e5e7e2",
+      "status": "designed",
+      "started_at": "2026-10-29T23:45:03.725Z",
+      "finished_at": "2026-10-29T23:46:07.912Z",
+      "result_sha256": "9517071c0336f969c4972e56f006de53cc92040ae693aa40b69bebf5ec6d237a"
+    },
+    {
+      "id": "child-c8fd841a-c402-417a-8922-4233714eadda",
+      "workflow": "acceptance-freeze",
+      "native_child": "18087530-f913-4c8b-aa25-409780c3d67d",
+      "status": "frozen",
+      "started_at": "2026-10-29T23:46:37.179Z",
+      "finished_at": "2026-10-29T23:46:37.694Z",
+      "result_sha256": "ffdf3e9f64f43f6343e198a1a8e412a1a565f446a3ec6301a495ed5d087c3d1d"
+    },
+    {
+      "id": "child-e11fd53f-10f8-4b08-b1ba-147540930a7e",
+      "workflow": "acceptance-runtime",
+      "native_child": "3738a901-eb61-40bc-af08-0812cb25081b",
+      "status": "ready",
+      "started_at": "2026-10-29T23:47:32.097Z",
+      "finished_at": "2026-10-29T23:47:53.509Z",
+      "result_sha256": "1dab3986ef7765653b5837e72f32e3499e95dc016246f756fff5b7e7ca4213de"
+    },
+    {
+      "id": "child-171b3f82-710a-470e-b7de-dba33d356f89",
+      "workflow": "acceptance-project",
+      "native_child": "2a582131-dc40-4130-9d12-485570d495f8",
+      "status": "prepared",
+      "started_at": "2026-10-29T23:48:44.438Z",
+      "finished_at": "2026-10-29T23:49:27.822Z",
+      "result_sha256": "3f31361e1d7dc45c9f951528eee3fdee5695e58a491f0cf69433b5e996d2ca1b"
+    },
+    {
+      "id": "child-eac30baa-ebee-47ae-9452-3072298b45a6",
+      "workflow": "acceptance-cases",
+      "native_child": "eed8a6c0-dce0-4d16-a6eb-8da113b1fd5c",
+      "status": "ready",
+      "started_at": "2026-10-29T23:50:03.607Z",
+      "finished_at": "2026-10-29T23:54:32.375Z",
+      "result_sha256": "13f582986f63fbb9c49cc9ac497c5499c94d37e27992243030bbf8d73360654b"
+    },
+    {
+      "id": "child-41f3f88c-f6fc-435d-b171-ef0eeb43a3cb",
+      "workflow": "acceptance-execute",
+      "native_child": "4cd5bec3-0b10-40ca-891a-5d59ecec35bb",
+      "status": "completed",
+      "review_status": "passed",
+      "started_at": "2026-10-29T23:56:39.981Z",
+      "finished_at": "2026-10-29T23:57:21.061Z",
+      "result_sha256": "092281bf1a65b539b965346f72e39e295b844f4486e9d7a7f261390e6a1b2b38"
+    },
+    {
+      "id": "child-92068299-8ebb-4a8c-bdb1-86cbd7adf580",
+      "workflow": "acceptance-archive",
+      "native_child": "a32988fb-a4e0-47e3-81db-8a6359d0c273",
+      "status": "archived",
+      "started_at": "2026-10-29T23:58:24.936Z",
+      "finished_at": "2026-10-29T23:58:25.452Z",
+      "result_sha256": "8c22be1f5bf6183b1f1bf9026601d1b440fed08f930c1991797e6e4e549b4323"
+    },
+    {
+      "id": "child-7b683b6e-60b1-4b37-ab4c-d30f6bbc911b",
+      "workflow": "acceptance-report",
+      "native_child": "048551cd-9d6f-4174-8744-925937fe2b4e",
+      "status": "reported",
+      "started_at": "2026-10-29T23:58:52.789Z",
+      "finished_at": "2026-10-29T23:58:53.557Z",
+      "result_sha256": "717a96c61ff1ffdc07683126c65090cb575671431be7986a92a22ea168c01972"
+    },
+    {
+      "id": "child-87bd1907-0b1b-4ae8-a598-bed9446e95a9",
+      "workflow": "acceptance-finish",
+      "native_child": "a4fd4535-0d77-4569-b014-7a8b774e6378",
+      "status": "finished",
+      "started_at": "2026-10-29T23:59:46.968Z",
+      "finished_at": "2026-10-29T23:59:47.812Z",
+      "result_sha256": "a406734f6532031987ebec213f87b7a866c4abf7f47994e4ffadcf7a2dfe5b79"
+    },
+    {
+      "id": "child-5b56af96-7e89-41bc-8bf0-3443a55a06b5",
+      "workflow": "acceptance-view",
+      "native_child": "ee293af8-a24d-4d27-89c0-d5253a4f9143",
+      "status": "viewing",
+      "started_at": "2026-10-29T23:59:59.236Z",
+      "finished_at": "2026-10-29T23:59:59.998Z",
+      "result_sha256": "7c218bea49a801f50346bddba1ec9fcf868caa360149e93473517a882d5fdff2"
+    },
+    {
+      "id": "child-7f29b9fe-9ba7-4764-82d3-a48b5506895b",
+      "workflow": "acceptance-start",
+      "native_child": "d9c283c1-7e59-4874-a956-1761f07469f5",
+      "status": "current",
+      "started_at": "2026-10-30T00:06:49.702Z",
+      "finished_at": "2026-10-30T00:06:50.226Z",
+      "result_sha256": "4d71ee2445eab08215f1ac5ef683063df45554459a3e673d5cf2a5194e2607e6"
+    },
+    {
+      "id": "child-f4f2ecbc-293f-4106-a75f-a8d3c99f451d",
+      "workflow": "acceptance-execute",
+      "native_child": "d497f696-396a-4fd7-bacb-0fa4e28e399a",
+      "status": "completed",
+      "review_status": "passed",
+      "started_at": "2026-10-30T00:07:26.553Z",
+      "finished_at": "2026-10-30T00:08:02.704Z",
+      "result_sha256": "2f9c1d78eb3d41105f2825a111fd554f5df489ffe7ff7d34a23253006aaacc64"
+    },
+    {
+      "id": "child-1d02bb59-5589-4069-a842-0b22d8856271",
+      "workflow": "acceptance-archive",
+      "native_child": "dc74f2ec-f67c-44d3-a092-b023a100083a",
+      "status": "archived",
+      "started_at": "2026-10-30T00:08:38.839Z",
+      "finished_at": "2026-10-30T00:08:39.356Z",
+      "result_sha256": "926383832d9a74904df48bb3b7115ebc5ffb6840db685f84e28026267502dea5"
+    },
+    {
+      "id": "child-23ff6282-6835-4516-b86d-21daf34b1338",
+      "workflow": "acceptance-report",
+      "native_child": "4a5b0514-3f93-4879-b805-9697071e0e64",
+      "status": "reported",
+      "started_at": "2026-10-30T00:08:52.997Z",
+      "finished_at": "2026-10-30T00:08:54.266Z",
+      "result_sha256": "2c1c38ff6d62ed7b450672deda661ed131d782fd508d8a647d31a50de4f0b9b2"
+    },
+    {
+      "id": "child-848223e0-c700-49e9-8228-102d4063316e",
+      "workflow": "acceptance-finish",
+      "native_child": "c8e09957-4c14-46da-afae-3cb6f8340b0f",
+      "status": "finished",
+      "started_at": "2026-10-30T00:09:09.492Z",
+      "finished_at": "2026-10-30T00:09:10.483Z",
+      "result_sha256": "5282fff1d77cc7ffe8c03153b8f307292443c37ecf66a5b6e2c34c7c7d85c1e2"
+    },
+    {
+      "id": "child-c62c10df-1066-4ab7-a549-3bf03eeb5a05",
+      "workflow": "acceptance-view",
+      "native_child": "e28bf3ee-1e52-4763-9fe9-210f6107971d",
+      "status": "viewing",
+      "started_at": "2026-10-30T00:09:22.636Z",
+      "finished_at": "2026-10-30T00:09:23.638Z",
+      "result_sha256": "a62a0a700c5a02194586db7366a4558575c13ff7eab3f50d8737f555f1ecb4ce"
+    }
+  ],
+  "audit": {
+    "passed": 19,
+    "total": 19,
+    "checks": [
+      {
+        "name": "Clean baseline and only a parent business command from the caller",
+        "status": "passed"
+      },
+      {
+        "name": "Every recorded public child is a real native descendant of this parent",
+        "status": "passed"
+      },
+      {
+        "name": "The independent official orchestrator uses the selected Agent/model/effort",
+        "status": "passed"
+      },
+      {
+        "name": "A real blocked child was diagnosed and repaired internally without an external child call",
+        "status": "passed"
+      },
+      {
+        "name": "Original requirement and complete byte-matching project sources were frozen",
+        "status": "passed"
+      },
+      {
+        "name": "Prepared runtime and product source remain bound to the tested revision",
+        "status": "passed"
+      },
+      {
+        "name": "Coverage is explicitly off; no coverage role/collector was substituted",
+        "status": "passed"
+      },
+      {
+        "name": "One selected P0 scene and one permanent case were actually debugged",
+        "status": "passed"
+      },
+      {
+        "name": "Independent case assessment and formal result review are sufficient/passed",
+        "status": "passed"
+      },
+      {
+        "name": "Formal execution has actual exit/log bytes and frozen attachments",
+        "status": "passed"
+      },
+      {
+        "name": "Actual implementation/evaluation/result-review sessions remain independent",
+        "status": "passed"
+      },
+      {
+        "name": "Report, selective archive and finish are supported by their actual receipts",
+        "status": "passed"
+      },
+      {
+        "name": "The parent completed the requested task with real evidence rather than merely a child terminal",
+        "status": "passed"
+      },
+      {
+        "name": "A subsequent parent-only message resumes the same task and changes no scope/case design",
+        "status": "passed"
+      },
+      {
+        "name": "Rerun uses a new real attempt for exactly the same AT/scene/permanent TC",
+        "status": "passed"
+      },
+      {
+        "name": "All original child receipts and first execution bytes survive the follow-up unchanged",
+        "status": "passed"
+      },
+      {
+        "name": "The follow-up invokes public native children rather than host-composed execution",
+        "status": "passed"
+      },
+      {
+        "name": "The new independent result reviewer is a fresh session and checks newly frozen evidence",
+        "status": "passed"
+      },
+      {
+        "name": "Follow-up report/archive/finish/view are real and retain the unexecuted limits",
+        "status": "passed"
+      }
+    ],
+    "artifact_sha256": "e427116a42fabf81a7a7e24cce3dd88f8a388a44b76624fa2baf79b10d9a7f49"
+  },
+  "standalone": {
+    "package_sha256": "a359def9cde0a4b0be3b0e5b8e0ad9e93805b0aff4f199ba74b99d2006cbfd55",
+    "matched_files": 182,
+    "skill_present": false,
+    "tests": [
+      {
+        "id": "ORCH-01",
+        "status": "passed"
+      },
+      {
+        "id": "ORCH-02",
+        "status": "passed"
+      },
+      {
+        "id": "ORCH-03",
+        "status": "passed"
+      },
+      {
+        "id": "ORCH-04",
+        "status": "passed"
+      },
+      {
+        "id": "ORCH-05",
+        "status": "passed"
+      },
+      {
+        "id": "ORCH-06",
+        "status": "passed"
+      },
+      {
+        "id": "ORCH-07",
+        "status": "passed"
+      },
+      {
+        "id": "ORCH-08",
+        "status": "passed"
+      },
+      {
+        "id": "ORCH-09",
+        "status": "passed"
+      },
+      {
+        "id": "ORCH-LIVE-01",
+        "status": "passed"
+      },
+      {
+        "id": "ORCH-LIVE-02",
+        "status": "passed"
+      },
+      {
+        "id": "ORCH-LIVE-03",
+        "status": "passed"
+      },
+      {
+        "id": "ORCH-LIVE-04",
+        "status": "passed"
+      }
+    ],
+    "regressions": {
+      "migration": {
+        "passed": 5,
+        "failed": 0
+      },
+      "command_portability": {
+        "passed": 7,
+        "failed": 0
+      }
+    }
+  },
+  "source_hashes": {
+    "skills/en/app-delivery-acceptance/SKILL.md": "053fc4a96018b38288ed1b08aa7d084300aedb8a2e39e3eb64e6ff0115d67be4",
+    "skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/orchestrate/registry.mjs": "bf9d65649976ec3ab50be57dc19592f5aee53f800454f275f27c1f7f7dc39899",
+    "skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/orchestrate/task.mjs": "bde0be058550ea2c1d00a93044abf8ae82a15676417c97e2ba936427fc5d4177",
+    "skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/orchestrate/orchestrator.md": "7e54b07783b71bb8f53ec0159f7df707350ede5787777aeaae5f9b6eeb7252bc",
+    "tests/acceptance_orchestrate.integration.mjs": "dd791222435ec8e14b4413eaf19f63594e806954325d873e027c0413940888bb",
+    "tests/orchestrated_goal.audit.mjs": "d7fa91ba399ae0aa5c9c63c4d99e23c925212b5e44757488fde8912ce92f9c94"
+  },
+  "limits": [
+    "One real CLI project and selected P0 scene via Codex/gpt-6-sol/high; not all project/Agent combinations.",
+    "A controlled port fixture separately covers suspended-call restoration; this run is not an OS-process-crash recovery test."
+  ]
+}
