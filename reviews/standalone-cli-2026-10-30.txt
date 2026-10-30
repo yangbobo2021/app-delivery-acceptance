@@ -1,0 +1,29 @@
+总调度独立 CLI 验证报告
+日期：2026-10-30（Asia/Shanghai）
+
+结论：总调度能够脱离测试 Skill，通过官方 Playbook CLI 独立运行。7 组目标最终均达到；冻结和场景设计存在参数构造/设计角色问题，由总调度自行补救。不能把此结果解释为所有内部路径都一次成功。
+
+独立性：仅复制 playbooks/acceptance 包及其锁定的 Node 依赖到工作区；未复制或加载外层测试 Skill。复制包没有 SKILL.md；全部注册入口指向独立副本；176 个源码文件前后未变。使用 Codex / gpt-6-sol / high 及既有认证。宿主记录脚本为 Node.js，未使用 Python。
+命令形式：<独立包>/node_modules/.bin/playbook run --with <overlay.json> --no-provision --json；stdin 为 /acceptance-orchestrate JSON。每项任务目录的 command.sh、stdin.txt、stdout.jsonl、stderr.log 均已保留。
+
+通过 | 仅创建空交付测试 | completed | 57.3 秒
+通过 | 仅冻结一个需求 | completed | 125.4 秒
+通过 | 设计并采用一个场景后停止 | completed | 272.8 秒
+通过 | 相同请求幂等重入 | completed | 12.1 秒
+通过 | 只读检查状态 | inspected | 14.4 秒
+通过 | 只读报告和 Web 结果视图 | completed | 67.4 秒
+通过 | 缺少需求时停止并提问 | needs_input | 29.8 秒
+
+实际发现：
+1. 仅冻结需求的前两次子调用缺字段，分别被 context.business_goal、origin.reference 校验拦截；总调度自行修正，最终冻结 1 个需求、0 个场景。
+2. 场景设计角色两次因没有产品实现而产出 0 个场景。总调度未把零场景当作完成，而是从冻结需求推导一个场景，通过公开冻结入口采用，并明确记录来源与没有独立复审。期间另有一次来源快照不完整的拦截，已自行修正。
+3. 相同请求重入返回 reused:true，无新增子调用、无定义或当前指针变化；只读检查返回 inspected，也未新增子调用或修改定义/指针。
+4. 结果视图 HTTP 200，/api/traces 显示共 1 个场景、0 个执行、1 个未执行。
+5. 缺少需求返回 needs_input 并明确询问业务目标和需求，无子调用、无虚构需求。
+
+全程产品测试执行：0；未生成/调试用例，未收集覆盖率。没有修改产品或工作流实现。
+视图：http://127.0.0.1:58375/?acceptance_id=AT-05d7c64a03011de3
+
+记录说明：初步 final.json 的 5/7 是记录器误报。只读检查不写请求结果文件，而幂等重入的 reused 标记只在本次官方输出里；reviewed-results.json 已按原始 CLI 输出复核为 7/7。保留原始记录，不覆盖或伪造运行。
+
+边界：复用了已安装的锁定 Node 依赖和现有 Agent 认证；未测试全新机器安装、完整产品用例执行或全部工作流。
