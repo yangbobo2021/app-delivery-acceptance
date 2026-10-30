@@ -1,6 +1,6 @@
-# Local dependencies and interpreter caches
+# Skill-local dependencies, install claims and test-fixture caches
 node_modules/
-playbook/.runtime-install.lock
+playbooks/acceptance/.runtime-install.lock.d/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -8,11 +8,6 @@ __pycache__/
 .ruff_cache/
 .venv/
 venv/
-
-# Reproducible Playbook compiler cache and intermediate drafts
-.slc/
-*.gears.raw.md
-*.gears.opt[0-9]*.md
 
 # Local configuration and OS/editor files
 .env

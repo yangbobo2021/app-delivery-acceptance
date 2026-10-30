@@ -1,0 +1,28 @@
+{
+  "kind": "local-source-builds-not-published",
+  "created_at": "2026-10-28T03:06:23.707939+00:00",
+  "sources": [
+    {
+      "package": "@sublang/playbook",
+      "upstream_commit": "cffc5ae8ff219b0f6d822161b1b3448841bd401b",
+      "local_version": "18.1.1-acceptance.20261028.2",
+      "source_patch": "playbook.patch",
+      "patch_sha256": "8d3de9638948066a0d271be3bd8f186d80a9b7c65b9886545ebebd8304db1f93"
+    },
+    {
+      "package": "@sublang/cligent",
+      "upstream_commit": "e411c5acb8bcf9442283d05fc7a849eede22f3ae",
+      "local_version": "0.36.2-acceptance.20261028.2",
+      "source_patch": "cligent.patch",
+      "patch_sha256": "436401b6bb300d691773df73930fcf9afd90eee583f8fc5eed07e6435d3011b6",
+      "updated_archive": "sublang-cligent-0.36.2-acceptance.20261030.1.tgz",
+      "snapshot_notes": "Internal version retained for exact dependent compatibility; updated file name and archive digest identify changed unpublished bytes."
+    }
+  ],
+  "archives": {
+    "sublang-cligent-0.36.2-acceptance.20261028.2.tgz": "aada63c544ca875a1b1ba674e66712cc7ab098ffb83153d4b4c2fa4538a5c436",
+    "sublang-playbook-18.1.1-acceptance.20261028.2.tgz": "c224c743e958458ecc037d4ad488b1019b0ff9caca9c0ee907a78b02859fc615",
+    "sublang-cligent-0.36.2-acceptance.20261030.1.tgz": "8e373f3b9d6cf42f883a5dc85a7d9ea2959326ffbc4f5ff9d55bbb796a4da02a"
+  },
+  "updated_at": "2026-10-30"
+}

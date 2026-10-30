@@ -2,14 +2,263 @@
   "format": 2,
   "org": "yangbobo2021",
   "name": "app-delivery-acceptance",
-  "version": "0.1.0-github.3",
-  "description": "Frozen delivery requirements and scenarios, real execution evidence, independent review and coverage.",
-  "repository": "https://github.com/yangbobo2021/app-delivery-acceptance",
+  "version": "0.4.9",
+  "description": "Delivery acceptance workflows using native SPEX Player and nested Playbook ports",
   "artifacts": {
+    "acceptance-analyze": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-archive": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-assess-cases": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-assess-scenarios": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-backfill": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-cases": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-change-plan": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-cleanup": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-coverage-prepare": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-coverage-recompute": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-create": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-current": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-delivery-judge": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-execute": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-find-cases": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-finish": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-freeze": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-knowledge": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-manual-execute": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-orchestrate": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-analyze",
+        "acceptance-archive",
+        "acceptance-assess-cases",
+        "acceptance-assess-scenarios",
+        "acceptance-backfill",
+        "acceptance-cases",
+        "acceptance-change-plan",
+        "acceptance-cleanup",
+        "acceptance-coverage-prepare",
+        "acceptance-coverage-recompute",
+        "acceptance-create",
+        "acceptance-current",
+        "acceptance-delivery-judge",
+        "acceptance-execute",
+        "acceptance-find-cases",
+        "acceptance-finish",
+        "acceptance-freeze",
+        "acceptance-knowledge",
+        "acceptance-manual-execute",
+        "acceptance-project",
+        "acceptance-rebind",
+        "acceptance-recover",
+        "acceptance-report",
+        "acceptance-reverse",
+        "acceptance-risk",
+        "acceptance-runtime",
+        "acceptance-scenarios",
+        "acceptance-source-status",
+        "acceptance-start",
+        "acceptance-view",
+        "app-delivery-acceptance"
+      ]
+    },
+    "acceptance-project": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-rebind": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-recover": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-report": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-reverse": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-risk": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-runtime": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-scenarios": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-source-status": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-start": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
+    "acceptance-view": {
+      "kind": "playbook",
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
+    },
     "app-delivery-acceptance": {
       "kind": "skill",
-      "language": "en"
+      "language": "en",
+      "requires": [
+        "acceptance-orchestrate"
+      ]
     }
   },
-  "x-source-commit": "a355a884dba94eee473eeb7022fc7f91b904a744"
+  "repository": "https://github.com/yangbobo2021/app-delivery-acceptance"
 }

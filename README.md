@@ -1,110 +1,43 @@
-# App Delivery Acceptance
+# App Delivery Acceptance — SPEX + Skill
 
-**交付前，验证每条需求是否真正实现。**
+同一次安装提供真实 `app-delivery-acceptance` Skill 和 31 个原生 SPEX Playbook。当前联合包版本 **0.4.9**。
 
-交给 Codex、Claude Code 或 OpenCode 一条需求，得到真实测试、独立复审和可追溯的验收结果。
+## Windows / Mac SPEX APP：从 GitHub 安装
 
-[开始第一个 Demo](#跑通第一个-demo) · [预览验收结果](#先看结果) · [查看测试集](#测试集与识别结果)
+用户不需要下载本地包、不需要访问发布者的电脑目录，也不需要为公开仓库提供 GitHub Token。
 
-![从需求到交付结论：冻结需求、测试场景、真实执行、独立复审、交付结论](skills/en/app-delivery-acceptance/assets/docs/workflow.png)
+1. 在 SPEX 中选择要使用的项目，打开 **规程 → 从 Git 添加**。
+2. 按下面的信息填写：
 
-## 为什么使用这个 Skill
-
-| 交付时的问题 | 它提供的能力 |
+| 字段 | 值 |
 | --- | --- |
-| 需求有没有漏测？ | 串起需求、场景和用例，显示覆盖缺口 |
-| 测试通过，结果可信吗？ | 真实运行产品，再由独立会话核查用例、日志和截图 |
-| 需求变了，哪些需要重测？ | 识别受影响场景，增量复验，保留旧定义和旧结论 |
+| 包名 / Spec package name | `yangbobo2021/app-delivery-acceptance` |
+| Git 仓库地址 | `https://github.com/yangbobo2021/app-delivery-acceptance.git` |
+| 分支、标签或提交 | `main` |
+| 仓库内文件夹 | 留空，包就在仓库根目录 |
 
-## 先看结果
+3. 添加后执行界面提示的解析与安装。`spex.lock` 固定实际 Git commit 和文件摘要；再次安装按锁定内容执行。
+4. 确认项目的 `.agents/skills/app-delivery-acceptance/SKILL.md` 已导出，并在规程列表看到 `acceptance-orchestrate`。
+5. 安装文件不等于配置 Agent。启用 `acceptance-orchestrate` 及任务所需子规程，为各职责绑定独立 Player，并配置自己的 Agent、模型、登录与网络。
 
-![真实受控验收结果摘要：3条需求、7个场景独立通过，行覆盖39/43、分支覆盖9/12](skills/en/app-delivery-acceptance/assets/docs/result-summary.png)
+当前 SPEX 的 Git 表单还要求填写包名和分支；仅粘贴一个 URL 自动识别全部信息不是现有 UI 的行为。以上信息全部在本公开仓库中，仓库链接即可带用户到本说明。
 
-[放大结果图](skills/en/app-delivery-acceptance/assets/docs/result-summary.png) · [查看该次验证范围](skills/en/app-delivery-acceptance/references/benchmark.md#v01-合并后受控回归摘要)
+Windows 上已完成的业务主流程验证使用 Codex。Claude Code 的 PowerShell 权限映射仍待修正，OpenCode 在 SPEX APP 中另需外部 CLI，不能把本包安装成功当作所有 Agent 均已通过。
 
-*上图依据一次 v0.1 受控验收的真实数据绘制。Web 看板还能展开执行日志、冻结截图和历史记录。*
+## 先验证工作流调用
 
-## 跑通第一个 Demo
+在 SPEX 会话中调用 `/acceptance-orchestrate`，提供实际项目路径、稳定 task_id、新 request_id、用户目标、必要背景与停止点。最小安装检查可以要求“只创建空交付测试即停止，不生成需求、场景、用例，不执行产品测试”；这只证明调用链，不等于产品验收通过。
 
-**准备环境：** macOS / Linux，Python 3、Git、Node.js >=22 与 npm；Codex、Claude Code 或 OpenCode 已能调用模型。首次会下载依赖并多次调用模型。[环境与排障说明](skills/en/app-delivery-acceptance/README.md#使用环境)
+完整主流程可以要求从真实需求生成场景，只执行一个选定场景并独立复审，coverage off。目录隔离、角色权限、签名租约、不可覆盖输入、冻结证据和独立复审要求不变；测试业务规则仍在 Skill/Playbook 内。
 
-OpenCode 适配在当前源码版本提供；下方 `v0.1` 发布版本的安装示例不包含本次新增适配。使用当前源码的 OpenCode 用户需将该 Skill 挂载到 `.opencode/skills/app-delivery-acceptance`，并按[运行配置](skills/en/app-delivery-acceptance/references/agent-runtime.md)传完整模型 ID 和现有认证环境。
+## 在 Codex 中使用同一 Skill
 
-### 第 1 步：安装 Skill
+在上述项目中新开 Codex 回合，使用 `$app-delivery-acceptance`。Skill 首先运行自己的 `scripts/setup.mjs`，使用返回的外部 `package_root` 执行官方 CLI；不要在 SPEX 受管导出目录安装 node_modules。此 CLI 形态另需 Node.js >=22、npm、Git 和自己的 Agent 认证。SPEX 原生 Playbook 使用 APP 提供的引擎，不需要用户为它安装 npm 依赖。
 
-执行与你的 Agent 对应的一条命令：
+同名已存在且不归 SPEX 管理的 Skill 目录应保留，界面会报告未导出，不要删除用户目录来伪造安装成功。
 
-**Codex**
+## 发布和验证范围
 
-```sh
-npx skills@1.7.4 add \
-  'https://github.com/yangbobo2021/app-delivery-acceptance.git#v0.1' \
-  --skill app-delivery-acceptance -g -a codex --copy -y
-```
+本分支保存可安装的 format-2 联合发布内容。默认分支就是可安装的发布目录，历史开发分支不作为此安装版本的来源。此 0.4.9 联合包的业务代码与此前 Windows APP、Mac APP、macOS Codex Skill 主流程验证的版本相同；GitHub 来源在 Windows 的安装验收结果单独记录，不能由本地包结果替代。
 
-**Claude Code**
-
-```sh
-npx skills@1.7.4 add \
-  'https://github.com/yangbobo2021/app-delivery-acceptance.git#v0.1' \
-  --skill app-delivery-acceptance -g -a claude-code --copy -y
-```
-
-**完成标志：** 安装器显示 `app-delivery-acceptance` 安装成功。无需先安装 SPEX，模型使用你的 Agent 现有配置。
-
-### 第 2 步：准备 Demo 项目
-
-Demo 是一个读取 CSV、按账号汇总金额的命令行应用。本次只验收 **INV-02：按账号准确汇总整数金额**。
-
-下载固定版本的测试集，进入该项目：
-
-```sh
-git clone --branch baseline/2026-10-20-v1 --single-branch \
-  https://github.com/yangbobo2021/app-delivery-acceptance-benchmark-six.git \
-  acceptance-demo
-cd acceptance-demo
-git switch -c demo-acceptance
-cd projects/python-cli
-```
-
-**完成标志：** 当前目录中有应用代码、`README.md` 和 `docs/requirements.md`。
-
-### 第 3 步：发起验收
-
-在上一步目录打开 Agent 的新对话，复制这段任务：
-
-```text
-使用 app-delivery-acceptance Skill，验收当前项目 docs/requirements.md 中的 INV-02。
-冻结需求完整定义，采用适用的已有场景，为缺口生成场景，执行该需求对应的全部场景并独立复审。
-打开 Web 结果看板，展示场景、执行证据、独立结论和覆盖率状态，保留首次失败及历史记录。
-本轮只验收 INV-02，不修改产品代码或 SPEC，不读取人工评测答案和历史结果来构造测试。
-```
-
-**完成标志：** 该需求的全部场景完成执行和独立复审，Agent 给出验收摘要与本地看板地址。
-
-### 第 4 步：查看验收结果
-
-打开 Agent 提供的 Web 地址，沿着“需求 → 场景 → 实际执行 → 独立结论”查看结果。页面每 5 秒刷新；若页面未打开，告诉 Agent：“打开当前项目本次验收的 Web 看板。”
-
-**完成标志：** 能看到每个已执行场景的结论和证据。Demo 含预置缺陷，正确结果可以是 **产品 BUG**；证据不足会明确保留为受阻或待处理。
-
-换成自己的项目时，跳过第 2 步，在任务中给出项目位置和一条明确需求即可。已有场景可直接采用，没有 SPEC 可从口头需求开始。
-
-[更多安装与排障](skills/en/app-delivery-acceptance/README.md#更多安装与排障) · [Agent 执行规约](skills/en/app-delivery-acceptance/SKILL.md) · [资料与历史如何保存](skills/en/app-delivery-acceptance/references/project-acceptance-store.md)
-
-## 测试集与识别结果
-
-**测试集：** [app-delivery-acceptance-benchmark-six](https://github.com/yangbobo2021/app-delivery-acceptance-benchmark-six) · **组织：** 6 个独立项目，各 6 条书面需求 · **基线：** `baseline/2026-10-20-v1`
-
-| 项目 / 接口 | 预置或注入的 BUG 类型（本次抽样） | 已识别 / 所选已知 BUG |
-| --- | --- | ---: |
-| Python / CLI | 合法金额汇总发生整数溢出 | 1 / 1 |
-| Go / HTTP API | 重启后重试请求，重复扣减库存 | 1 / 1 |
-| TypeScript / Web | 全局计数错误；完成项文字不可读 | 2 / 2 |
-| Electron / 桌面 | 同名笔记误删；列表文字过小 | 2 / 2 |
-| Java / 批处理 | 非相邻重复事件被重复计数 | 1 / 1 |
-| Rust / TUI | 选中项文字与背景混在一起 | 1 / 1 |
-
-**公开抽样结果：14 个场景已执行，识别 8 个已知 BUG，6 个正常对照通过。**
-
-该轮生成 159 个场景，145 个未执行；覆盖 5 个功能缺陷和 3 个可读性缺陷，其中 2 个视觉缺陷由独立注入提交引入。结果来自较早的 Skill 提交 `c6ef951`，不等于 v0.1 的全量成绩。[查看固定版本、完整报告与复现范围](skills/en/app-delivery-acceptance/references/benchmark.md)
+本包不包含登录凭据、发布者的 node_modules 或本地测试运行证据。后续使用需要用户自己的登录、模型权限和网络。
