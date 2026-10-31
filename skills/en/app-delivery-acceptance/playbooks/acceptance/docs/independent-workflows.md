@@ -92,6 +92,10 @@ node <package>/bin/configure.mjs --agent codex --model <实际模型> --output /
 冻结入口由 Node 维护校验、哈希及版本历史协议；没有 Python 调度器或兼容执行入口。
 完整需求冻结与场景生成是独立过程，冻结不会启动运行准备、用例或产品测试。
 
+冻结注册模块还公开只读 `preflightInput(input)` 和 `inputContract`，供总调度及程序调用方检查同一正式请求。
+结果为 `acceptance-input-check-v1`，`status` 为 `ready` 或 `invalid`，`issues` 包含可独立发现的问题路径与原因；它不创建锁、业务尝试或版本，不自动补齐业务目标、来源和快照。
+正式入口复用这些校验并在发布锁内重新检查当前基线与来源；预检后状态变化仍会拒绝发布。
+
 ## 验证
 
 ```sh

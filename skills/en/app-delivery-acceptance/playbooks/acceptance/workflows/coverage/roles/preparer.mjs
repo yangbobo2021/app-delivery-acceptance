@@ -1,3 +1,4 @@
+import {inside} from '../../shared/store.mjs';
 import {packageRoot} from '../../../root.mjs';
 /** Independent coverage-preparation Agent; Node validates project-tool evidence. */
 import {readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync, realpathSync, copyFileSync} from 'node:fs';
@@ -170,7 +171,7 @@ try {
   if(answer.probe_plan_path){
     const reusable=resolve(answer.probe_plan_path);
     const workflowRoot=resolve(binding.project_root,'.acceptance-local',binding.id,'workflows');
-    if(!isAbsolute(answer.probe_plan_path)||!realpathSync(reusable).startsWith(realpathSync(workflowRoot)+'/'))
+    if(!isAbsolute(answer.probe_plan_path)||inside(realpathSync(workflowRoot),relative(realpathSync(workflowRoot),reusable))!==reusable)
       throw Error('Reused probe plan must belong to this acceptance workflows');
     if(planDraft)throw Error('Provide probe_plan or probe_plan_path, not both');
     planDraft=JSON.parse(readFileSync(reusable));
@@ -242,7 +243,7 @@ try {
   result.status = status; result.prepared = prepared; result.usage = done?.usage; result.agent_status = done?.status;
   }
 } catch (failure) {result.status = 'blocked'; result.error = failure.message; if (error) result.agent_error = error;}
-result.seconds = (performance.now() - start) / 1000; result.tool_calls = tools; result.finished_at = new Date().toISOString();
+result.seconds = (performance.now() - start) / 1000; result.tool_calls = agent.metadata.transport?.profile==='standard'?null:tools; result.finished_at = new Date().toISOString();
 result.usage = done?.usage; result.agent_status = done?.status;
 writeFileSync(join(output, 'metrics.json'), JSON.stringify(result, null, 2) + '\n');
 console.log(JSON.stringify(result));

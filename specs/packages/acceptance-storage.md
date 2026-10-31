@@ -92,6 +92,14 @@
 
 当同一创建请求被再次提交时，创建流程应仅在请求身份、参数、已有创建产物及当前指针均一致时返回原验收身份和可核对回执，冲突或不完整状态应明确阻塞而不覆盖已有文件。
 
+### acceptance-storage-24
+
+当核验工作区子工具权限时，守卫应仅授权完整租约、AT、拥有者记录和当前尝试内实际输出范围均匹配且拥有者可验证存活的操作；跨进程探测被拒绝时仅以固定公钥验证拥有者对本次一次性随机挑战的签名，核验后绑定改变、无法证明或响应重放均停止并保留原始资料，不放宽宿主权限或接管未知归属 [DR-018](../decisions/018-workspace-owner-liveness.md)。
+
+### acceptance-storage-26
+
+当解析资料根内的相对路径（包括项目指南、白盒来源和复用覆盖率计划）时，路径解析应覆盖当前平台的所有目录分隔符，拒绝 Windows 反斜杠路径跨越中间 junction/symlink，按 Windows 文件名语义拒绝受保护元数据目录的大小写及尾部点空格别名，同时保留 POSIX 文件名语义 [DR-021](../decisions/021-native-windows-workflow-portability.md)。
+
 ## 验证
 
 以下验证分别覆盖创建、存储及生命周期路径，不代表任一历史验收已全部完成。
@@ -112,3 +120,11 @@
 ### acceptance-storage-23
 
 当验证可复用知识发布时，集成测试应核对完整分层索引、文件基线冲突和可核验读取 [[acceptance-storage-6](#acceptance-storage-6)] [acceptance_knowledge.integration.mjs](../../tests/acceptance_knowledge.integration.mjs)。
+
+### acceptance-storage-25
+
+当验证受限工作区工具时，集成测试应通过真实拥有者与工具子进程、文件和签名核对权限拒绝后的正常核验、绑定冲突、伪造及重放响应、释放和拥有者死亡后的拒绝，保留排他归属及中断资料 [[acceptance-storage-5](#acceptance-storage-5)] [[acceptance-storage-24](#acceptance-storage-24)] [workspace_liveness.integration.mjs](../../tests/workspace_liveness.integration.mjs)。
+
+### acceptance-storage-27
+
+当验证平台路径归属时，集成测试应使用真实链接和根外哨兵文件核对 Windows 与 POSIX 分隔符语义及跨链接拒绝，并确认失败不会修改根外字节 [[acceptance-storage-26](#acceptance-storage-26)] [native_paths.integration.mjs](../../tests/native_paths.integration.mjs)。

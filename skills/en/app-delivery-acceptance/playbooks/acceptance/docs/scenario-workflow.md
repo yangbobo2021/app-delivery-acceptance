@@ -16,7 +16,7 @@
   },
   "playbooks": {
     "acceptance-scenarios": {
-      "from": "<skill绝对路径>/workflows/scenarios/registry.mjs",
+      "from": "<package绝对路径>/workflows/scenarios/registry.mjs",
       "roles": {"designer":"acceptance.designer"}
     }
   }
@@ -40,6 +40,8 @@
 - `source_checkout` 可选，记录白盒依据的实际源码位置；白盒继续核对冻结代码版本和文件哈希。
 - `knowledge_paths` 可选，选择已索引知识，工具保存真实读取凭证；知识是操作参考而非业务 oracle。
 - `request_id` 对同一次设计固定；输入或提示协议实质变化使用新 ID，保留旧尝试。
+- `design_feedback` 可选，格式为 `{reason,previous_result:{path,sha256}}`，只引用同一 AT、目标和冻结版本的既有场景设计 `result.json`；流程核验旧回执及其原答、自检等不可变文件，再把完整纠正上下文交给 Designer。
+- 纠正使用新 `request_id`，不编辑旧原答或冻结输入；纠正意见不是新增业务要求，不取代角色依据原始需求判断。
 
 ## 工作流与结果
 
@@ -57,6 +59,10 @@
 角色原答、完整自检、差量、候选和原始定义依据均保留；内部自检及结构门禁不称作独立复审。
 UI 场景把实际视觉判据原文绑定到描述与自检；此时只是设计要求，不代表已经操作 UI 或验收通过。
 无可信判据的义务保留设计缺口，许可条款不被强行变成唯一通过结果。
+黑盒需求的可观察业务判据足够时，即使尚无实现、具体命令、账号、设备或运行环境，也可先设计；这些限制写入 `selfcheck.execution_prerequisites`，每项为 `{description,scene_ids}`，空 `scene_ids` 表示整个目标的后续前提。
+未确认或冲突的业务预期仍记为义务的 `gap_reason`，白盒场景继续核验冻结源码依据。
+回执保持 `status: designed` 的兼容含义，并增加 `design_coverage: {status,obligations,covered,not_required,uncovered}`；有缺口且有场景为 `partial`，有缺口且无场景为 `blocked`，没有缺口为 `complete`，包括明确无必达义务的合法零场景。
+回执的 `execution_prerequisites` 来自角色声明及结构校验，缺省为空数组，不据此声称已准备环境或已执行；旧回执不被改写。
 
 产物位于 `.acceptance-local/<AT-ID>/workflows/scenarios/<request_id>/`：
 

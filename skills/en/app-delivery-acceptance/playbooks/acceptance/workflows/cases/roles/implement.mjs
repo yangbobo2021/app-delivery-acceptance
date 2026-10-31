@@ -1,4 +1,5 @@
 import {projectEnvironment} from "../../shared/runtime.mjs";
+import {roleContinuation} from '../../../runtime/role-contract.mjs';
 import {fileURLToPath} from 'node:url';
 import {acceptanceGuard,knowledgeContext,requireWorkspaceLease} from '../../shared/guard.mjs';
 import {readFileSync,writeFileSync,appendFileSync,mkdirSync,existsSync,unlinkSync} from 'node:fs';
@@ -25,7 +26,7 @@ if(catalog.definitions){
  if(JSON.stringify(catalog.definitions)!==JSON.stringify(input.definitions))throw Error('Case and catalog definitions differ');
 }
 const acceptanceKnowledge=knowledgeContext(acceptanceBinding);
-requireWorkspaceLease(catalog);
+requireWorkspaceLease(catalog,{output});
 const guide=JSON.parse(readFileSync(resolve(guideArg),'utf8'));
 if(catalog.schema!=='portable-project-catalog-v1')throw Error('Invalid project catalog');
 verifyCase(input);
@@ -74,7 +75,7 @@ input.preparation_basis 是调用者本次准备或修补的具体操作要求�
 
 只以给定需求与场景为目标。相关需求仅提供上下文。动手前用不超过三句话列出：本场景最重要的错误实现假设、能让正确与错误实现得出不同结果的输入，以及独立观察方法。尤其面对“资源可用、状态正确、数据一致”等判据，考虑仅凭浅层格式、状态码或非空值检查会放过什么；选择真实消费方仍无法使用的反例，而不是仅提供明显无效的值。不要强制使用某语言、格式或项目特定反例。先找一个最小但可判定的测试路径：真实输入、操作、可观察断言和隔离环境；先让它实际运行，再补足场景内尚未覆盖的不同错误机理。不要把同一机理的值与状态做无意义笛卡尔积；场景明确要求的每个状态和每类错误仍须覆盖，可用有依据的代表组合，先写覆盖清单。每个业务断言都要能追溯到原需求或冻结场景；本次新写断言应删除仅由当前实现习惯推断出的默认状态、数字文本写法、字段或输出顺序等额外约束；已有断言未被当前场景提及不代表错误，不得因此删除或放宽，同时保留数值、身份和状态的必要检查。测试结束后的清理异常也必须如实反映在命令退出码与结论中，不能自报通过。依据已有用例检查结果复用或补充，新测试放项目常规测试目录。若判据涉及说明是否具体、易懂或准确等语义，自动用例保留完整原始文本和对应状态，只断言可机械判定的事实；不要用关键词、当前文案或永远失败的断言冒充语义判定，交由独立审查判断。进入页面后先用当前 DOM 或截图识别所处状态，再选择定位器；不要假定上一场景的页面状态恒定。对尚未出现的元素先用约 5 秒的小超时检查，失败后检查页面，不要等待整场测试超时。测试失败时先分清环境、测试导航、产品或合同；修正具体原因后才重跑。不要反复运行同一失败命令，也不要靠删除断言、跳过测试或 mock 产品响应制造通过。若三次有针对性重跑后仍未完成，诚实输出 blocked 和已验证部分。
 
-外部调度器会自动校验仓库与组件版本、文件变更并冻结重跑；不要自己扫描或哈希整仓，也不要自建审查凭证。你只需保留场景每项判据的真实执行观察，并给出可重跑的命令、环境变量和测试文件。test_command 将在固定的 workspace 根目录运行，不继承你调试 shell 临时 cd 的目录；文件路径和测试模块必须在该根目录可解析，不能只因从测试子目录可运行就认为宿主也可导入。统一入口报错后先读取该次 execution/stdout.log、stderr.log 与真实业务退出码，再定位环境或证据问题。test_command 必须是原始业务用例命令（例如 node e2e/run-case.mjs），不能返回 run_coverage.py、run_evidence_v2.py 等采集包装命令；调度器会自动且只包装一次。本地调试仍须按覆盖率规约通过统一入口执行；不要把本地调试目录和请求包装成最终业务命令。如果统一调试入口因 Agent 运行环境无法启动原生应用，而公共准备已有该环境可运行的证据，且测试代码、命令、必要状态隔离与静态检查均已完成，可返回 host_ready：清楚记录本地未执行的业务判据与环境错误，交由调度器在正式宿主执行和独立复审；绝不能称本地通过或产品失败。若公共准备也不能运行，或测试命令仍不可执行，返回 blocked。test_files 必须列出本场景新增的所有非忽略测试与夹具文件，包括借用的配置和服务脚本；可额外列入依赖的已有测试文件。只输出 JSON 对象：{"status":"passed_local|product_failure|needs_contract|host_ready|blocked","test_files":["相对路径"],"test_command":["命令","参数"],"test_env":{"变量名":"值"},"observations":["真实观察"],"evidence_paths":["路径"],"limitations":["..."],"reason":"一句话"}。本地通过仍需独立审查。
+外部调度器会自动校验仓库与组件版本、文件变更并冻结重跑；不要自己扫描或哈希整仓，也不要自建审查凭证。你只需保留场景每项判据的真实执行观察，并给出可重跑的命令、环境变量和测试文件。test_command 将在固定的 workspace 根目录运行，不继承你调试 shell 临时 cd 的目录；文件路径和测试模块必须在该根目录可解析，不能只因从测试子目录可运行就认为宿主也可导入。统一入口的每次新 attempt 使用 debug-observation.json 完成标记、execution/execution.json 真实退出回执和 execution/execution.log 合并 stdout/stderr 日志，不产生 execution/stdout.log 或 stderr.log。先读取标记指向的回执与该合并日志；回执有 end_utc 和真实 exit_code、完成标记 status 为 observed 时，调试命令已经结束。product_verdict: not_performed 表示宿主尚未作正式产品判定，不表示调试还在运行；根据实际断言、日志和退出码报告本地结果，仍保留正式执行及独立复审。缺少完成标记、回执不完整或日志不匹配时保留失败，不声称本地通过。不要轮询不存在的分流日志或重跑已经有完整回执的命令。test_command 必须是原始业务用例命令（例如 node e2e/run-case.mjs），不能返回 run_coverage.py、run_evidence_v2.py 等采集包装命令；调度器会自动且只包装一次。本地调试仍须按覆盖率规约通过统一入口执行；不要把本地调试目录和请求包装成最终业务命令。如果统一调试入口因 Agent 运行环境无法启动原生应用，而公共准备已有该环境可运行的证据，且测试代码、命令、必要状态隔离与静态检查均已完成，可返回 host_ready：清楚记录本地未执行的业务判据与环境错误，交由调度器在正式宿主执行和独立复审；绝不能称本地通过或产品失败。若公共准备也不能运行，或测试命令仍不可执行，返回 blocked。test_files 必须列出本场景新增的所有非忽略测试与夹具文件，包括借用的配置和服务脚本；可额外列入依赖的已有测试文件。只输出 JSON 对象：{"status":"passed_local|product_failure|needs_contract|host_ready|blocked","test_files":["相对路径"],"test_command":["命令","参数"],"test_env":{"变量名":"值"},"observations":["真实观察"],"evidence_paths":["路径"],"limitations":["..."],"reason":"一句话"}。本地通过仍需独立审查。
 
 场景输入中的 user_constraints 是本轮冻结的用户操作约束，须与场景和原文背景一同遵守，不新增无关验收义务。如果用户指定真实 CLI、HTTP 或 GUI 入口，不得仅为使覆盖率有命中而额外调用产品内部函数或把黑盒入口改为进程内调用。已验证准备不支持实际测试进程拓扑时，保留调试错误和原生数据，返回 blocked 并明确需要新的覆盖率准备；不能用该变通结果自称本地就绪。原本授权的函数级测试仍使用它的实际函数入口。
 
@@ -102,7 +103,7 @@ ${discoveryOnly?'仅静态查找，允许读取、检索源码和查询项目元
 输出同一结构：{"status":"${discoveryOnly?'not_executed':'passed_local|product_failure|needs_contract|host_ready|blocked'}","test_files":["已有测试及必要辅助文件相对路径"],"test_command":["原始业务命令","参数"],"test_env":{},"observations":["实际调试观察，注明具体测试项与支持的预期"],"evidence_paths":["实际证据路径"],"limitations":["缺口、查找范围或环境限制"],"reason":"一句话"}。blocked且没有合法命令时test_command可以为空。所有test_files必须在本Agent启动之前已经存在。禁止捏造执行观察。
 
 ${discoveryOnly?'仅静态识别显式 UI 判据的测试支持和边界，不启动界面。':uiInstruction}
-${discoveryOnly?'没有调试/覆盖率执行授权。':`覆盖率规约：${coverageContract}\n统一调试契约：${JSON.stringify(debug)}。请求只含command/files/env及可选新output；最终test_command返回原始业务命令，不返回采集器包装命令。`}
+${discoveryOnly?'没有调试/覆盖率执行授权。':`覆盖率规约：${coverageContract}\n统一调试契约：${JSON.stringify(debug)}。每次 attempt 的完成标记是 debug-observation.json，实际回执与合并日志分别为 execution/execution.json、execution/execution.log；不产生分流 stdout.log/stderr.log。observed 且回执已结束表示本地执行完成，product_verdict:not_performed 仅表示宿主未作正式产品判定。请求只含command/files/env及可选新output；最终test_command返回原始业务命令，不返回采集器包装命令。`}
 已有用例选择与引用契约：
 ${readFileSync(new URL('../../../contracts/case-discovery-contract.md',import.meta.url),'utf8')}
 公共准备：${JSON.stringify(catalogBrief)}
@@ -160,7 +161,7 @@ try{
  if(!existingOnly&&done?.status==='success'&&answer?.case_reuse&&answer.case_reuse.schema===undefined){
   writeFileSync(join(output,'answer.protocol-original.txt'),raw+'\n');
   writeFileSync(join(output,'answer.protocol-original.json'),JSON.stringify(answer,null,2)+'\n');
-  const session=readFileSync(join(output,'agent.jsonl'),'utf8').trim().split('\n').map(JSON.parse).find(e=>e.type==='init')?.sessionId;
+  const session=roleContinuation(output)??readFileSync(join(output,'agent.jsonl'),'utf8').trim().split('\n').map(JSON.parse).find(e=>e.type==='init')?.sessionId;
   if(!session)throw Error('Protocol correction has no originating session');
   result.protocol_correction={reason:'missing case_reuse.schema',session,initial_usage:done.usage,
    original_sha256:createHash('sha256').update(raw).digest('hex')};
@@ -187,7 +188,7 @@ try{
  result.status=done?.status;result.usage=done?.usage;result.error=error;
 }catch(e){result.status='error';result.error=e.message;}
 finally{if(existsSync(join(output,'runner.pid')))unlinkSync(join(output,'runner.pid'));}
-result.seconds=(performance.now()-t)/1000;result.tool_calls=tools;result.finished_at=new Date().toISOString();
+result.seconds=(performance.now()-t)/1000;result.tool_calls=agent.metadata.transport?.profile==='standard'?null:tools;result.finished_at=new Date().toISOString();
 result.head_after=git('rev-parse','HEAD');result.tracked_changes=git('diff','--name-only','HEAD');
 result.status_after=git('status','--short','--untracked-files=all');
 result.components_after=(catalog.components??[]).map(part=>({path:part.path,
@@ -226,5 +227,5 @@ if(result.status==='success'&&!result.parse_error&&!result.invalid_source_change
  }catch(e){result.status='error';result.error='Case identity finalization failed: '+String(e.stderr??e.message);}
 }
 writeFileSync(join(output,'metrics.json'),JSON.stringify(result,null,2)+'\n');
-console.log(JSON.stringify({scene:input.scene.id,status:result.status,seconds:result.seconds,tool_calls:tools,
+console.log(JSON.stringify({scene:input.scene.id,status:result.status,seconds:result.seconds,tool_calls:result.tool_calls,
  usage:result.usage,parse_error:result.parse_error,invalid_source_change:result.invalid_source_change,error:result.error}));

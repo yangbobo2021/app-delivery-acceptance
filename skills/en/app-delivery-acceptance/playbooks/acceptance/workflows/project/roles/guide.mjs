@@ -1,3 +1,4 @@
+import {inside} from '../../shared/store.mjs';
 import {acceptanceGuard,knowledgeContext} from '../../shared/guard.mjs';
 import {readFileSync,writeFileSync,appendFileSync,mkdirSync} from 'node:fs';
 import {resolve,join} from 'node:path';
@@ -39,18 +40,19 @@ try{
   if(event.type==='error')error=event.payload?.message;
  }
  const raw=(texts.at(-1)??'').trim();writeFileSync(join(output,'answer.txt'),raw+'\n');
+ if(error||done?.status!=='success')throw Error(error??('Project preparer did not complete: '+(done?.status??'missing terminal')));
+ if(!raw)throw Error('Project preparer returned no final JSON');
  const parsed=JSON.parse(raw.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,''));
  if(!Array.isArray(parsed.source_basis)||!parsed.source_basis.length)throw Error('Source basis missing');
  for(const item of parsed.source_basis){
-  const path=resolve(catalog.project_root,item.path);
-  if(!path.startsWith(resolve(catalog.project_root)+'/'))throw Error('Invalid basis path');
+  const path=inside(resolve(catalog.project_root),item.path);
   readFileSync(path);
  }
  writeFileSync(join(output,'guide.json'),JSON.stringify(parsed,null,2)+'\n');
  result.status=done?.status;result.usage=done?.usage;result.error=error;
 }catch(e){result.status='error';result.error=e.message;}
-result.seconds=(performance.now()-t)/1000;result.tool_calls=tools;result.finished_at=new Date().toISOString();
+result.seconds=(performance.now()-t)/1000;result.tool_calls=agent.metadata.transport?.profile==='standard'?null:tools;result.finished_at=new Date().toISOString();
 writeFileSync(join(output,'metrics.json'),JSON.stringify(result,null,2)+'\n');
-console.log(JSON.stringify({status:result.status,seconds:result.seconds,tool_calls:tools,usage:result.usage,error:result.error}));
+console.log(JSON.stringify({status:result.status,seconds:result.seconds,tool_calls:result.tool_calls,usage:result.usage,error:result.error}));
 
 if(result.status!=='success')process.exitCode=2;

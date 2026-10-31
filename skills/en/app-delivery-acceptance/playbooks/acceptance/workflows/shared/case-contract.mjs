@@ -21,7 +21,7 @@ function validators(prefix){
   return {require,text,rows,index,refs};
 }
 function sourcePath(root,name,message='源码路径越界'){
-  if(typeof name!=='string'||!name||name.split('/').some(x=>['.git','.acceptance','.acceptance-local'].includes(x)))throw Error(message);
+  if(typeof name!=='string'||!name||name.split(path.sep === '\\' ? /[\\/]/ : '/').some(x=>['.git','.acceptance','.acceptance-local'].includes(path.sep === '\\' ? x.replace(/[. ]+$/,'').toLowerCase() : x)))throw Error(message);
   try{return inside(root,name);}catch(error){throw Error(message+': '+error.message);}
 }
 export function validateDiscovery(answer,input,root,baseline=null,{discoveryOnly=false}={}){

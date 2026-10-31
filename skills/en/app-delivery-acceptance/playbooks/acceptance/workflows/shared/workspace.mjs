@@ -5,6 +5,7 @@ import {createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {acceptanceGuard} from './guard.mjs';
 import {locations,inside,read,atomicJson,ownedAbsolute} from './store.mjs';
+import {leaseProofServer} from './lease-proof.mjs';
 
 export function workspacePath(config){
   const {root,local}=locations(config.acceptance.project_root,config.acceptance.id),workspace=inside(local,'workspace');
@@ -43,17 +44,20 @@ export async function workspaceLease(config,output,operation,{scene=false}={}){
   }
   const claim=inside(local,'workspace.lock.d');
   try{fs.mkdirSync(claim,{mode:0o700});}catch(error){if(error.code==='EEXIST')throw Error('Acceptance workspace has an active or uncertain claim; inspect before recovery');throw error;}
-  const token=randomUUID(),ownerFile=inside(local,'workspace-owner.json');
+  const token=randomUUID(),ownerFile=inside(local,'workspace-owner.json');let proof;
   try{
     const owner={schema:'acceptance-workspace-claim-v2',runtime:'node',pid:process.pid,token,acceptance_id:config.acceptance.id,output_dir:target,created_at:new Date().toISOString()};
+    if(scene)proof=leaseProofServer(owner,path.join(claim,'owner.json'),ownerFile);
     fs.writeFileSync(path.join(claim,'owner.json'),JSON.stringify(owner,null,2)+'\n',{flag:'wx',mode:0o600});
     acceptanceGuard(config,[output]);
     if(!fs.existsSync(marker))atomicJson(marker,{schema:'acceptance-workspace-lock-protocol-v2',acceptance_id:config.acceptance.id});
     const prior=fs.existsSync(ownerFile)?read(ownerFile):null;
     if(prior&&(!scene||prior.output_dir!==target))throw Error('Another scene owns this workspace; resume/reconcile it first');
     if(scene&&!prior)atomicJson(ownerFile,{schema:'acceptance-workspace-owner-v1',acceptance_id:config.acceptance.id,output_dir:target});
-    return await operation({workspace,output:target,env:{...process.env,ACCEPTANCE_WORKSPACE_LEASE:target,ACCEPTANCE_WORKSPACE_CLAIM:token}});
+    proof?.start();
+    return await operation({workspace,output:target,env:{...process.env,ACCEPTANCE_WORKSPACE_LEASE:target,ACCEPTANCE_WORKSPACE_CLAIM:token,...(proof?{ACCEPTANCE_WORKSPACE_PROOF_KEY:proof.key}:{})}});
   }finally{
+    proof?.close();
     const file=path.join(claim,'owner.json');
     if(fs.existsSync(file)&&read(file).token!==token)throw Error('Workspace claim ownership changed; preserve it for inspection');
     if(fs.existsSync(file))fs.unlinkSync(file);fs.rmdirSync(claim);
@@ -117,7 +121,8 @@ export function workspaceSnapshot(root,components=[]){
   return {files,revisions};
 }
 export function verifyAllowedChanges(root,before,allowedRoots,components=[]){
-  if(!Array.isArray(allowedRoots)||allowedRoots.some(name=>typeof name!=='string'||!name||name==='.'||path.isAbsolute(name)||name.split('/').some(part=>['..','.git','.acceptance','.acceptance-local'].includes(part))))throw Error('Explicit test-only write roots are required');
+  if(!Array.isArray(allowedRoots)||allowedRoots.some(name=>typeof name!=='string'||!name||name==='.'||path.isAbsolute(name)||name.split(path.sep === '\\' ? /[\\/]/ : '/').some(part=>['..','.git','.acceptance','.acceptance-local'].includes(path.sep === '\\' && part !== '..' ? part.replace(/[. ]+$/,'').toLowerCase() : part))))throw Error('Explicit test-only write roots are required');
+  if(path.sep === '\\')allowedRoots=allowedRoots.map(name=>name.split(/[\\/]/).join('/'));
   const after=workspaceSnapshot(root,components);
   if(JSON.stringify(before.revisions)!==JSON.stringify(after.revisions))throw Error('Agent changed a product or component revision');
   const changes=[...new Set([...Object.keys(before.files),...Object.keys(after.files)])].filter(name=>before.files[name]!==after.files[name]);

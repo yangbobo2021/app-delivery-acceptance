@@ -13,7 +13,7 @@ const catalog=JSON.parse(readFileSync(resolve(catalogArg))),guide=JSON.parse(rea
 const root=resolve(catalog.project_root),out=resolve(outArg);
 const acceptanceBinding=acceptanceGuard(catalog,[out]);
 const acceptanceKnowledge=knowledgeContext(acceptanceBinding);
-requireWorkspaceLease(catalog);
+requireWorkspaceLease(catalog,{output:out});
 if(resume){if(!existsSync(out))throw Error('repair output missing for resume');}
 else mkdirSync(out,{recursive:false});
 const caseTool=fileURLToPath(new URL('../../../tools/case.mjs',import.meta.url));
@@ -33,7 +33,7 @@ const prompt=`你负责一个验收场景用例在本地调试或独立审查后
 
 依照场景判据构造能区分正确与错误实现的输入，说明独立于产品返回值的观察方法。逐项对照原需求、冻结场景和具体反馈，去掉没有合同依据的额外格式或默认状态要求，同时保留真实业务判据。新增或修正的断言要在实际执行中验证；测试清理失败要反映在真实退出码，不得自报通过；若发现产品问题，保存原始响应与状态，不能删断言、跳过或 mock 产品响应来制造通过。涉及自然语言说明的语义判断，保留完整原文交给独立复审，不用关键词伪造充分性。只修复测试自身缺口，禁止修改产品源码、需求和审查结论。
 
-外部调度器负责版本、组件、文件哈希、冻结重跑与独立复审；不自建全仓哈希或审查凭证。修复后执行针对性测试，若失败先识别环境、测试、产品或合同原因，最多两次有依据的再次运行。若统一调试入口只因 Agent 环境无法启动原生应用，而公共准备已证明该环境在宿主可运行，且测试文件、命令、状态隔离和静态检查已完成，可返回 host_ready 并明确业务断言尚未执行；正式宿主执行和独立复审才给出结论。公共准备也失败或命令仍不可执行时返回 blocked。test_files 列出本场景所有新增的非忽略测试与夹具文件，包括复用的配置和服务脚本；可额外列入依赖的已有测试文件。最终只输出 JSON：{"status":"passed_local|product_failure|needs_contract|host_ready|blocked","test_files":["相对路径"],"test_command":["程序","参数"],"test_env":{"变量":"值"},"observations":["实际观察"],"evidence_paths":["路径"],"limitations":["..."],"reason":"一句话"}。本地结论仍需独立复审。
+外部调度器负责版本、组件、文件哈希、冻结重跑与独立复审；不自建全仓哈希或审查凭证。统一调试每个 attempt 的完成标记为 debug-observation.json，实际回执与合并 stdout/stderr 日志分别是 execution/execution.json、execution/execution.log，不产生 stdout.log/stderr.log；observed 标记及有 end_utc 的回执表示调试已结束，product_verdict:not_performed 只表示尚未作正式产品判定，仍须正式执行和独立复审。修复后执行针对性测试，若失败先识别环境、测试、产品或合同原因，最多两次有依据的再次运行。若统一调试入口只因 Agent 环境无法启动原生应用，而公共准备已证明该环境在宿主可运行，且测试文件、命令、状态隔离和静态检查已完成，可返回 host_ready 并明确业务断言尚未执行；正式宿主执行和独立复审才给出结论。公共准备也失败或命令仍不可执行时返回 blocked。test_files 列出本场景所有新增的非忽略测试与夹具文件，包括复用的配置和服务脚本；可额外列入依赖的已有测试文件。最终只输出 JSON：{"status":"passed_local|product_failure|needs_contract|host_ready|blocked","test_files":["相对路径"],"test_command":["程序","参数"],"test_env":{"变量":"值"},"observations":["实际观察"],"evidence_paths":["路径"],"limitations":["..."],"reason":"一句话"}。本地结论仍需独立复审。
 
 覆盖率强制执行规约：
 ${coverageContract}
@@ -75,7 +75,7 @@ const t=performance.now();let done,raw='',calls=0;try{
 }catch(e){writeFileSync(join(out,'error.txt'),String(e));}
 finally{if(existsSync(join(out,'runner.pid')))unlinkSync(join(out,'runner.pid'));}
 writeFileSync(join(out,'answer.txt'),raw+'\n');try{writeFileSync(join(out,'answer.json'),JSON.stringify(JSON.parse(raw.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'')),null,2)+'\n');}catch{}
-const metrics={agent_runtime:agent.metadata,model:agent.metadata.model,effort:agent.metadata.effort,seconds:(performance.now()-t)/1000,tool_calls:calls,status:done?.status,usage:done?.usage,
+const metrics={agent_runtime:agent.metadata,model:agent.metadata.model,effort:agent.metadata.effort,seconds:(performance.now()-t)/1000,tool_calls:agent.metadata.transport?.profile==='standard'?null:calls,status:done?.status,usage:done?.usage,
  ...(resume?{resumed_from_session:resumeSession}:{}),
  head_after:git('rev-parse','HEAD'),tracked_changes:git('diff','--name-only','HEAD')};
 if(metrics.status==='success'&&existsSync(join(out,'answer.json'))){

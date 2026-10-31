@@ -77,7 +77,7 @@ export function validateReuse(answer,input,catalog,captured,output){
   return {schema:'case-reuse-description-v1',status:'available',discovery:original.case_discovery,existing_cases:original.case_descriptions,decisions:structuredClone(decisions),not_selected:structuredClone(unused),limitations:structuredClone(limits)};
 }
 export function reuseOperation(mode,catalogFile,inputFile,output,requestFile){
-  const catalog=read(catalogFile),input=read(inputFile);output=fs.realpathSync(output);guard(catalog,[output]);requireWorkspaceLease(catalog,{allowLegacy:false});verifyCase(input);
+  const catalog=read(catalogFile),input=read(inputFile);output=fs.realpathSync(output);guard(catalog,[output]);requireWorkspaceLease(catalog,{output});verifyCase(input);
   const binding={input_sha256:digest(inputFile),catalog_sha256:digest(catalogFile)},baselineFile=path.join(output,'reuse-baseline.json'),capturedFile=path.join(output,'case-reuse-discovery.json');
   if(mode==='start'){
     if(fs.existsSync(baselineFile)){if(!equal(read(baselineFile).binding,binding))throw Error('Reuse startup binding changed');}else atomicJson(baselineFile,{...reuseInventory(catalog),binding});

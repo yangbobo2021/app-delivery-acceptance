@@ -15,7 +15,7 @@ const input=JSON.parse(readFileSync(resolve(inputArg),'utf8'));
 const catalog=JSON.parse(readFileSync(resolve(catalogArg),'utf8'));
 const answer=JSON.parse(readFileSync(resolve(answerArg),'utf8'));
 const output=resolve(outputArg);
-acceptanceGuard(catalog,[output]);requireWorkspaceLease(catalog);
+acceptanceGuard(catalog,[output]);requireWorkspaceLease(catalog,{output});
 mkdirSync(output,{recursive:false});
 const binding={scene:input.scene.id,input_sha256:createHash('sha256').update(readFileSync(inputArg)).digest('hex'),
   answer_sha256:createHash('sha256').update(readFileSync(answerArg)).digest('hex')};

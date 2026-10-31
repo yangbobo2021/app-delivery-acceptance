@@ -9,7 +9,7 @@ export function commandRegistry({ id, intent, successState, operation, roles=[],
   const machine = setup({ actors: {
     operation: fromPromise(async ({ input, signal }) => {
       try { return await operation(parseInput(input),{signal}); }
-      catch (error) { return { status: 'blocked', reason: error.message, stopped_after: id }; }
+      catch (error) { return { status: 'blocked', reason: error.message, ...(error.issues?{input_issues:error.issues}:{}), stopped_after: id }; }
     }),
   } }).createMachine({
     id, initial: 'ready', context: { callerInput: '', result: null },

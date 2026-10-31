@@ -13,7 +13,7 @@ const index = '# 验收知识与工具库\n\n## 职责\n保存跨验收复用的
 export function inside(root, relative) {
   if (path.isAbsolute(relative) || relative.split(/[\\/]/).includes('..')) throw Error('relative path inside the project required');
   let current = root;
-  for (const part of relative.split('/')) {
+  for (const part of relative.split(path.sep === '\\' ? /[\\/]/ : '/')) {
     current = path.join(current, part);
     if (fs.existsSync(current) ? fs.lstatSync(current).isSymbolicLink() : isLink(current)) {
       throw Error('symlink is not allowed: ' + current);

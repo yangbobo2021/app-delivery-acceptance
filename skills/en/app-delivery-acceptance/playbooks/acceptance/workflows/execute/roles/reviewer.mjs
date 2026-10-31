@@ -89,5 +89,5 @@ try{
  result.status=done?.status;result.usage=done?.usage;result.error=error;
 }catch(e){result.status='error';result.error=e.message;}
 finally{if(existsSync(join(output,'runner.pid')))unlinkSync(join(output,'runner.pid'));}
-result.seconds=(performance.now()-t)/1000;result.tool_calls=tools;result.finished_at=new Date().toISOString();
+result.seconds=(performance.now()-t)/1000;result.tool_calls=agent.metadata.transport?.profile==='standard'?null:tools;result.finished_at=new Date().toISOString();
 writeFileSync(join(output,'metrics.json'),JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));

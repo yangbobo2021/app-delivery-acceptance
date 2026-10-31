@@ -30,9 +30,9 @@ function roleResult(directory,{identity=false}={}){
   const metrics=read(path.join(directory,'metrics.json')),answer=read(path.join(directory,'answer.json'));
   if(metrics.status!=='success'||metrics.invalid_source_change||metrics.invalid_reuse||metrics.invalid_discovery)throw Error('Case role did not pass host protocol checks: '+(metrics.error??metrics.status));
   const events=fs.readFileSync(path.join(directory,'agent.jsonl'),'utf8').split('\n').filter(Boolean).map(line=>JSON.parse(line)),raw=events.filter(e=>e.type==='text').at(-1)?.payload?.content;
-  if(!events.some(e=>e.type==='done'&&e.payload?.status==='success')||typeof raw!=='string')throw Error('Case role lacks successful native session evidence');
+  if(!events.some(e=>e.type==='done'&&e.payload?.status==='success')||typeof raw!=='string')throw Error('Case role lacks successful official role result');
   const original=identity?read(path.join(directory,'answer.agent.json')):answer;
-  if(!equal(JSON.parse(raw.trim().replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'')),original))throw Error('Case answer differs from original native session');return {metrics,answer};
+  if(!equal(JSON.parse(raw.trim().replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'')),original))throw Error('Case answer differs from original official role result');return {metrics,answer};
 }
 function evaluationMarkdown(value){
   const lines=['# 场景关联用例评估','','仅提供设计评估，不改变执行列表或正式产品结论。','',value.summary,'','覆盖判断：'+value.coverage,'','取舍建议：'+value.selection_advice,''];
@@ -59,7 +59,7 @@ export async function prepareCases(input,{signal}={}){
         try{frozenSource(read(result.catalog));verifyIdentity(read(result.case_answer),read(result.catalog).project_root);}catch{applicability='stale';}
         return {...result,reused:true,applicability};
       }
-      const authority=path.join(folder,'recovery-authority.json');if(!fs.existsSync(authority))throw Error('Case attempt is incomplete; inspect original native session, processes and workspace effects before explicit recovery');
+      const authority=path.join(folder,'recovery-authority.json');if(!fs.existsSync(authority))throw Error('Case attempt is incomplete; inspect original official role result, processes and workspace effects before explicit recovery');
       recovery=read(authority);if(recovery.consumed)throw Error('The bounded same-session recovery was already consumed');
       for(const [file,hash]of Object.entries(recovery.frozen_files))if(digest(file)!==hash)throw Error('Recovery frozen inputs changed');
       if(!equal(workspaceSnapshot(inside(local,'workspace')),recovery.workspace_snapshot))throw Error('Recovery workspace changed after reconciliation');

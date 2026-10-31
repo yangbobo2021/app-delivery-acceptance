@@ -7,6 +7,7 @@ description: "Run or continue delivery acceptance through a goal-owning Playbook
 
 Use this Skill for complete delivery acceptance or a requested individual operation, including create only, freeze only, selected-case reruns, coverage repair, reporting and viewing history.
 The bundled [Playbook package](playbooks/acceptance/README.md) owns the complete business process.
+For native SPEX installation instead of this host's CLI, use the package's [SPEX release workflow](playbooks/acceptance/docs/spex-installation.md); role binding and execution stay inside SPEX.
 
 ## One business conversation
 
@@ -26,7 +27,7 @@ A new user correction or request is another message to the same task, not an ins
 Prerequisites are Node.js >=22, npm, Git and actual configured Agent credentials/runtime.
 Project test languages/tools are project-owned.
 
-1. Locate `playbooks/acceptance`; optionally run `node <skill>/scripts/setup.mjs` to prepare the package's dependencies.
+1. Locate this Skill and run `node <skill>/scripts/setup.mjs` when dependencies need preparation. For a SPEX-installed Skill (`SPEX-INSTALL.json` present), always run this first; use its returned `package_root` for all package commands below. It prepares a verified CLI cache outside SPEX's managed export folder. Ordinary installations may use their existing prepared `playbooks/acceptance` directly.
 2. Read the [delegation contract](playbooks/acceptance/docs/orchestration-workflow.md).
 3. Run `node <package>/bin/configure.mjs --agent <actual-agent> --model <actual-model> --output <new-overlay.json>`; use the actual caller's selected model, effort and service. Optional `--roles` configures declared role differences, including `orchestrator`.
 4. Invoke the official `<package>/node_modules/.bin/playbook run --with <overlay> --no-provision --json`, passing `/acceptance-orchestrate JSON` through stdin.

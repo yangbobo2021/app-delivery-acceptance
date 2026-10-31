@@ -54,7 +54,7 @@ export function validateStore(project,id,{checkKnowledge=true,requireScope=true}
   const tests=inside(shared,'tests.json');
   if(fs.existsSync(tests))for(const item of read(tests).items??[]){
     const file=inside(root,item.path);
-    if(['.acceptance','.acceptance-local'].includes(path.relative(root,file).split('/')[0])||!fs.existsSync(file)||!fs.statSync(file).isFile())throw Error('formal tests must belong to the existing project test tree');
+    if(['.acceptance','.acceptance-local'].includes(path.sep === '\\' ? path.relative(root,file).split(path.sep)[0].replace(/[. ]+$/,'').toLowerCase() : path.relative(root,file).split(path.sep)[0])||!fs.existsSync(file)||!fs.statSync(file).isFile())throw Error('formal tests must belong to the existing project test tree');
     if(!item.command?.length||!item.scenario_ids?.length)throw Error('formal test mapping needs command and stable scene IDs');
   }
   const catalogPath=inside(shared,'scenarios.json');
@@ -95,7 +95,7 @@ export function guard(config,outputs=[],env=process.env){
   for(const output of outputs){const base=inside(local,'workflows'),target=ownedAbsolute(base,output);if(target===base)throw Error('workflow output must be .acceptance-local/<AT-ID>/workflows/<attempt>');}
   for(const name of [...(config.test_roots??[]),...(config.write_roots??[]),...(config.allowed_test_roots??[])]){
     const target=inside(root,name),relative=path.relative(root,target);
-    if(!relative||['.acceptance','.acceptance-local'].includes(relative.split('/')[0]))throw Error('test roots must use the existing project test tree, not acceptance storage');
+    if(!relative||['.acceptance','.acceptance-local'].includes(path.sep === '\\' ? relative.split(path.sep)[0].replace(/[. ]+$/,'').toLowerCase() : relative.split(path.sep)[0]))throw Error('test roots must use the existing project test tree, not acceptance storage');
   }
   return {...binding,knowledge_receipt:file};
 }

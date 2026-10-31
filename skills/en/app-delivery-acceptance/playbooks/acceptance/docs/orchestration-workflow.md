@@ -1,5 +1,7 @@
 # 总调度工作流
 
+本入口同时支持 Codex Skill 的标准 CLI 接入和 [SPEX 原生 UI 接入](spex-installation.md)。角色由宿主管理；标准端口不要求 CLI 的额外 Agent 元数据或原生事件扩展。
+
 `/acceptance-orchestrate` 是 Skill／宿主的唯一业务入口。
 总调度角色读取明确委托和实际状态，通过官方 `callPlaybook` 调用原独立入口，判断结果并推动所请求目标完成。
 人工或 CI 仍可直接使用原独立工作流。
@@ -37,3 +39,16 @@
 
 正常接入命令：先用包的 `bin/configure.mjs` 生成包含总调度与子角色的 overlay，再用标准 `playbook run --with ... --no-provision --json`，stdin 仅传 `/acceptance-orchestrate JSON`。
 宿主不准备子工作流调用链、不运行其确定性工具、不改写生成结果，也不自行补做子工作流内部步骤。
+
+## 子调用准备与设计结果
+
+子注册模块可公开命名导出 `inputContract` 和只读 `preflightInput(input)`；总调度从真实注册清单发现，当前冻结入口提供这项能力。
+总调度在官方子会话启动前调用预检，将结果保存为本次 planner 的 `NNNN-preflight.json`。
+预检失败通过 `child_input_invalid` 返回结构化 `issues`，不创建子调用记录或业务尝试；调度角色依据真实资料修正全部可确认问题，缺少业务意图时询问用户。
+预检与正式冻结复用校验，正式入口仍在锁内重查版本、来源和身份；预检不持锁、不发布，也不构成后续发布授权。
+没有预检导出的子入口继续沿用自己的正式输入校验，不由总调度复制一份业务规则。
+
+场景结果的 `design_coverage.status` 区分 `complete`、`partial` 和 `blocked`，`execution_prerequisites` 单列后续执行条件。
+总调度应结合实际候选、未覆盖义务和用户目标判断设计是否完成，不能只检查 `status: designed`，也不能把许可条款的合法零场景机械判为失败。
+需要纠正设计判断时，使用场景入口的 `design_feedback` 交回同一负责角色，以真实回执路径和字节哈希绑定旧结果，并为新尝试使用新 ID。
+总调度不改写角色原答或自行替写场景冒充 Designer 产物；真实业务判据缺失时明确提问。

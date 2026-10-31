@@ -1,12 +1,12 @@
 {
   "name": "app-delivery-acceptance-playbooks",
-  "version": "0.2.1",
+  "version": "0.4.9",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "app-delivery-acceptance-playbooks",
-      "version": "0.2.1",
+      "version": "0.4.9",
       "bundleDependencies": [
         "@sublang/cligent",
         "@sublang/playbook"
@@ -15,7 +15,7 @@
         "@anthropic-ai/claude-agent-sdk": "0.3.284",
         "@openai/codex-sdk": "0.162.1",
         "@opencode-ai/sdk": "1.19.4",
-        "@sublang/cligent": "file:vendor/sublang-cligent-0.36.2-acceptance.20261028.2.tgz",
+        "@sublang/cligent": "file:vendor/sublang-cligent-0.36.2-acceptance.20261030.1.tgz",
         "@sublang/playbook": "file:vendor/sublang-playbook-18.1.1-acceptance.20261028.2.tgz",
         "@sublang/spex": "4.0.0",
         "picomatch": "4.0.7",
@@ -454,8 +454,8 @@
     },
     "node_modules/@sublang/cligent": {
       "version": "0.36.2-acceptance.20261028.2",
-      "resolved": "file:vendor/sublang-cligent-0.36.2-acceptance.20261028.2.tgz",
-      "integrity": "sha512-piPjKVRH4zB5izEiCFnku4Rx3AHaXbgqqBh5qbSpaRsorwH/sToXn0xNV9A6ELyxhsYcIrhoGd/S3TNOjsFz4A==",
+      "resolved": "file:vendor/sublang-cligent-0.36.2-acceptance.20261030.1.tgz",
+      "integrity": "sha512-5hanCmhohPIE+X5ozEdMQXxoCJsQsdFquP/iPrJs9VKmUymnkGetLeIi7UlnQI8wYcw/d9+aXQ+uGAE35a0UMw==",
       "inBundle": true,
       "license": "Apache-2.0",
       "dependencies": {

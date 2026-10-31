@@ -19,17 +19,18 @@ if(process.send){process.channel?.unref();process.on('message',message=>{
  const queue=pending.get(message.id);if(!queue)return;
  queue.values.push(message);queue.wake?.();queue.wake=null;
 });}
-export function createAgentRuntime({directory,resume=false,role='worker',model,effort}={}){
- const binding=bindings()[role];if(!binding?.agent)throw Error('Official host did not expose configured role: '+role);
- const agent={claude:'claude-code',codex:'codex',opencode:'opencode'}[binding.agent.adapter];
- const selectedModel=select(binding.agent.model),selectedEffort=select(binding.agent.effort);
- if(!agent||!selectedModel)throw Error('Acceptance roles require an explicit supported Agent and model');
+export function createAgentRuntime({directory,resume=false,role='worker',model,effort,preferStandard=false}={}){
+ const binding=bindings()[role];if(!binding?.playerId)throw Error('Official host did not expose configured role: '+role);
+ const standard=preferStandard||!binding.agent,hasMetadata=Boolean(binding.agent);
+ const agent=!hasMetadata?'host-managed':{claude:'claude-code',codex:'codex',opencode:'opencode'}[binding.agent.adapter];
+ const selectedModel=!hasMetadata?null:select(binding.agent.model),selectedEffort=!hasMetadata?null:select(binding.agent.effort);
+ if(!standard&&(!agent||!selectedModel))throw Error('Acceptance roles require an explicit supported Agent and model');
  if(model&&model!==selectedModel||effort&&effort!==selectedEffort)throw Error('Stage override conflicts with the official role configuration');
  const env={...process.env,ACCEPTANCE_AGENT:agent,ACCEPTANCE_MODEL:selectedModel};if(selectedEffort)env.ACCEPTANCE_EFFORT=selectedEffort;else delete env.ACCEPTANCE_EFFORT;
- const {metadata}=resolveRuntimeConfig({env,model:selectedModel,effort:selectedEffort});
+ const {metadata}=standard?{metadata:{schema:'acceptance-agent-runtime-v1',agent,model:selectedModel??null,effort:selectedEffort??null,service:{provider:'host-managed'},prompt_identity:binding.promptIdentity??null}}:resolveRuntimeConfig({env,model:selectedModel,effort:selectedEffort});
  metadata.effort=selectedEffort??null;metadata.model_source='official-role-binding';
- metadata.transport={kind:'official-playbook-player-port',playbook_version:installedPackage('@sublang/playbook').manifest.version};
- const sdk={codex:'@openai/codex-sdk','claude-code':'@anthropic-ai/claude-agent-sdk',opencode:'@opencode-ai/sdk'}[agent];metadata.sdk={package:sdk,version:installedPackage(sdk).manifest.version};metadata.transport.cligent_version=installedPackage('@sublang/cligent').manifest.version;
+ metadata.transport={kind:'official-playbook-player-port',profile:standard?'standard':'native-events',...(standard?{native_events:'not-exposed',configuration_owner:'host'}:{playbook_version:installedPackage('@sublang/playbook').manifest.version})};
+ if(!standard){const sdk={codex:'@openai/codex-sdk','claude-code':'@anthropic-ai/claude-agent-sdk',opencode:'@opencode-ai/sdk'}[agent];metadata.sdk={package:sdk,version:installedPackage(sdk).manifest.version};metadata.transport.cligent_version=installedPackage('@sublang/cligent').manifest.version;}
  metadata.role=role;metadata.player_id=binding.playerId;
  metadata.role_binding_sha256=createHash('sha256').update(JSON.stringify(binding)).digest('hex');
  if(directory)bindAgentRuntime(directory,metadata,{resume});
@@ -39,13 +40,13 @@ export function createAgentRuntime({directory,resume=false,role='worker',model,e
   if(!Array.isArray(blocks)||blocks.some(x=>!['text','local_image'].includes(x.type)))throw Error('Unsupported role prompt');
   const request={role,directory:path.resolve(directory),prompt:blocks.filter(x=>x.type==='text').map(x=>x.text).join('\n'),
    attachments:blocks.filter(x=>x.type==='local_image').map(x=>({path:path.resolve(x.path)})),
-   options:{cwd:path.resolve(options.cwd??process.cwd()),permissions:options.permissions??{fileWrite:'deny',shellExecute:'deny',networkAccess:'deny'},nativeSkills:false,
+   profile:standard?'standard':'native-events',options:{cwd:path.resolve(options.cwd??process.cwd()),permissions:options.permissions??{fileWrite:'deny',shellExecute:'deny',networkAccess:'deny'},nativeSkills:false,
     ...(options.resume?{resume:options.resume}:{}),...(options.jsonOutput?{outputSchema:options.jsonResultSchema??{type:'object',additionalProperties:true}}:{}),
     ...(agent==='claude-code'&&options.permissions?.fileWrite==='deny'?{allowedTools:options.permissions.shellExecute==='deny'?[]:['Read','Glob','Grep','Bash']}:{}),
    }};
   const bindingFile=path.join(request.directory,'role-call-binding.json'),frozen={role,player_id:binding.playerId,cwd:request.options.cwd,agent_runtime:metadata};
   if(fs.existsSync(bindingFile)){if(JSON.stringify(JSON.parse(fs.readFileSync(bindingFile)))!==JSON.stringify(frozen))throw Error('Role call cwd/Agent/model/service changed within an attempt');}
-  else {if(options.resume)throw Error('Resume requires an existing verified role-call binding');fs.writeFileSync(bindingFile,JSON.stringify(frozen)+'\n',{flag:'wx'});}
+  else {if(options.resume&&!standard)throw Error('Resume requires an existing verified role-call binding');fs.writeFileSync(bindingFile,JSON.stringify(frozen)+'\n',{flag:'wx'});}
   // Business gates consume only final text; intermediate prose is kept in the official journal.
   const queue={values:[],wake:null},id=String(++sequence);pending.set(id,queue);
   let job;

@@ -1,3 +1,4 @@
+import {nodeCommand} from '../../../runtime/node-process.mjs';
 import {validArgv} from '../../shared/argv.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -23,6 +24,6 @@ export function materializeCoverageEntry({workspace, testRoots, attempt, entry, 
     fs.copyFileSync(fileURLToPath(new URL(name, import.meta.url)), path.join(directory, name), fs.constants.COPYFILE_EXCL);
   fs.writeFileSync(path.join(directory, 'binding.json'), JSON.stringify({schema: 'project-coverage-backend-v2',
     project_root: root, entry, tools, adapter_files: adapterFiles, source_hashes: sourceHashes, revision, execution_env: executionEnv}, null, 2) + '\n', {flag: 'wx'});
-  return {revision: 2, entry: [process.execPath, path.join(directory, 'entry.mjs')],
+  return {revision: 2, entry: nodeCommand(path.join(directory, 'entry.mjs')),
     paths: ['entry.mjs', 'tools.mjs', 'report.mjs', 'binding.json'].map(name => path.relative(root, path.join(directory, name)))};
 }

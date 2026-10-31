@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import {createAcceptance} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/create/initialize.mjs';
-import {freezeAcceptance} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/freeze/registry.mjs';
+import {freezeAcceptance,preflightInput} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/freeze/registry.mjs';
 import {harness,skill,read,sha,snapshot} from './official_workflow_harness.mjs';
 
 const h=harness('acceptance-freeze',[['acceptance-create','create'],['acceptance-freeze','freeze']]);
@@ -88,6 +88,31 @@ h.test('FREEZE-13','当前 AT 不匹配与嵌套资料根拒绝发布',()=>{
   assert.deepEqual(snapshot(root),before);
 });
 h.test('FREEZE-14','真实工作区互斥持有时拒绝冻结且不改定义',()=>{const req=base('workspace-busy',{requirements:[requirement('R5','之后再冻结。')]}),before=sha(latest);workspaceMetadataLock(root,at,()=>assert.throws(()=>freezeAcceptance(req),/workspace stage is running/));assert.equal(sha(latest),before);});
+
+h.test('FREEZE-PREFLIGHT-01','只读预检集中返回独立缺字段，正式入口复用相同检查且不发布业务资料',()=>{
+  const project=h.project('preflight-shapes'),acceptance='AT-preflight-shapes';createAcceptance({project_root:project,acceptance_id:acceptance,request_id:'create',user_request:'仅创建参数预检夹具。'});
+  const req=base('incomplete',{requirements:[{id:'COPY',text:'导出时保留原文中的换行。',origin:{kind:'conversation'},external_refs:[]}]},project,acceptance),before=snapshot(project),input=JSON.stringify(req);
+  const checked=preflightInput(req);assert.equal(checked.status,'invalid');
+  assert.ok(checked.issues.some(x=>x.path==='definitions.context.business_goal'));assert.ok(checked.issues.some(x=>x.path==='definitions.requirements.0.origin.reference'));
+  assert.throws(()=>freezeAcceptance(req),error=>{assert.deepEqual(error.issues,checked.issues);return true;});
+  assert.equal(JSON.stringify(req),input);assert.deepEqual(snapshot(project),before);return {issues:checked.issues};
+});
+h.test('FREEZE-PREFLIGHT-02','预检成功不保留或锁定版本，正式发布拒绝期间发生的基线漂移',()=>{
+  const req=base('preflight-will-stale',{requirements:[requirement('PREFLIGHT','检索结果保留原始顺序。')]}),before=snapshot(root);
+  assert.equal(preflightInput(req).status,'ready');assert.deepEqual(snapshot(root),before);
+  freezeAcceptance(base('advance-before-commit',{requirements:[requirement('OTHER-PREFLIGHT','到期后仍能读取历史记录。')]}));
+  const changed=snapshot(root);assert.equal(preflightInput(req).status,'invalid');assert.throws(()=>freezeAcceptance(req),/definitions changed/);assert.deepEqual(snapshot(root),changed);
+});
+h.test('FREEZE-PREFLIGHT-03','文件快照预检使用真实字节与定位，正确输入首次发布且历史重入只读',()=>{
+  const project=h.project('preflight-files'),acceptance='AT-preflight-files';createAcceptance({project_root:project,acceptance_id:acceptance,request_id:'create',user_request:'预检文件来源。'});
+  const text='导出的记录数应等于所选记录数。',file=path.join(project,'contract.txt');fs.writeFileSync(file,text+'\n');
+  const req=base('file-freeze',{context:{business_goal:'依据真实文件冻结导出约定。'},requirements:[{id:'EXPORT',text,origin:{kind:'file',reference:'contract.txt:1',file:{path:'contract.txt',start_line:1,end_line:1}},external_refs:[]}]},project,acceptance);
+  req.source_inputs={required_documents:['contract.txt'],documents:[{path:'contract.txt',text:text+'\n',sha256:sha(file)}]};
+  const before=snapshot(project);assert.equal(preflightInput(req).status,'ready');assert.deepEqual(snapshot(project),before);
+  const result=freezeAcceptance(req);assert.equal(result.status,'frozen');const after=snapshot(project);
+  assert.equal(preflightInput(req).status,'ready');assert.equal(freezeAcceptance(req).status,'already_frozen');assert.deepEqual(snapshot(project),after);
+  fs.writeFileSync(file,text+'变更\n');const drift={...req,request_id:'changed-file',base_definitions_sha256:sha(path.join(project,'.acceptance',acceptance,'scenarios.json'))};assert.equal(preflightInput(drift).status,'invalid');assert.throws(()=>freezeAcceptance(drift),/differs/);
+});
 
 if(h.live){
   const liveRoot=h.project('live-project'),liveAt='AT-live-freeze';

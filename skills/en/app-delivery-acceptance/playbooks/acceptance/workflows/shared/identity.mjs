@@ -12,7 +12,7 @@ export const marker=new RegExp('^\\s*(?:#|//|--|;|%|\'|/\\*|<!--|\\(\\*|REM)\\s*
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 export const sourceLines=bytes=>new TextDecoder('utf-8',{fatal:true}).decode(bytes).replace(/(?:\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029])$/,'').split(/\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]/);
 export function identitySource(root,name){
-  if(typeof name!=='string'||!name||name.split('/').some(part=>['.git','.acceptance','.acceptance-local'].includes(part)))throw Error('case identity source outside test workspace');
+  if(typeof name!=='string'||!name||name.split(path.sep === '\\' ? /[\\/]/ : '/').some(part=>['.git','.acceptance','.acceptance-local'].includes(path.sep === '\\' ? part.replace(/[. ]+$/,'').toLowerCase() : part)))throw Error('case identity source outside test workspace');
   const file=inside(root,name);if(!fs.statSync(file).isFile())throw Error('case identity source missing: '+name);return file;
 }
 export function rebuildIdentityPatch(patch){

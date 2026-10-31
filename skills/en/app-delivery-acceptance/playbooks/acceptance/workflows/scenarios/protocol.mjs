@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import {nodeCommand} from '../../runtime/node-process.mjs';
 import path from 'node:path';
 import os from 'node:os';
 import {spawnSync} from 'node:child_process';
@@ -51,8 +52,8 @@ export function applyPatch(request,patch){
  return {requirement_id:request.target_requirement_id,kind:request.scenario_kind,scenarios:merged,change_summary:patch.change_summary,change_reasons:reasons,retired_scene_ids:removed,base_sha256:patch.base_sha256};
 }
 function runGate(requestFile,folder,receiptFolder=folder){
- const script=fileURLToPath(new URL('./tools/gate.mjs',import.meta.url)),args=[script,requestFile,folder,'draft','1'],p=spawnSync(process.execPath,args,{encoding:'utf8',timeout:30000,maxBuffer:8*1024*1024});
- write(path.join(receiptFolder,'validation-command.json'),{argv:[process.execPath,...args],exit_code:p.status,stdout:p.stdout,stderr:p.stderr});if(p.error)throw p.error;
+ const script=fileURLToPath(new URL('./tools/gate.mjs',import.meta.url)),argv=nodeCommand(script,requestFile,folder,'draft','1'),p=spawnSync(argv[0],argv.slice(1),{encoding:'utf8',timeout:30000,maxBuffer:8*1024*1024});
+ write(path.join(receiptFolder,'validation-command.json'),{argv,exit_code:p.status??null,stdout:p.stdout??null,stderr:p.stderr??null,...(p.error?{spawn_error:{code:p.error.code??null,message:p.error.message}}:{})});if(p.error)throw p.error;
  if(p.status!==0){const detail=read(path.join(folder,'draft-gate.json'));if(folder!==receiptFolder)write(path.join(receiptFolder,'draft-gate.json'),detail);throw Error('scenario structure/self-check gate failed: '+JSON.stringify(detail.errors));}
 }
 function editGate(request,folder){
@@ -68,7 +69,7 @@ export function prepareScenarios(value,folder){
  const latest=read(path.join(shared,'scenarios.json')),definitions=currentBinding(root,value.acceptance_id);if(definitions.sha256!==value.definitions_sha256)throw Error('scenario input definitions changed');
  const target=[...latest.requirements,...latest.reverse_rules].find(r=>r.id===value.target_id);if(!target||target.status==='needs_confirmation')throw Error('target absent or still needs confirmation');
  if(path.resolve(folder)!==inside(local,'workflows/scenarios/'+value.request_id))throw Error('scenario output belongs to another acceptance');
- const knowledge=readKnowledge(root,value.acceptance_id,value.knowledge_paths??[]),original={acceptance:knowledge.acceptance,definitions,project_root:fs.realpathSync(value.source_checkout??root),mode:value.mode??'create',target_requirement_id:value.target_id,scenario_kind:latest.reverse_rules.includes(target)?'WHITE_BOX':'BLACK_BOX'};
+ const knowledge=readKnowledge(root,value.acceptance_id,value.knowledge_paths??[]),original={acceptance:knowledge.acceptance,definitions,project_root:fs.realpathSync(value.source_checkout??root),mode:value.mode??'create',target_requirement_id:value.target_id,scenario_kind:latest.reverse_rules.includes(target)?'WHITE_BOX':'BLACK_BOX',...(value.design_feedback?{design_feedback:cloneJson(value.design_feedback)}:{})};
  if(original.scenario_kind==='WHITE_BOX')original.source_evidence={status:'approved',revision:target.code_sources[0].revision,items:target.code_sources.map(x=>({...x,basis:target.basis}))};
  if(value.previous_definitions)original.previous_definitions={...value.previous_definitions,path:ownedAbsolute(shared,path.resolve(shared,value.previous_definitions.path))};
  const frozen=materialize(original);Object.assign(frozen,{scenario_selfcheck_protocol:'v4-target-check-v1',scenario_ui_protocol:'v4-ui-acceptance-v1'});guard(frozen,[folder]);write(path.join(folder,'request.frozen.json'),frozen,true);
@@ -97,6 +98,9 @@ export function finishScenarios(folder){
  const requestFile=path.join(folder,'request.frozen.json'),request=read(requestFile);guard(request,[folder]);
  if(request.mode==='edit')editGate(request,folder);else runGate(requestFile,folder);
  const checked=read(path.join(folder,'selfcheck.current.json')),terminal={final_state:'done',review_kind:'internal_self_check',semantic_review:'not_independent',request_sha256:digest(requestFile),scenarios_sha256:digest(path.join(folder,'scenarios.current.json')),selfcheck_sha256:digest(path.join(folder,'selfcheck.current.json')),uncovered_obligations:checked.obligations.filter(x=>!x.scene_ids.length&&x.gap_reason).length};
+ const count=read(path.join(folder,'scenarios.current.json')).scenarios.length;
+ terminal.design_coverage={status:terminal.uncovered_obligations?(count?'partial':'blocked'):'complete',obligations:checked.obligations.length,covered:checked.obligations.filter(x=>x.scene_ids.length).length,not_required:checked.obligations.filter(x=>!x.scene_ids.length&&x.not_required_reason).length,uncovered:terminal.uncovered_obligations};
+ terminal.execution_prerequisites=cloneJson(checked.execution_prerequisites??[]);
  if(request.mode==='edit')Object.assign(terminal,{mode:'edit',delta_sha256:digest(path.join(folder,'draft.candidate.json')),previous_definitions:request.previous_definitions});write(path.join(folder,'terminal.json'),terminal);
  const complete=scenarioCandidate(request,folder);for(const k of ['acceptance_id','scope_sha256','updated_at','definition_record','definition_version','previous_catalog_sha256','change'])delete complete[k];
  const candidate_path=path.join(folder,'candidate-definitions.json');write(candidate_path,complete);return {terminal,candidate_path,candidate_sha256:digest(candidate_path),scenarios:read(path.join(folder,'scenarios.current.json')).scenarios.length,definitions:request.definitions};

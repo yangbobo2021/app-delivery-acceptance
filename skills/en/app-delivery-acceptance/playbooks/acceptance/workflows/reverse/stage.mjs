@@ -1,3 +1,4 @@
+import {nodeCommand} from '../../runtime/node-process.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {execFileSync,spawnSync} from 'node:child_process';
@@ -81,7 +82,7 @@ export function finalize(spec,answer){
   const normalized=normalizeRuleCoverage(raw,request.existing_rules);fs.writeFileSync(path.join(spec.folder,'normalizations.json'),json(normalized.changes));
   fs.writeFileSync(path.join(spec.folder,'draft.candidate.json'),JSON.stringify(normalized.candidate,null,2)+'\n');
   fs.writeFileSync(path.join(spec.folder,'analyst-read-evidence.json'),JSON.stringify({schema:'reverse-read-evidence-v2',source_inventory_sha256:hash(JSON.stringify(change.inventory)),results:[]},null,2)+'\n');
-  command(spec.folder,process.execPath,[path.join(packageRoot,'workflows/reverse/tools/gate.mjs'),spec.folder,'draft']);
+  const [gateProgram,...gateArgs]=nodeCommand(path.join(packageRoot,'workflows/reverse/tools/gate.mjs'),spec.folder,'draft');command(spec.folder,gateProgram,gateArgs);
   const draft=read(path.join(spec.folder,'draft.current.json'));
   // This trace is the pinned native role artifact, not a fabricated SDK event stream.
   fs.writeFileSync(path.join(spec.folder,'agent-selfcheck.jsonl'),JSON.stringify({schema:'official-playbook-role-answer-v1',role:'analyst',answer_sha256:sha(path.join(spec.folder,'answer.txt')),request_sha256:sha(path.join(spec.folder,'input.json'))})+'\n');

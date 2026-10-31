@@ -1,3 +1,5 @@
+import {withPlayerTurn} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/runtime/session.mjs';
+import {prepareProject} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/workflows/project/stage.mjs';
 import {fileURLToPath} from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,6 +15,20 @@ const h=harness('acceptance-project-rebind',[['acceptance-project','project'],['
 const made=h.run('real-node-fixture',process.execPath,[path.join(fileURLToPath(new URL('.',import.meta.url)), 'acceptance_execute.integration.mjs'),'--stop-at-execution','--output',fixtureOutput],{timeout:120000});assert.equal(made.exit_code,0,made.stderr);const f=read(path.join(fixtureOutput,'fixture.json')),original=read(path.join(fixtureOutput,'request.json')),local=path.join(f.root,'.acceptance-local',f.at),attempt=path.join(local,'workflows/execute',original.request_id),receipt=path.join(attempt,'execution/execution.json'),receiptHash=sha(receipt),definitions=sha(path.join(f.root,'.acceptance',f.at,'scenarios.json'));
 recoverAcceptance({project_root:f.root,acceptance_id:f.at,request_id:'release-fixture',attempt,action:'supersede',basis:'Fixture execution is complete and its local fresh state/log/receipt are verified; close this fixture attempt without replay.',external_effects:{status:'none_proved',basis:'The controlled product is a pure classification function; its only local state is the recorded fresh ran.json.'}});
 const oldCatalog=read(f.catalogFile),oldAnswer=read(f.answerFile),oldIds=oldAnswer.case_descriptions.map(c=>c.id);
+let nativeFailureFixture,nativeFailureError;
+try{
+ let calls=0;const expected='workspace routing discovery timed out',controller=new AbortController();
+ const session={sessionId:'controlled-project-native-error',roleBindings:{project_preparer:{playerId:'controlled-project-preparer',promptIdentity:'controlled-error-no-model'}},playerSessions:{select:()=>false,update:()=>{}},ports:{recordStep:async()=>{},callPlayer:async()=>{calls++;return{status:'error',error:expected};}}};
+ const sourceFile=path.join(f.workspace,'src/product.mjs'),before=sha(sourceFile),request={project_root:f.root,acceptance_id:f.at,request_id:'native-error-guide',definitions_sha256:definitions,basis:'Controlled public-port error regression; no real model and no new product execution.',runtime:f.runtime.runtime,revision:oldCatalog.revision,source_paths:['src/product.mjs'],test_roots:['tests'],coverage:{policy:'off',reason:'Protocol regression only'}};
+ await assert.rejects(()=>withPlayerTurn(session,controller.signal,()=>prepareProject(request)),error=>error.message.includes(expected));
+ const folder=path.join(local,'workflows/project/native-error-guide'),metrics=read(path.join(folder,'semantics/metrics.json'));
+ assert.equal(metrics.status,'error');assert.equal(metrics.error,expected);assert.equal(calls,1);assert.equal(sha(sourceFile),before);assert.equal(sha(receipt),receiptHash);assert.equal(fs.existsSync(path.join(folder,'result.json')),false);assert.equal(fs.existsSync(path.join(local,'workspace.lock.d')),false);
+ const good={runner_command_hint:[process.execPath,'--test','tests'],environment_contract:[],fixture_isolation:'Controlled fixture, no services started',existing_test_examples:[],smoke_command_hint:[],source_basis:[{path:'src/product.mjs',why:'Actual fixture source read by this controlled port fixture'}],coverage_tools:[],uncertainties:['No model call or new product execution in this test'],summary:'Controlled successful guide'};
+ session.ports.callPlayer=async()=>{calls++;return{status:'ok',finalText:JSON.stringify(good)};};
+ const prepared=await withPlayerTurn(session,controller.signal,()=>prepareProject({...request,request_id:'native-success-guide'}));assert.equal(prepared.status,'prepared');assert.deepEqual(read(prepared.guide),good);assert.equal(sha(sourceFile),before);assert.equal(sha(receipt),receiptHash);assert.equal(fs.existsSync(path.join(local,'workspace.lock.d')),false);
+ nativeFailureFixture={failedCalls:1,successfulCalls:1,originalError:metrics.error,sourcePreserved:true,priorExecutionPreserved:true,successfulGuideStatus:prepared.status};h.save('native-project-error.json',nativeFailureFixture);
+}catch(error){nativeFailureError=error;}
+h.test('PROJECT-ERROR-01','Actual guide child and standard Player port preserve native failure before JSON parsing without replay or source edits',()=>{if(nativeFailureError)throw nativeFailureError;return nativeFailureFixture;});
 let projectResult;
 if(h.live)h.test('PROJECT-01','Real official CLI binds the Node runtime/source inventory and obtains an actual read-only operation guide before cases',()=>{
  const request={project_root:f.root,acceptance_id:f.at,request_id:'prepared-old',definitions_sha256:definitions,basis:'Prepare the actual Node product operation facts only.',runtime:f.runtime.runtime,revision:oldCatalog.revision,source_paths:['src/product.mjs'],test_roots:['tests'],coverage:{policy:'off',reason:'Explicit controlled fixture scheduling test, not coverage collection.'}};

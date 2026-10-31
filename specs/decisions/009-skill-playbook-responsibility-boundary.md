@@ -2,6 +2,8 @@
 
 ## 状态
 
+SPEX 标准宿主端口适配、Prompt 约束与诚实证据边界由 [DR-017](017-standard-host-player-port.md) 局部修订；不再将 CLI 本地扩展作为所有宿主的必需条件。
+
 宿主跨工作流选择与接续职责由 [DR-015](015-playbook-owned-task-orchestration.md) 局部修订为总调度 Playbook 所有；独立子工作流其余边界保留。
 
 覆盖率准备的项目输入、内部运行资料准备与自主修复由 [DR-013](013-outcome-owned-coverage-preparation.md) 局部修订；其他业务停止边界不变。

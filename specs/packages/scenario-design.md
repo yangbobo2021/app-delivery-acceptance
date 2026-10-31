@@ -55,6 +55,18 @@
 
 当采用本次完整场景集合时，场景设计应检查跨目标的预期冲突与重复测试目的，并记录冲突处理或保留重叠的具体断言依据。
 
+### scenario-design-13
+
+当冻结黑盒需求已有可观察的验收判据时，场景设计应据此定义可区分正确与错误行为的场景，将尚未具备的实现、命令、账号、设备或运行环境记录为后续执行前提，不将其单独作为业务判据缺口；白盒场景仍保留冻结源码依据要求 [DR-016](../decisions/016-input-preflight-and-design-readiness.md)。
+
+### scenario-design-14
+
+当返回设计结果时，场景流程应依据逐项义务映射分别报告完整、部分或受阻的设计覆盖状态及执行前提，不将未执行解释为设计不完整，也不将没有未覆盖义务的合法零场景结果解释为失败。
+
+### scenario-design-15
+
+当接收设计纠正意见时，场景流程应核对所引用原始设计回执、原答及当前目标和冻结版本，在新尝试中把纠正作为设计参考交给角色，保留旧资料且不改变原始业务判据。
+
 ## 验证
 
 本轮补充独立场景入口的集成验证，不代表本包其余行为或被测产品已完成交付验收。
@@ -67,3 +79,7 @@
 ### scenario-design-12
 
 当验证用户显式要求的独立场景复审时，集成测试应通过独立官方角色识别原文义务缺口 [[scenario-design-4](#scenario-design-4)]、保留只评估后停止的边界 [[scenario-design-9](#scenario-design-9)]，并核对引用失配和定义更新后的陈旧结果不能冒充当前通过 [acceptance_scenario_assessment.integration.mjs](../../tests/acceptance_scenario_assessment.integration.mjs) [migration_safety.integration.mjs](../../tests/migration_safety.integration.mjs)。
+
+### scenario-design-16
+
+当验证设计就绪边界时，集成测试应核对不同领域中明确判据与执行前提的分离 [[scenario-design-13](#scenario-design-13)]、部分覆盖及合法零场景的结果区分 [[scenario-design-14](#scenario-design-14)]，以及纠正绑定、旧证据保留与错目标或陈旧产物拒绝 [[scenario-design-15](#scenario-design-15)] [acceptance_scenarios.integration.mjs](../../tests/acceptance_scenarios.integration.mjs) [acceptance_design_readiness_cli.integration.mjs](../../tests/acceptance_design_readiness_cli.integration.mjs)。

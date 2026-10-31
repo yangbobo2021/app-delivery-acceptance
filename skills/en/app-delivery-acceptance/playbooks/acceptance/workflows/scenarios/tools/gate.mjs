@@ -1,3 +1,4 @@
+import {inside} from '../../shared/store.mjs';
 import {readFileSync,writeFileSync,renameSync,existsSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import {createHash} from 'node:crypto';
@@ -16,7 +17,7 @@ if(request.scenario_kind==='WHITE_BOX'&&request.source_evidence?.status==='appro
  try{if(execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim()!==request.source_evidence.revision)errors.push('Reviewed source revision changed')}
  catch{errors.push('Reviewed source revision unavailable')}
  for(const item of request.source_evidence.items??[]){
-  try{const path=resolve(root,item.path);if(!path.startsWith(root+'/')||digest(readFileSync(path))!==item.sha256)errors.push('Reviewed source changed: '+item.path)}
+  try{const path=inside(root,item.path);if(digest(readFileSync(path))!==item.sha256)errors.push('Reviewed source changed: '+item.path)}
   catch{errors.push('Reviewed source missing: '+item.path)}
  }
 }
@@ -53,6 +54,8 @@ if(stage==='draft'){
    const check=doc.selfcheck,sceneIds=new Set((doc.scenarios??[]).map(s=>s.id));
    if(!check||!Array.isArray(check.obligations)||!check.obligations.length||!Array.isArray(check.scene_checks)||check.scene_checks.length!==sceneIds.size)
     errors.push('V4 target self-check missing or incomplete');
+   const prerequisites=check?.execution_prerequisites??[];
+   if(!Array.isArray(prerequisites)||prerequisites.some(item=>!item||!meaningful(item.description)||!Array.isArray(item.scene_ids)||new Set(item.scene_ids).size!==item.scene_ids.length||item.scene_ids.some(id=>!sceneIds.has(id))))errors.push('Invalid execution prerequisite binding');
    const checked=new Set();
    for(const item of check?.obligations??[]){
     if(!meaningful(item.quote)||!target.text.includes(item.quote)||!Array.isArray(item.scene_ids)||

@@ -96,6 +96,7 @@ h.test('SCENARIO-11','许可条款没有单一必达行为时可保留说明，�
   const prepared=prepare(input('optional-design','R-OPTION'));
   const result=conclude(prepared,{scenarios:[],change_summary:['许可条款本身没有单一必达结果。'],selfcheck:{obligations:[{quote:'可以显示 A，也可以显示 B。',scene_ids:[],not_required_reason:'原文明确允许两个不同结果。'}],scene_checks:[],ui_requirement:{required:false,reason:'只检查许可条款，不执行界面。'}}});
   assert.equal(result.scenarios,0);assert.equal(result.uncovered_obligations,0);assert.equal(result.status,'designed');
+  assert.equal(result.design_coverage.status,'complete');assert.deepEqual(result.execution_prerequisites,[]);
 });
 h.test('SCENARIO-12','已完成设计的证据被修改时拒绝重入，不能据旧状态跳过校验',()=>{
   fs.appendFileSync(path.join(spec.folder,'terminal.json'),' ');assert.throws(()=>prepare(initialInput),/artifact changed/);
@@ -105,6 +106,36 @@ h.test('SCENARIO-RAW-01','失败后的原始回答被编辑时拒绝恢复，不
   assert.throws(()=>{try{finalize(attempt,'{invalid-json');}catch(error){fail(attempt,error.message);throw error;}});
   fs.writeFileSync(path.join(attempt.folder,'answer.txt'),JSON.stringify(submission('读取时返回已保存原文。',[sample('fake-corrected')]))+'\n');
   assert.throws(()=>prepare(req),/original answer.*changed/);
+});
+
+h.test('SCENARIO-READINESS-01','执行前提与设计覆盖分别记录，部分义务缺口不会被成功状态掩盖',()=>{
+  const text='已受理请求保留原始编号；超时后的业务结果尚待确认。';freeze('readiness-requirement',{requirements:[req('READY',text)]});
+  const spec=prepare(input('partial-readiness','READY')),scene=sample('READY-1','请求已受理时，结果中的编号与原请求编号相同。');
+  const selfcheck=check('已受理请求保留原始编号',[scene]);selfcheck.obligations.push({quote:'超时后的业务结果尚待确认',scene_ids:[],gap_reason:'尚未确认超时后应继续处理还是取消。'});selfcheck.execution_prerequisites=[{description:'产品实现与请求入口尚未具备，执行阶段需要准备。',scene_ids:['READY-1']}];
+  const result=conclude(spec,{scenarios:[scene],change_summary:['保留已明确判据，另报真实合同缺口与执行前提。'],selfcheck});
+  assert.equal(result.design_coverage.status,'partial');assert.equal(result.uncovered_obligations,1);assert.equal(result.execution_prerequisites.length,1);
+  const candidate=read(result.candidate_definitions.path);assert.equal(candidate.design_gaps.find(g=>g.requirement_id==='READY').reason,'尚未确认超时后应继续处理还是取消。');
+});
+h.test('SCENARIO-READINESS-02','带真实业务缺口的零场景明确受阻，未知场景的执行前提不能混入',()=>{
+  const spec=prepare(input('all-gap-readiness','READY'));
+  const result=conclude(spec,{scenarios:[],change_summary:['业务预期仍待确认。'],selfcheck:{obligations:[{quote:'超时后的业务结果尚待确认',scene_ids:[],gap_reason:'缺少超时结果约定。'}],scene_checks:[],ui_requirement:{required:false,reason:'只定义结果合同。'}}});
+  assert.equal(result.design_coverage.status,'blocked');assert.equal(result.uncovered_obligations,1);
+  const broken=prepare(input('unbound-execution-prerequisite','R2')),scene=sample('R2-READY');const value=submission('读取时返回已保存原文。',[scene]);value.selfcheck.execution_prerequisites=[{description:'需要后续准备环境。',scene_ids:['UNRELATED']}];
+  assert.throws(()=>conclude(broken,value),/execution prerequisite/);
+});
+h.test('SCENARIO-READINESS-03','纠正交回 Designer 输入并绑定旧原答，错目标与陈旧回执拒绝',()=>{
+  const initial=prepare(input('mistaken-execution-gap','R2'));
+  const original=conclude(initial,{scenarios:[],change_summary:['协议夹具模拟把执行缺口误当设计缺口。'],selfcheck:{obligations:[{quote:'读取时返回已保存原文。',scene_ids:[],gap_reason:'产品尚未实现，不能调用读取操作。'}],scene_checks:[],ui_requirement:{required:false,reason:'文本读取合同。'}}});
+  const originalHash=sha(original.receipt_path),answerFile=path.join(initial.folder,'answer.txt'),answerHash=sha(answerFile);
+  const feedback={reason:'需求已有可观察的原文保留判据；请将实现缺失记录为执行前提，并依据冻结需求重新设计。',previous_result:{path:original.receipt_path,sha256:originalHash}};
+  assert.throws(()=>prepare(input('feedback-wrong-target','R1',{design_feedback:feedback,mode:'edit',previous_definitions:{path:read(latest).definition_record,sha256:sha(latest)}})),/feedback receipt/);
+  assert.throws(()=>prepare(input('feedback-wrong-hash','R2',{design_feedback:{...feedback,previous_result:{...feedback.previous_result,sha256:'0'.repeat(64)}}})),/feedback receipt/);
+  const corrected=prepare(input('corrected-readiness','R2',{design_feedback:feedback}));
+  const context=JSON.parse(corrected.prompt.slice(corrected.prompt.indexOf('完整输入：')+'完整输入：'.length));assert.equal(context.design_correction.previous_answer,fs.readFileSync(answerFile,'utf8'));assert.ok(context.design_correction.previous_selfcheck);
+  assert.deepEqual(read(path.join(corrected.folder,'request.frozen.json')).design_feedback,feedback);
+  const scene=sample('R2-CORRECTED','已保存一段文本时，读取结果与该文本逐字相同。'),value=submission('读取时返回已保存原文。',[scene]);value.selfcheck.execution_prerequisites=[{description:'读取实现与执行入口留待用例准备。',scene_ids:[scene.id]}];
+  const result=conclude(corrected,value);assert.equal(result.design_coverage.status,'complete');assert.equal(result.scenarios,1);assert.equal(sha(original.receipt_path),originalHash);assert.equal(sha(answerFile),answerHash);
+  assert.equal(read(result.candidate_definitions.path).scenarios.find(s=>s.id===scene.id).origin.reference,path.join(corrected.folder,'scenarios.current.json')+'#'+scene.id);
 });
 
 if(h.live){

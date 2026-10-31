@@ -20,6 +20,19 @@ export function verifyExecutionReceipt(file,catalog){
 }
 export function verifyRoleResume(directory){
  const runtime=read(path.join(directory,'agent-runtime.json')),events=fs.readFileSync(path.join(directory,'agent.jsonl'),'utf8').split('\n').filter(Boolean).map(JSON.parse),session=events.find(e=>e.type==='init')?.sessionId;
+ if(runtime.transport?.profile==='standard'){
+  const binding=read(path.join(directory,'role-call-binding.json')),done=events.filter(e=>e.type==='done').at(-1),text=events.filter(e=>e.type==='text').at(-1);
+  if(!equal(binding.agent_runtime,runtime)||binding.role!==runtime.role||binding.player_id!==runtime.player_id)throw Error('Original official role binding changed');
+  if(done?.payload?.status!=='success'||done.provenance?.source!=='official-player-result')throw Error('Unsuccessful standard-port role has no proved continuation; reconcile effects before superseding');
+  const invocation=done.provenance.invocation_file,folder=path.join(directory,'official-player');
+  if(typeof invocation!=='string'||path.dirname(invocation)!==folder||text?.provenance?.invocation_file!==invocation)throw Error('Completed role lacks matching official Player result');
+  const calls=fs.readdirSync(folder).filter(name=>/^[a-f0-9-]+\.json$/.test(name)).map(name=>({file:path.join(folder,name),value:read(path.join(folder,name))})).sort((a,b)=>(a.value.invocation_sequence??0)-(b.value.invocation_sequence??0)||a.value.started_at.localeCompare(b.value.started_at));
+  if(calls.at(-1)?.file!==invocation||calls.some(c=>!fs.existsSync(c.file.replace(/\.json$/,'.result.json'))))throw Error('A later or unfinished official role call has uncertain effects; do not adopt an earlier result');
+  const call=read(invocation),response=read(invocation.replace(/\.json$/,'.result.json'));
+  if(call.profile!=='standard'||call.role!==binding.role||call.player_id!==binding.player_id||call.cwd!==binding.cwd||response.status!=='ok'||response.finalText!==text.payload.content||call.session_id!==done.provenance.workflow_session_id)throw Error('Completed role lacks matching official Player result');
+  if(call.permissions?.fileWrite==='deny'&&!equal(read(invocation.replace(/\.json$/,'.readonly-before.json')),read(invocation.replace(/\.json$/,'.readonly-after.json'))))throw Error('Read-only role changed project files');
+  return{action:'adopt_completed_role',session_id:call.session_id,provider_session_id:response.resumeToken??null,native_events:'not-exposed',runtime,proof_files:Object.fromEntries(filesUnder(directory).map(file=>[file,digest(file)]))};
+ }
  if(!session||!runtime.service?.provider||runtime.transport?.kind!=='official-playbook-player-port')throw Error('Interrupted role lacks original official session and service binding');
  const binding=read(path.join(directory,'role-call-binding.json'));
  if(!equal(binding.agent_runtime,runtime)||binding.role!==runtime.role||binding.player_id!==runtime.player_id)throw Error('Original official role binding changed');
@@ -27,7 +40,9 @@ export function verifyRoleResume(directory){
  if(done?.payload?.status==='success'){
   const official=path.join(directory,'official-player');
   const calls=fs.readdirSync(official).filter(name=>/^[a-f0-9-]+\.json$/.test(name)).map(name=>path.join(official,name));
-  const completed=calls.some(file=>{
+  if(calls.some(file=>!fs.existsSync(file.replace(/\.json$/,'.result.json'))))throw Error('A later or unfinished official role call has uncertain effects; do not adopt an earlier result');
+  calls.sort((a,b)=>(read(b).invocation_sequence??0)-(read(a).invocation_sequence??0)||read(b).started_at.localeCompare(read(a).started_at));
+  const completed=calls.slice(0,1).some(file=>{
    const call=read(file),responseFile=file.replace(/\.json$/,'.result.json'),eventFile=file.replace(/\.json$/,'.events.jsonl');
    if(!fs.existsSync(responseFile)||!fs.existsSync(eventFile))return false;
    const response=read(responseFile),native=fs.readFileSync(eventFile,'utf8').trim().split('\n').map(JSON.parse);

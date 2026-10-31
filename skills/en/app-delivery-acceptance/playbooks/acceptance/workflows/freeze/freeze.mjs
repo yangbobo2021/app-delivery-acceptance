@@ -5,11 +5,33 @@ import {isDeepStrictEqual as equal} from 'node:util';
 import {locations,inside,read,requireCurrent,lifecycleLock} from '../shared/store.mjs';
 import {workspaceMetadataLock} from '../shared/workspace.mjs';
 import {validateStore} from '../shared/validation.mjs';
-import {collections,object,versioned,compareDefinitions,digest,fingerprint} from '../shared/definitions.mjs';
+import {collections,object,versioned,compareDefinitions,digest,fingerprint,definitionIssues} from '../shared/definitions.mjs';
 import {canonical,cloneJson,copyNumbers} from '../shared/json.mjs';
 import {freezeSourceInputs} from './source-inputs.mjs';
 const generated=new Set(['acceptance_id','scope_sha256','updated_at','definition_record','definition_version','previous_catalog_sha256','change']);
 const allowed=new Set(['project_root','acceptance_id','request_id','basis','definitions','scope','base_definitions_sha256','mode','replace_basis','assessment','source_inputs']);
+export const inputContract={
+  required:['project_root','acceptance_id','request_id','basis','definitions','base_definitions_sha256'],
+  guidance:[
+    'First freeze needs definitions.context.business_goal grounded in the delegated goal; append inherits existing context.',
+    'Every supplied definition needs its full original text/description, origin.kind, origin.reference and external_refs array.',
+    'File sources need complete source_inputs.required_documents/documents with exact UTF-8 text, SHA-256 and matching origin line ranges.',
+    'Use a generated freeze-command file verbatim when adopting a verified Designer candidate. Do not reconstruct its provenance.',
+    'Read-only preflight does not publish or reserve a version; the official child rechecks the live state under its locks.'
+  ]
+};
+const reject=issues=>{throw Object.assign(Error(issues.map(x=>x.message).join('; ')),{issues});};
+function validateEnvelope(request){
+  if(!object(request))reject([{path:'',message:'freeze request object with declared fields required'}]);
+  const issues=[],check=(ok,path,message)=>{if(!ok)issues.push({path,message});};
+  check(Object.keys(request).every(k=>allowed.has(k)),'','freeze request object with declared fields required');
+  check(/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(request.request_id??''),'request_id','stable request_id required');
+  check(typeof request.basis==='string'&&request.basis.trim(),'basis','actual user adoption/change basis required');
+  check(Object.hasOwn(request,'base_definitions_sha256'),'base_definitions_sha256','base_definitions_sha256 required; use null only before first freeze');
+  check(typeof request.project_root==='string'&&path.isAbsolute(request.project_root),'project_root','absolute user project_root required');
+  check(typeof request.acceptance_id==='string'&&request.acceptance_id.trim(),'acceptance_id','acceptance_id required');
+  if(issues.length)reject(issues);
+}
 function save(file,value,exclusive=false){
   fs.mkdirSync(path.dirname(file),{recursive:true});const raw=canonical(value)+'\n';
   if(exclusive){fs.writeFileSync(file,raw,{flag:'wx'});return;}
@@ -36,33 +58,43 @@ function candidateFor(request,previous,manifest,root){
     const merged=new Map((mode==='replace'?[]:previous?.[group]??[]).map(item=>[item.id,cloneJson(item)]));
     for(const item of additions){const copy=cloneJson(item);delete copy.version;delete copy.content_sha256;merged.set(item.id,copy);}candidate[group]=[...merged.values()];
   }
-  freezeSourceInputs(request,candidate,root,previous);
+  const issues=definitionIssues(candidate).map(item=>({...item,path:'definitions.'+item.path}));
+  try{freezeSourceInputs(request,candidate,root,previous);}catch(error){issues.push({path:'source_inputs',message:error.message});}
+  if(issues.length)reject(issues);
   candidate.basis=request.basis;versioned(candidate,previous);compareDefinitions(previous,candidate,request.assessment);return candidate;
 }
-export function freezeAcceptance(request){
-  if(!object(request)||Object.keys(request).some(k=>!allowed.has(k)))throw Error('freeze request object with declared fields required');
-  if(!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(request.request_id??''))throw Error('stable request_id required');
-  if(typeof request.basis!=='string'||!request.basis.trim())throw Error('actual user adoption/change basis required');
-  if(!Object.hasOwn(request,'base_definitions_sha256'))throw Error('base_definitions_sha256 required; use null only before first freeze');
-  if(typeof request.project_root!=='string'||!path.isAbsolute(request.project_root))throw Error('absolute user project_root required');
+// Read-only preparation is shared with the locked publication path below.
+function inspectFreezeInput(request){
+  validateEnvelope(request);
   const {root,shared,local}=locations(request.project_root,request.acceptance_id),attempt=inside(local,'workflows/freeze/'+request.request_id),latest=inside(shared,'scenarios.json');
+  requireCurrent(root,request.acceptance_id);const state=validateStore(root,request.acceptance_id,{requireScope:false});
+  if(fs.existsSync(attempt)){
+    const original=read(inside(attempt,'request.frozen.json'));
+    if(fingerprint(original)!==fingerprint(request))throw Error('request_id already belongs to a different freeze request');
+    const receipt=read(inside(attempt,'result.json'));
+    if(receipt.schema!=='acceptance-freeze-result-v1'||receipt.request_sha256!==fingerprint(request))throw Error('invalid or incomplete freeze receipt');
+    for(const [relative,expected]of Object.entries(receipt.immutable_files))if(digest(inside(root,relative))!==expected)throw Error('frozen history changed or missing: '+relative);
+    return {root,shared,local,attempt,latest,receipt:{...receipt,status:'already_frozen',applicability:fs.existsSync(latest)&&digest(latest)===receipt.definitions.sha256?'current':'superseded'}};
+  }
+  if((fs.existsSync(latest)?digest(latest):null)!==request.base_definitions_sha256)throw Error('frozen definitions changed; read current snapshot before freezing');
+  const previous=fs.existsSync(latest)?read(latest):null,candidate=candidateFor(request,previous,state.manifest,root),currentScope=state.scope?read(inside(shared,state.scope.path)).scope:null;
+  let scope=request.scope??currentScope;
+  if(scope===null||(!Object.hasOwn(request,'scope')&&currentScope?.kind==='definition-targets')){
+    const targets=collections.flatMap(group=>candidate[group].map(item=>item.id));if(!targets.length)throw Error('a real requirement, rule or adopted scenario is required before freezing');scope={kind:'definition-targets',targets};
+  }
+  if(!object(scope)||!Object.keys(scope).length)throw Error('nonempty real scope required');
+  return {root,shared,local,attempt,latest,state,previous,candidate,currentScope,scope};
+}
+export function preflightInput(request){
+  try{inspectFreezeInput(request);return{schema:'acceptance-input-check-v1',status:'ready',issues:[]};}
+  catch(error){return{schema:'acceptance-input-check-v1',status:'invalid',issues:error.issues??[{path:'',message:error.message}]};}
+}
+export function freezeAcceptance(request){
+  validateEnvelope(request);
+  const {root}=locations(request.project_root,request.acceptance_id);
   return lifecycleLock(root,()=>{
-    requireCurrent(root,request.acceptance_id);const state=validateStore(root,request.acceptance_id,{requireScope:false});
-    if(fs.existsSync(attempt)){
-      const original=read(inside(attempt,'request.frozen.json'));
-      if(fingerprint(original)!==fingerprint(request))throw Error('request_id already belongs to a different freeze request');
-      const receipt=read(inside(attempt,'result.json'));
-      if(receipt.schema!=='acceptance-freeze-result-v1'||receipt.request_sha256!==fingerprint(request))throw Error('invalid or incomplete freeze receipt');
-      for(const [relative,expected]of Object.entries(receipt.immutable_files))if(digest(inside(root,relative))!==expected)throw Error('frozen history changed or missing: '+relative);
-      return {...receipt,status:'already_frozen',applicability:fs.existsSync(latest)&&digest(latest)===receipt.definitions.sha256?'current':'superseded'};
-    }
-    if((fs.existsSync(latest)?digest(latest):null)!==request.base_definitions_sha256)throw Error('frozen definitions changed; read current snapshot before freezing');
-    const previous=fs.existsSync(latest)?read(latest):null,candidate=candidateFor(request,previous,state.manifest,root),currentScope=state.scope?read(inside(shared,state.scope.path)).scope:null;
-    let scope=request.scope??currentScope;
-    if(scope===null||(!Object.hasOwn(request,'scope')&&currentScope?.kind==='definition-targets')){
-      const targets=collections.flatMap(group=>candidate[group].map(item=>item.id));if(!targets.length)throw Error('a real requirement, rule or adopted scenario is required before freezing');scope={kind:'definition-targets',targets};
-    }
-    if(!object(scope)||!Object.keys(scope).length)throw Error('nonempty real scope required');
+    const prepared=inspectFreezeInput(request);if(prepared.receipt)return prepared.receipt;
+    const {shared,attempt,latest,state,previous,candidate,currentScope,scope}=prepared;
     return workspaceMetadataLock(root,request.acceptance_id,()=>{
       const records=inside(shared,'records');fs.mkdirSync(records,{recursive:true});
       const beforeRecords=new Set(fs.readdirSync(records).filter(n=>n.endsWith('.json'))),scopePath=inside(shared,'scope.json'),beforeScope=fs.existsSync(scopePath)?fs.readFileSync(scopePath):null,beforeCatalog=fs.existsSync(latest)?fs.readFileSync(latest):null;

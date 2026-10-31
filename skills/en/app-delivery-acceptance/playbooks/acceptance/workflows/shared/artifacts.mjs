@@ -12,7 +12,7 @@ const sorted=x=>Array.isArray(x)?x.map(sorted):x&&typeof x==='object'?Object.fro
 export const json=x=>JSON.stringify(sorted(x),null,2)+'\n';
 export function owned(root,relative){
   if(path.isAbsolute(relative)||relative.split(/[\\/]/).includes('..'))throw Error('owned relative path required');
-  let p=root;for(const part of relative.split('/')){p=path.join(p,part);try{if(fs.lstatSync(p).isSymbolicLink())throw Error('symlink is not allowed: '+p);}catch(e){if(e.code!=='ENOENT')throw e;}}return p;
+  let p=root;for(const part of relative.split(path.sep === '\\' ? /[\\/]/ : '/')){p=path.join(p,part);try{if(fs.lstatSync(p).isSymbolicLink())throw Error('symlink is not allowed: '+p);}catch(e){if(e.code!=='ENOENT')throw e;}}return p;
 }
 export function verify(root,files){for(const [relative,expected]of Object.entries(files)){if(sha(owned(root,relative))!==expected)throw Error('artifact changed: '+relative);}}
 function acquire(folder){

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import {nodeEnvironment} from '../../runtime/node-process.mjs';
 import {currentPlayerContext,callRole} from '../../runtime/session.mjs';
 import {packageRoot} from '../../root.mjs';
 import path from 'node:path';
@@ -10,12 +11,13 @@ import {digest} from './definitions.mjs';
 export async function runProcess(program,args,{cwd,env=process.env,output,timeoutSeconds=900,signal}={}){
   if(!output||fs.existsSync(output))throw Error('Process observation must use a new output directory');
   if(signal?.aborted)throw Error('Process cancelled before launch');
-  fs.mkdirSync(output,{recursive:true});const log=path.join(output,'combined.log'),fd=fs.openSync(log,'wx'),started=performance.now(),receipt={program,args,cwd,started_at:new Date().toISOString()};
+  fs.mkdirSync(output,{recursive:true});const log=path.join(output,'combined.log'),fd=fs.openSync(log,'wx'),started=performance.now(),receipt={program,args,cwd,started_at:new Date().toISOString(),...(program===process.execPath&&process.versions.electron?{node_environment:{ELECTRON_RUN_AS_NODE:'1'}}:{})};
   let child,timer,forced,timedOut=false,cancelled=false,code,childSignal;
   try{
     const roleController=new AbortController();let roleCalls=0;
     const context=currentPlayerContext(),isRole=context&&args[0]?.startsWith(path.join(packageRoot,'workflows')+path.sep)&&args[0].includes(path.sep+'roles'+path.sep);
-    child=spawn(program,args,{cwd,env:isRole?{...env,ACCEPTANCE_PLAYER_BINDINGS:JSON.stringify(context.session.roleBindings)}:env,detached:true,stdio:isRole?['ignore',fd,fd,'ipc']:['ignore',fd,fd]});
+    const childEnv=program===process.execPath?nodeEnvironment(env):env;
+    child=spawn(program,args,{cwd,env:isRole?{...childEnv,ACCEPTANCE_PLAYER_BINDINGS:JSON.stringify(context.session.roleBindings)}:childEnv,detached:true,stdio:isRole?['ignore',fd,fd,'ipc']:['ignore',fd,fd]});
     if(isRole)child.on('message',message=>{
       if(message?.kind!=='acceptance-player-call')return;
       const send=value=>new Promise(resolve=>{if(!child.connected)return resolve();child.send(value,()=>resolve());});

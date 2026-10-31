@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import {nodeCommand} from '../../runtime/node-process.mjs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
@@ -21,8 +22,8 @@ export function prepareAnalysis(input,folder){
 }
 export function finishAnalysis(folder){
   const requestFile=path.join(folder,'request.frozen.json'),request=read(requestFile);guard(request,[folder]);verifyStage(request);
-  const validator=fileURLToPath(new URL('./tools/validate.mjs',import.meta.url)),args=[validator,requestFile,folder],started_at=new Date().toISOString(),result=spawnSync(process.execPath,args,{encoding:'utf8',timeout:30000,maxBuffer:8*1024*1024});
-  atomicJson(path.join(folder,'validation-command.json'),{argv:[process.execPath,...args],started_at,finished_at:new Date().toISOString(),exit_code:result.status,stdout:result.stdout,stderr:result.stderr});
+  const validator=fileURLToPath(new URL('./tools/validate.mjs',import.meta.url)),argv=nodeCommand(validator,requestFile,folder),started_at=new Date().toISOString(),result=spawnSync(argv[0],argv.slice(1),{encoding:'utf8',timeout:30000,maxBuffer:8*1024*1024});
+  atomicJson(path.join(folder,'validation-command.json'),{argv,started_at,finished_at:new Date().toISOString(),exit_code:result.status,stdout:result.stdout,stderr:result.stderr});
   if(result.error)throw result.error;if(result.status!==0)throw Error('Analysis structure gate failed: '+JSON.stringify(read(path.join(folder,'validation.json')).errors));
   const analysis=read(path.join(folder,'analysis.json')),current=loadBinding(request,{required:true});
   for(const key of ['business_goal','confirmed_scope','requirement_groups'])current.context[key]=analysis[key];

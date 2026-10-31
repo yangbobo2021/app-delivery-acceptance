@@ -34,10 +34,10 @@ function parseAnswer(directory){
   const metrics=read(path.join(directory,'metrics.json')),answer=read(path.join(directory,'answer.json'));
   if(metrics.status!=='success')throw Error('Role did not complete; preserve original session and inspect before recovery');
   const events=fs.readFileSync(path.join(directory,'agent.jsonl'),'utf8').split('\n').filter(Boolean).map(line=>JSON.parse(line));
-  if(!events.some(e=>e.type==='done'&&e.payload?.status==='success'))throw Error('Role answer lacks successful native session evidence');
+  if(!events.some(e=>e.type==='done'&&e.payload?.status==='success'))throw Error('Role answer lacks successful official role result');
   const raw=events.filter(e=>e.type==='text').at(-1)?.payload?.content?.trim();
   const original=fs.existsSync(path.join(directory,'answer.agent.json'))?read(path.join(directory,'answer.agent.json')):answer;
-  if(!raw||!equal(JSON.parse(raw.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'')),original))throw Error('Role answer differs from original native session evidence');
+  if(!raw||!equal(JSON.parse(raw.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'')),original))throw Error('Role answer differs from original official role result');
   return {answer,metrics};
 }
 function frozenWorkspace(catalog){

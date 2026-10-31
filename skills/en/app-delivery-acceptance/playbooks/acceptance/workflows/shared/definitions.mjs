@@ -27,42 +27,55 @@ export function validateDesignGaps(value,owners){
   if(!Array.isArray(gaps))throw Error('design_gaps must be a list');
   for(const gap of gaps)if(!object(gap)||!owners.has(gap.requirement_id)||!text(gap.quote)||!texts[gap.requirement_id]?.includes(gap.quote)||!text(gap.reason))throw Error('design gap needs an owner, exact source quote and reason');
 }
-export function validateDefinitions(value){
-  if(value.schema!==schema||!object(value.project))throw Error('complete acceptance-catalog-v2 required');
-  if(!object(value.context)||!value.context.business_goal)throw Error('frozen context.business_goal required');
+// One validator supplies both publication and read-only preflight diagnostics.
+// Collect independent shape errors without inventing replacement business data.
+export function definitionIssues(value){
+  const issues=[],check=(ok,path,message)=>{if(!ok)issues.push({path,message});};
+  if(!object(value))return [{path:'',message:'complete acceptance-catalog-v2 required'}];
+  check(value.schema===schema&&object(value.project),'schema','complete acceptance-catalog-v2 required');
+  check(object(value.context)&&Boolean(value.context.business_goal),'context.business_goal','frozen context.business_goal required');
   const ids=new Set();
   for(const group of collections){
-    if(!Array.isArray(value[group]))throw Error('complete definition collection required: '+group);
-    for(const item of value[group]){
-      if(!object(item)||!text(item.id))throw Error('definition needs a stable ID');
-      if(ids.has(item.id))throw Error('duplicate definition ID: '+item.id);ids.add(item.id);
-      if(!text(item[group==='scenarios'?'description':'text']))throw Error('complete frozen definition missing: '+item.id);
-      if(!object(item.origin)||!['kind','reference'].every(k=>text(item.origin[k])))throw Error('origin.kind and reference required: '+item.id);
-      if(!Array.isArray(item.external_refs))throw Error('external_refs must be an array (may be empty)');
-      for(const ref of item.external_refs)if(!object(ref)||!['locator','revision','text'].every(k=>text(ref[k])))throw Error('external reference needs locator, revision and frozen text');
-      if('version'in item&&(!Number.isSafeInteger(item.version)||item.version<1))throw Error('invalid definition version');
-      if('content_sha256'in item&&item.content_sha256!==fingerprint(content(item)))throw Error('frozen definition changed: '+item.id);
+    check(Array.isArray(value[group]),group,'complete definition collection required: '+group);
+    for(const [index,item]of (Array.isArray(value[group])?value[group]:[]).entries()){
+      const at=group+'.'+index;
+      check(object(item)&&text(item.id),at+'.id','definition needs a stable ID');if(!object(item))continue;
+      check(!ids.has(item.id),at+'.id','duplicate definition ID: '+item.id);ids.add(item.id);
+      check(text(item[group==='scenarios'?'description':'text']),at,'complete frozen definition missing: '+item.id);
+      for(const key of ['kind','reference'])check(object(item.origin)&&text(item.origin[key]),at+'.origin.'+key,'origin.kind and reference required: '+item.id);
+      check(Array.isArray(item.external_refs),at+'.external_refs','external_refs must be an array (may be empty)');
+      for(const ref of Array.isArray(item.external_refs)?item.external_refs:[])check(object(ref)&&['locator','revision','text'].every(k=>text(ref[k])),at+'.external_refs','external reference needs locator, revision and frozen text');
+      check(!('version'in item)||(Number.isSafeInteger(item.version)&&item.version>=1),at+'.version','invalid definition version');
+      check(!('content_sha256'in item)||item.content_sha256===fingerprint(content(item)),at+'.content_sha256','frozen definition changed: '+item.id);
     }
   }
-  const targets=new Map([...value.requirements,...value.reverse_rules].map(r=>[r.id,r]));
-  for(const rule of value.reverse_rules){
-    if(!Array.isArray(rule.code_sources)||!rule.code_sources.length||rule.code_sources.some(s=>!object(s)||!['path','revision','sha256'].every(k=>text(s[k]))))throw Error('reverse rule needs frozen code_sources: path, revision, sha256');
-    if(!['supported','needs_confirmation'].includes(rule.status))throw Error('reverse rule needs supported or needs_confirmation status');
-    if(rule.status==='supported'&&(!['contract','invariant','confirmed_decision'].includes(rule.basis_kind)||!rule.basis))throw Error('supported reverse rule needs independent expected-behavior basis');
-    if(rule.status==='needs_confirmation'&&!rule.question)throw Error('pending reverse rule needs a concrete question');
+  const items=group=>(Array.isArray(value[group])?value[group]:[]).filter(object);
+  const targets=new Map([...items('requirements'),...items('reverse_rules')].map(r=>[r.id,r]));
+  for(const rule of items('reverse_rules')){
+    const at='reverse_rules.'+value.reverse_rules.indexOf(rule);
+    check(Array.isArray(rule.code_sources)&&rule.code_sources.length>0&&rule.code_sources.every(s=>object(s)&&['path','revision','sha256'].every(k=>text(s[k]))),at+'.code_sources','reverse rule needs frozen code_sources: path, revision, sha256');
+    check(['supported','needs_confirmation'].includes(rule.status),at+'.status','reverse rule needs supported or needs_confirmation status');
+    check(rule.status!=='supported'||(['contract','invariant','confirmed_decision'].includes(rule.basis_kind)&&rule.basis),at+'.basis','supported reverse rule needs independent expected-behavior basis');
+    check(rule.status!=='needs_confirmation'||rule.question,at+'.question','pending reverse rule needs a concrete question');
   }
-  validateDesignGaps(value,new Set([...targets].filter(([,r])=>r.status!=='needs_confirmation').map(([id])=>id)));
-  for(const scene of value.scenarios){
-    if(!['P0','P1','P2','P3'].includes(scene.priority)||!scene.priority_reason)throw Error('scene priority/reason required');
+  try{validateDesignGaps({...value,requirements:items('requirements'),reverse_rules:items('reverse_rules')},new Set([...targets].filter(([,r])=>r.status!=='needs_confirmation').map(([id])=>id)));}catch(error){issues.push({path:'design_gaps',message:error.message});}
+  for(const scene of items('scenarios')){
+    const at='scenarios.'+value.scenarios.indexOf(scene);
+    check(['P0','P1','P2','P3'].includes(scene.priority)&&scene.priority_reason,at+'.priority','scene priority/reason required');
     const ui=scene.ui_acceptance;
-    if(ui!==undefined&&(!object(ui)||typeof ui.required!=='boolean'||typeof ui.visual_expectation!=='string'||(ui.required&&(!ui.visual_expectation.trim()||!scene.description.includes(ui.visual_expectation)))))throw Error('UI scene needs its frozen visual expectation in the description');
-    if(!scene.check?.method||!scene.check?.basis)throw Error('adopted/generated scene needs its actual check method and basis');
-    if(!Array.isArray(scene.related_refs??[]))throw Error('related_refs must be an array');
-    for(const id of refs(scene)){
-      if(!targets.has(id))throw Error('unknown scene target/context: '+id);
-      if(targets.get(id).status==='needs_confirmation')throw Error('pending reverse rule cannot enter an executable scene');
+    check(ui===undefined||(object(ui)&&typeof ui.required==='boolean'&&typeof ui.visual_expectation==='string'&&(!ui.required||(ui.visual_expectation.trim()&&typeof scene.description==='string'&&scene.description.includes(ui.visual_expectation)))),at+'.ui_acceptance','UI scene needs its frozen visual expectation in the description');
+    check(scene.check?.method&&scene.check?.basis,at+'.check','adopted/generated scene needs its actual check method and basis');
+    check(Array.isArray(scene.related_refs??[]),at+'.related_refs','related_refs must be an array');
+    for(const id of refs({...scene,related_refs:Array.isArray(scene.related_refs)?scene.related_refs:[]})){
+      check(targets.has(id),at+'.requirement_id','unknown scene target/context: '+id);
+      check(targets.get(id)?.status!=='needs_confirmation',at+'.requirement_id','pending reverse rule cannot enter an executable scene');
     }
   }
+  return issues;
+}
+export function validateDefinitions(value){
+  const issues=definitionIssues(value);
+  if(issues.length)throw Object.assign(Error(issues.map(x=>x.message).join('; ')),{issues});
   return value;
 }
 export function validateCatalog(value){

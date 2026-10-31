@@ -13,8 +13,12 @@ export function substituteArgv(value, bindings) {
     Object.hasOwn(bindings, key) ? bindings[key] : literal));
 }
 export function resolveExecutable(program, {cwd, env = process.env}) {
-  const candidates = program.includes(path.sep) ? [path.resolve(cwd, program)] :
-    (env.PATH ?? '').split(path.delimiter).map(folder => path.resolve(cwd, folder || '.', program));
+  const pathKey=process.platform==='win32'?Object.keys(env).sort().find(key=>key.toLowerCase()==='path'):'PATH';
+  const bases = program.includes(path.sep) || (process.platform==='win32' && program.includes('/')) ? [path.resolve(cwd,program)] :
+    (env[pathKey] ?? '').split(path.delimiter).map(folder=>path.resolve(cwd,folder||'.',program));
+  const extensionKey=Object.keys(env).sort().find(key=>key.toLowerCase()==='pathext');
+  const extensions=process.platform==='win32'&&!path.extname(program)?(env[extensionKey]??'.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean):[''];
+  const candidates=bases.flatMap(base=>extensions.map(extension=>base+extension));
   for (const file of candidates) {
     try { if (fs.statSync(file).isFile()) { fs.accessSync(file, fs.constants.X_OK); return fs.realpathSync(file); } }
     catch (error) { if (!['ENOENT','ENOTDIR','EACCES'].includes(error.code)) throw error; }

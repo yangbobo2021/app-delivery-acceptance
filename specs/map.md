@@ -5,7 +5,7 @@
 
 本项目为 App Delivery Acceptance 测试 SKILL。
 先从本索引定位需求，再阅读 [`meta.md`](meta.md) 的格式规则。
-当前包含 12 个包、207 条带唯一 ID 的行为及验证条目；本轮登记独立工作流、输入质量门禁及完整迁移的集成验证，实际执行结论和未实测边界另行保存。
+当前包含 12 个包、234 条带唯一 ID 的行为及验证条目；本轮补充子流程只读预检、设计就绪及标准宿主适配边界，实际执行结论和未实测边界另行保存。
 随附 SPEX 框架的许可文本保存在 [`LICENSE.spex`](../LICENSE.spex)，不声明整个项目的许可证。
 
 ## 目录结构
@@ -33,11 +33,22 @@ meta.md       SPEX 原生规约规则
 | [DR-008](decisions/008-workflow-owned-source-layout.md) | 008-workflow-owned-source-layout.md | 按工作流职责组织源码、移除旧执行器和路径包装器 |
 | [DR-009](decisions/009-skill-playbook-responsibility-boundary.md) | 009-skill-playbook-responsibility-boundary.md | Skill 对话接入与完整独立 Playbook 包的职责、依赖和命令验收边界 |
 | [DR-010](decisions/010-deterministic-coverage-protocol.md) | 010-deterministic-coverage-protocol.md | 固定覆盖率协议、唯一工具元数据及项目工具后端边界 |
+| [DR-011](decisions/011-coverage-readiness-and-recount.md) | 011-coverage-readiness-and-recount.md | 固定报告核验、工具原生重算及就绪前完整调用链验证 |
 | [DR-012](decisions/012-project-command-generality.md) | 012-project-command-generality.md | 项目命令透明传递、非语义门槛移除及泛化优先 |
 | [DR-013](decisions/013-outcome-owned-coverage-preparation.md) | 013-outcome-owned-coverage-preparation.md | 宿主意图筛选、项目级覆盖率输入及内部自主修复 |
 | [DR-014](decisions/014-host-owned-goal-continuation.md) | 014-host-owned-goal-continuation.md | 宿主按最终目标推动准备修复、重新绑定与原任务接续 |
-| [DR-011](decisions/011-coverage-readiness-and-recount.md) | 011-coverage-readiness-and-recount.md | 固定报告核验、工具原生重算及就绪前完整调用链验证 |
 | [DR-015](decisions/015-playbook-owned-task-orchestration.md) | 015-playbook-owned-task-orchestration.md | 宿主只向总调度交接任务，官方角色动态调用子工作流并接续 |
+| [DR-016](decisions/016-input-preflight-and-design-readiness.md) | 016-input-preflight-and-design-readiness.md | 子流程共用只读预检、设计覆盖与执行前提分离及纠正交接 |
+| [DR-017](decisions/017-standard-host-player-port.md) | 017-standard-host-player-port.md | 标准宿主角色端口、Prompt 约束、诚实证据及 SPEX 原生包 |
+| [DR-018](decisions/018-workspace-owner-liveness.md) | 018-workspace-owner-liveness.md | 受限子进程的一次性签名存活证明与原租约边界 |
+| [DR-019](decisions/019-unified-spex-installation.md) | 019-unified-spex-installation.md | 单次 SPEX 安装的真实 Skill 与原生 Playbook、独立 CLI 缓存 |
+| [DR-020](decisions/020-electron-node-subprocesses.md) | 020-electron-node-subprocesses.md | Electron 中工作流自身 Node 子脚本的作用域与普通 CLI 兼容 |
+| [DR-021](decisions/021-native-windows-workflow-portability.md) | 021-native-windows-workflow-portability.md | 原生 Windows 文件 URL 与跨平台工作流执行边界 |
+| [DR-022](decisions/022-native-role-error-preservation.md) | 022-native-role-error-preservation.md | 保留项目角色原始错误，避免空答案解析掩盖 Agent 失败 |
+| [DR-023](decisions/023-continuation-failure-settlement.md) | 023-continuation-failure-settlement.md | 子流程回调后的预算与原生失败保留回执并确定收尾 |
+| [DR-024](decisions/024-debug-receipt-prompt.md) | 024-debug-receipt-prompt.md | 角色准确读取调试完成标记、退出回执及合并日志 |
+
+
 
 ## 规约包
 
@@ -45,16 +56,16 @@ meta.md       SPEX 原生规约规则
 | --- | --- | --- | --- |
 | [delivery-acceptance.md](packages/delivery-acceptance.md) | `delivery-acceptance-1` 至 `delivery-acceptance-14` | 14 | 交付验收目标与范围：让用户依据已确认的需求、真实测试和独立证据判断交付状态，并明确未完成范围。 |
 | [definition-lifecycle.md](packages/definition-lifecycle.md) | `definition-lifecycle-1` 至 `definition-lifecycle-27` | 27 | 需求来源、冻结与变更：完整保存本次验收的约定及出处，核对文件来源与声明背景，使执行有固定依据，并能在约定变化后确定必要的后续工作。 |
-| [scenario-design.md](packages/scenario-design.md) | `scenario-design-1` 至 `scenario-design-12` | 12 | 场景采用与增量设计：将已确认的约定转成足以区分正确和错误行为的简明测试点，保留设计缺口和人工修改。 |
-| [project-preparation.md](packages/project-preparation.md) | `project-preparation-1` 至 `project-preparation-19` | 19 | 可移植环境与运行准备：让同一测试流程能使用不同项目的真实工具环境，并明确每次执行已验证的平台与能力边界。 |
-| [case-design.md](packages/case-design.md) | `case-design-1` 至 `case-design-20` | 20 | 已有用例查找、复用与补充：为当前场景采用足以验证其判据的实际用例组，优先利用已有测试并避免制造冗余。 |
+| [scenario-design.md](packages/scenario-design.md) | `scenario-design-1` 至 `scenario-design-16` | 16 | 场景采用与增量设计：将已确认的约定转成足以区分正确和错误行为的简明测试点，保留设计缺口和人工修改。 |
+| [project-preparation.md](packages/project-preparation.md) | `project-preparation-1` 至 `project-preparation-21` | 21 | 可移植环境与运行准备：让同一测试流程能使用不同项目的真实工具环境，并明确每次执行已验证的平台与能力边界。 |
+| [case-design.md](packages/case-design.md) | `case-design-1` 至 `case-design-22` | 22 | 已有用例查找、复用与补充：为当前场景采用足以验证其判据的实际用例组，优先利用已有测试并避免制造冗余。 |
 | [case-identity.md](packages/case-identity.md) | `case-identity-1` 至 `case-identity-13` | 13 | 永久用例身份：通过普通源码注释让实际关联的测试声明在场景、评估、执行和维护中保持可核对的身份。 |
 | [case-assessment.md](packages/case-assessment.md) | `case-assessment-1` 至 `case-assessment-12` | 12 | 场景用例组的设计评估：帮助用户判断当前场景关联用例是否设计合理、充分且避免冗余，并以可理解的证据说明取舍。 |
 | [execution-evidence.md](packages/execution-evidence.md) | `execution-evidence-1` 至 `execution-evidence-18` | 18 | 真实执行、独立复审与有界修复：使场景结论对应实际运行的测试、产品版本和可信证据，并保留失败及修复过程。 |
 | [coverage-reporting.md](packages/coverage-reporting.md) | `coverage-reporting-1` 至 `coverage-reporting-16` | 16 | 工具覆盖率与范围说明：提供与真实执行绑定、由成熟专用工具计算的源码覆盖率，并清楚展示不可计算的范围。 |
-| [acceptance-storage.md](packages/acceptance-storage.md) | `acceptance-storage-1` 至 `acceptance-storage-23` | 23 | 验收身份、资料与恢复：让同一项目的验收工作可持续接续、可校验和可共享，同时隔离本机状态及历史证据。 |
+| [acceptance-storage.md](packages/acceptance-storage.md) | `acceptance-storage-1` 至 `acceptance-storage-27` | 27 | 验收身份、资料与恢复：让同一项目的验收工作可持续接续、可校验和可共享，同时隔离本机状态及历史证据。 |
 | [traceability-view.md](packages/traceability-view.md) | `traceability-view-1` 至 `traceability-view-19` | 19 | 统一追踪与可信阅读：使用户从需求起点直观看到关系和完整当前状态，并按需查看有限而有用的细节。 |
-| [workflow-package.md](packages/workflow-package.md) | `workflow-package-1` 至 `workflow-package-10` | 10 | Skill 接入与完整独立包、标准 CLI、官方角色会话及宿主任务接续边界。 |
+| [workflow-package.md](packages/workflow-package.md) | `workflow-package-1` 至 `workflow-package-29` | 29 | Skill 接入与完整独立包、标准 CLI、官方角色会话及宿主任务接续边界。 |
 
 ## 阅读与后续边界
 

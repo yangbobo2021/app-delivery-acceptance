@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {pathToFileURL} from 'node:url';
 import {randomUUID,createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {isDeepStrictEqual as same} from 'node:util';
-import {canonical} from '../shared/json.mjs';
+import {canonical,parseJson} from '../shared/json.mjs';
 import {projectRoot,inside,atomicJson} from '../shared/store.mjs';
 import {packageRoot} from '../../root.mjs';
 export const read=f=>JSON.parse(fs.readFileSync(f,'utf8'));
@@ -38,12 +39,22 @@ export function openTask(input){
  state.status='running';atomicJson(stateFile,state);
  return{folder,requestFolder,state,token,input,save(){atomicJson(stateFile,state);},release(){const file=path.join(lock,'owner.json');if(fs.existsSync(file)&&read(file).token===token){fs.unlinkSync(file);fs.rmdirSync(lock);}}};
 }
+const registeredModules=new Map();
 export async function discover(){
  const entries=[];for(const name of fs.readdirSync(path.join(packageRoot,'workflows')).sort()){
   const file=path.join(packageRoot,'workflows',name,'registry.mjs');if(name==='orchestrate'||name==='native-role'||!fs.existsSync(file))continue;
-  const item=(await import(file)).default;entries.push({id:item.id,intent:item.intent,roles:item.requiredRoleIds});
+  const module=await import(pathToFileURL(file).href),item=module.default;registeredModules.set(item.id,module);
+  entries.push({id:item.id,intent:item.intent,roles:item.requiredRoleIds,...(typeof module.preflightInput==='function'?{input_preflight:true,input_contract:module.inputContract??null}:{})});
  }
  return{workflows:entries,package_root:packageRoot,contracts:['docs/independent-workflows.md','docs/lifecycle-workflows.md','docs/intent-inputs.md'].map(name=>({path:path.join(packageRoot,name),text:fs.readFileSync(path.join(packageRoot,name),'utf8')}))};
+}
+export async function preflightChildInput(workflow,input,text){
+ if(!registeredModules.has(workflow))await discover();
+ const module=registeredModules.get(workflow);if(!module)throw Error('Unknown public child workflow: '+workflow);
+ if(typeof module.preflightInput!=='function')return null;
+ const checked=await module.preflightInput(text===undefined?input:parseJson(text));
+ if(!checked||!['ready','invalid'].includes(checked.status)||!Array.isArray(checked.issues))throw Error('Invalid read-only child preflight result: '+workflow);
+ return checked;
 }
 export function inspectPath(input,name,options={}){
  if(typeof name!=='string')throw Error('Inspection path required');

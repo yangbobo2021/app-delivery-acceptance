@@ -20,7 +20,7 @@ function boundary(config,output,operation){
 }
 function saveOnce(file,value){fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,JSON.stringify(value,null,2)+'\n',{flag:'wx'});}
 function inspectionFile(workspace,name){
-  if(typeof name!=='string'||name.split('/').some(part=>['.git','.acceptance','.acceptance-local'].includes(part)))throw Error('Runtime inspection file is outside frozen workspace');
+  if(typeof name!=='string'||name.split(path.sep === '\\' ? /[\\/]/ : '/').some(part=>['.git','.acceptance','.acceptance-local'].includes(path.sep === '\\' ? part.replace(/[. ]+$/,'').toLowerCase() : part)))throw Error('Runtime inspection file is outside frozen workspace');
   const file=inside(workspace,name);if(!fs.statSync(file).isFile())throw Error('Runtime inspection file is unavailable: '+name);return file;
 }
 export function prepareRuntimeRequest(value,folder){

@@ -1,12 +1,12 @@
 // Generate an explicit temporary overlay from the actual shipped registries.
 // This selects no business path and makes no model/provider call.
-import fs from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';
+import fs from 'node:fs';import path from 'node:path';import {fileURLToPath,pathToFileURL} from 'node:url';
 const root=fileURLToPath(new URL('..',import.meta.url));
 const adapter=agent=>{const value={'codex':'codex','claude-code':'claude','opencode':'opencode'}[agent];if(!value)throw Error('Explicit agent must be codex, claude-code or opencode');return value;};
 const binding=value=>{if(!value||Object.keys(value).some(k=>!['agent','model','effort'].includes(k))||!String(value.model??'').trim())throw Error('Every selected role requires explicit agent/model');if(value.agent==='opencode'&&!value.model.includes('/'))throw Error('OpenCode requires provider/model');return {adapter:adapter(value.agent),model:value.model,...(value.effort?{effort:value.effort}:{})};};
 export async function workflowOverlay({agent,model,effort,role_bindings={}}){
  const base=binding({agent,model,...(effort?{effort}:{})}),playbooks={},players={},roles=new Set();
- for(const folder of fs.readdirSync(path.join(root,'workflows')).sort()){const file=path.join(root,'workflows',folder,'registry.mjs');if(folder==='native-role'||!fs.existsSync(file))continue;const entry=(await import(file)).default,assignments={};for(const role of entry.requiredRoleIds){roles.add(role);const id='acceptance.'+folder+'.'+role;assignments[role]=id;players[id]={...binding(role_bindings[role]??{agent,model,...(effort?{effort}:{})}),permissions:entry.rolePolicies?.[role]??{fileWrite:'deny',shellExecute:'deny',networkAccess:'deny'}};}playbooks[entry.id]={from:file,roles:assignments};}
+ for(const folder of fs.readdirSync(path.join(root,'workflows')).sort()){const file=path.join(root,'workflows',folder,'registry.mjs');if(folder==='native-role'||!fs.existsSync(file))continue;const entry=(await import(pathToFileURL(file).href)).default,assignments={};for(const role of entry.requiredRoleIds){roles.add(role);const id='acceptance.'+folder+'.'+role;assignments[role]=id;players[id]={...binding(role_bindings[role]??{agent,model,...(effort?{effort}:{})}),permissions:entry.rolePolicies?.[role]??{fileWrite:'deny',shellExecute:'deny',networkAccess:'deny'}};}playbooks[entry.id]={from:file,roles:assignments};}
  for(const role of Object.keys(role_bindings))if(!roles.has(role))throw Error('Unknown direct Playbook role override: '+role);
  return {captain:base,players,playbooks};
 }
