@@ -29,3 +29,7 @@ Skill 首先运行平台入口 `scripts/setup.sh` 或 `scripts/setup.ps1`，优�
 `project_root` 是实际用户项目。总调度管理后续子调用，外层 Codex 不组织子工作流步骤。目录、权限和证据继续由工作流 Prompt 与校验管理，SPEX 沿用通用角色执行机制；宿主未暴露的元数据仍记录为未知。详见 [总调度合同](orchestration-workflow.md) 与 [Agent 配置](agent-runtime.md)。
 
 独立 Electron 桌面宿主中，包只对自己的 Node 子脚本和确定性工具指定 Node 模式；普通 Node CLI、项目执行器及父宿主环境不变。通过真实桌面运行核对主流程，不用服务器 UI 成功替代桌面验证。
+
+## Native Windows command prerequisites
+
+The installed package retains each role's filesystem, shell and network policy. Its locked Codex adapter prefers a compatible native MXC sandbox and provides command-shell guidance; it neither installs WSL nor disables sandboxing. A host lacking a usable native sandbox must complete the supported Codex preparation or report that prerequisite. The current physical Windows acceptance host is Windows 11 build 26100.9711; runtime smoke, model replies and package presence do not substitute for selected-scene execution and independent review.

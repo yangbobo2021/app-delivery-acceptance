@@ -86,7 +86,15 @@
 
 当 Mac 或原生 Windows 的 Codex 首次准备 Skill 时，准备入口应核对并复用兼容的运行时及独立缓存，缺少时仅在用户缓存准备固定且经摘要验证的运行时及锁定依赖，返回正式配置和官方 CLI 所需的实际路径，保持受管 Skill、全局环境、角色权限和业务证据边界不变 [DR-026](../decisions/026-portable-skill-runtime-preparation.md)。
 
+### workflow-package-34
+
+当原生 Windows 的 Codex 角色执行授权命令时，锁定运行依赖应使用宿主可用的原生沙箱和兼容的命令行说明，在保留既有权限的条件下执行实际读取，不能执行时保留真实错误 [DR-027](../decisions/027-windows-bounded-agent-commands.md)。
+
 ## 验证
+
+### workflow-package-35
+
+当验证原生 Windows 受限角色时，集成测试应以真实 Agent 命令读取不可预测的固定文件并由原生沙箱拒绝写入，不能以模型成功回复代替命令结果 [[workflow-package-34](#workflow-package-34)] [windows_codex_permissions.integration.mjs](../../tests/windows_codex_permissions.integration.mjs)。
 
 ### workflow-package-31
 

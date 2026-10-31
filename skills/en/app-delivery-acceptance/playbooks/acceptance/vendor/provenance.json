@@ -24,7 +24,9 @@
     "sublang-playbook-18.1.1-acceptance.20261028.2.tgz": "c224c743e958458ecc037d4ad488b1019b0ff9caca9c0ee907a78b02859fc615",
     "sublang-cligent-0.36.2-acceptance.20261030.1.tgz": "8e373f3b9d6cf42f883a5dc85a7d9ea2959326ffbc4f5ff9d55bbb796a4da02a",
     "sublang-cligent-0.36.2-acceptance.20261031.1.tgz": "9681456ed96018f0ed01265e0495951ee6c368469dcfc2f64f2ce03d40661bb0",
-    "sublang-playbook-18.1.1-acceptance.20261031.1.tgz": "33dbfd84377cb53701000f27efa1c0494e17563b00db17cc2dee2bd17f12b9cf"
+    "sublang-playbook-18.1.1-acceptance.20261031.1.tgz": "33dbfd84377cb53701000f27efa1c0494e17563b00db17cc2dee2bd17f12b9cf",
+    "sublang-cligent-0.36.2-acceptance.20261031.2.tgz": "21671fe55840b11d26ee1a34a9293bd153e01b0dbace64f323ccd54785f220ec",
+    "sublang-playbook-18.1.1-acceptance.20261031.2.tgz": "d6deffe9bdac19d9361ae6ed774c761829d301e9b4f3b5243e9da906766de984"
   },
   "updated_at": "2026-10-31",
   "snapshot_updates_20261031": [
@@ -87,6 +89,44 @@
         }
       },
       "scope": "Only the listed native Windows storage or Codex PowerShell fixes are replaced; all other packaged files originate from the previously validated locked archive."
+    },
+    {
+      "base_archive": "sublang-cligent-0.36.2-acceptance.20261031.1.tgz",
+      "base_sha256": "9681456ed96018f0ed01265e0495951ee6c368469dcfc2f64f2ce03d40661bb0",
+      "archive": "sublang-cligent-0.36.2-acceptance.20261031.2.tgz",
+      "sha256": "21671fe55840b11d26ee1a34a9293bd153e01b0dbace64f323ccd54785f220ec",
+      "compiled_replacement_patch": "cligent-windows-sandbox-20261031.patch",
+      "patch_sha256": "daf8aa07d725fe8aa49b44f10f10dcbecb6672975ccdd0d548dac6b44054055d",
+      "replacements": {
+        "dist/adapters/codex.js": {
+          "before": "cb03769ab5b2800614f3ac87e5d8c832f348fac6c1f6d1a160e4ab92ea0f43be",
+          "after": "5023406e6b13e25cc2e32a4b3b4843a06f9ff61e7e697a12d18e31217fc98979"
+        },
+        "package.json": {
+          "before": "1524ae5032ba305f65955da5f753b858e0088f001023db43fcc309ab15914931",
+          "after": "260bdeafad45dd41d4d542205dc2901c11403b9da6c18811f04f758ada497dba"
+        }
+      },
+      "scope": "Native Windows bounded Codex configuration only; all permission and approval values retained. Other packaged bytes unchanged except explicit version/dependency metadata.",
+      "package": "@sublang/cligent",
+      "version": "0.36.2-acceptance.20261031.2"
+    },
+    {
+      "base_archive": "sublang-playbook-18.1.1-acceptance.20261031.1.tgz",
+      "base_sha256": "33dbfd84377cb53701000f27efa1c0494e17563b00db17cc2dee2bd17f12b9cf",
+      "archive": "sublang-playbook-18.1.1-acceptance.20261031.2.tgz",
+      "sha256": "d6deffe9bdac19d9361ae6ed774c761829d301e9b4f3b5243e9da906766de984",
+      "compiled_replacement_patch": "playbook-windows-sandbox-dependency-20261031.patch",
+      "patch_sha256": "a8784da3aed6ec9ecaec4c2aafc0776d20351367b867c893e1c91bbc56598ba3",
+      "replacements": {
+        "package.json": {
+          "before": "6f583ccd35ea3a880d678612a5c120827e7c5dedeaa635e3f9604a92a8df1508",
+          "after": "44a90decd6ffe54f492ba5f7b28740b35a196a6beb7b5cac7460326b2e6e6dfd"
+        }
+      },
+      "scope": "Native Windows bounded Codex configuration only; all permission and approval values retained. Other packaged bytes unchanged except explicit version/dependency metadata.",
+      "package": "@sublang/playbook",
+      "version": "18.1.1-acceptance.20261031.2"
     }
   ]
 }

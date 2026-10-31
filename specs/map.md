@@ -5,7 +5,7 @@
 
 本项目为 App Delivery Acceptance 测试 SKILL。
 先从本索引定位需求，再阅读 [`meta.md`](meta.md) 的格式规则。
-当前包含 12 个包、238 条带唯一 ID 的行为及验证条目；本轮补充子流程只读预检、设计就绪及标准宿主适配边界，实际执行结论和未实测边界另行保存。
+当前包含 12 个包、240 条带唯一 ID 的行为及验证条目；本轮补充子流程只读预检、设计就绪及标准宿主适配边界，实际执行结论和未实测边界另行保存。
 随附 SPEX 框架的许可文本保存在 [`LICENSE.spex`](../LICENSE.spex)，不声明整个项目的许可证。
 
 ## 目录结构
@@ -49,6 +49,7 @@ meta.md       SPEX 原生规约规则
 | [DR-024](decisions/024-debug-receipt-prompt.md) | 024-debug-receipt-prompt.md | 角色准确读取调试完成标记、退出回执及合并日志 |
 | [DR-025](decisions/025-source-and-distribution-repositories.md) | 025-source-and-distribution-repositories.md | 完整源码主干、独立安装仓库及固定提交来源 |
 | [DR-026](decisions/026-portable-skill-runtime-preparation.md) | 026-portable-skill-runtime-preparation.md | Mac/Windows Skill 首次准备、独立缓存和正式 CLI |
+| [DR-027](decisions/027-windows-bounded-agent-commands.md) | 027-windows-bounded-agent-commands.md | 原生 Windows 受限角色的沙箱选择与实际命令执行 |
 
 
 
@@ -67,7 +68,7 @@ meta.md       SPEX 原生规约规则
 | [coverage-reporting.md](packages/coverage-reporting.md) | `coverage-reporting-1` 至 `coverage-reporting-16` | 16 | 工具覆盖率与范围说明：提供与真实执行绑定、由成熟专用工具计算的源码覆盖率，并清楚展示不可计算的范围。 |
 | [acceptance-storage.md](packages/acceptance-storage.md) | `acceptance-storage-1` 至 `acceptance-storage-27` | 27 | 验收身份、资料与恢复：让同一项目的验收工作可持续接续、可校验和可共享，同时隔离本机状态及历史证据。 |
 | [traceability-view.md](packages/traceability-view.md) | `traceability-view-1` 至 `traceability-view-19` | 19 | 统一追踪与可信阅读：使用户从需求起点直观看到关系和完整当前状态，并按需查看有限而有用的细节。 |
-| [workflow-package.md](packages/workflow-package.md) | `workflow-package-1` 至 `workflow-package-33` | 33 | Skill 接入与完整独立包、标准 CLI、官方角色会话及宿主任务接续边界。 |
+| [workflow-package.md](packages/workflow-package.md) | `workflow-package-1` 至 `workflow-package-35` | 35 | Skill 接入与完整独立包、标准 CLI、官方角色会话及宿主任务接续边界。 |
 
 ## 阅读与后续边界
 
