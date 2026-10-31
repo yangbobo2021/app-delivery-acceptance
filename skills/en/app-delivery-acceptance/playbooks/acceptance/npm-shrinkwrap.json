@@ -1,12 +1,12 @@
 {
   "name": "app-delivery-acceptance-playbooks",
-  "version": "0.4.9",
+  "version": "0.4.10",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "app-delivery-acceptance-playbooks",
-      "version": "0.4.9",
+      "version": "0.4.10",
       "bundleDependencies": [
         "@sublang/cligent",
         "@sublang/playbook"
@@ -15,8 +15,8 @@
         "@anthropic-ai/claude-agent-sdk": "0.3.284",
         "@openai/codex-sdk": "0.162.1",
         "@opencode-ai/sdk": "1.19.4",
-        "@sublang/cligent": "file:vendor/sublang-cligent-0.36.2-acceptance.20261030.1.tgz",
-        "@sublang/playbook": "file:vendor/sublang-playbook-18.1.1-acceptance.20261028.2.tgz",
+        "@sublang/cligent": "file:vendor/sublang-cligent-0.36.2-acceptance.20261031.1.tgz",
+        "@sublang/playbook": "file:vendor/sublang-playbook-18.1.1-acceptance.20261031.1.tgz",
         "@sublang/spex": "4.0.0",
         "picomatch": "4.0.7",
         "smol-toml": "1.9.1",
@@ -406,6 +406,200 @@
         "node": ">=16"
       }
     },
+    "node_modules/@openclaw/fs-safe": {
+      "version": "0.26.13",
+      "resolved": "https://registry.npmjs.org/@openclaw/fs-safe/-/fs-safe-0.26.13.tgz",
+      "integrity": "sha512-wmHGL0pKcYN8oO+RlvisaZibXDUOQVj6mNQ2VVIoicsqTMvpgzZGX2U4zu8yZtb32MmvPLg1Y9bRQCcePMoEyw==",
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true,
+      "engines": {
+        "node": ">=22"
+      },
+      "optionalDependencies": {
+        "@openclaw/fs-safe-darwin-arm64": "0.26.13",
+        "@openclaw/fs-safe-darwin-x64": "0.26.13",
+        "@openclaw/fs-safe-freebsd-arm64": "0.26.13",
+        "@openclaw/fs-safe-freebsd-x64": "0.26.13",
+        "@openclaw/fs-safe-linux-arm64-gnu": "0.26.13",
+        "@openclaw/fs-safe-linux-arm64-musl": "0.26.13",
+        "@openclaw/fs-safe-linux-x64-gnu": "0.26.13",
+        "@openclaw/fs-safe-linux-x64-musl": "0.26.13",
+        "@openclaw/fs-safe-win32-arm64-msvc": "0.26.13",
+        "@openclaw/fs-safe-win32-x64-msvc": "0.26.13",
+        "jszip": "^3.10.2"
+      }
+    },
+    "node_modules/@openclaw/fs-safe-darwin-arm64": {
+      "version": "0.26.13",
+      "resolved": "https://registry.npmjs.org/@openclaw/fs-safe-darwin-arm64/-/fs-safe-darwin-arm64-0.26.13.tgz",
+      "integrity": "sha512-R3mXijsyLrFVRiLjNlpEcmN9SZWMVd7keZWtVngGp19C56lHm/ye5/UJV2rICe5xsuxXM6q0iGKXkcQdUc9uKA==",
+      "cpu": [
+        "arm64"
+      ],
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "darwin"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "node_modules/@openclaw/fs-safe-darwin-x64": {
+      "version": "0.26.13",
+      "resolved": "https://registry.npmjs.org/@openclaw/fs-safe-darwin-x64/-/fs-safe-darwin-x64-0.26.13.tgz",
+      "integrity": "sha512-s0ZKDbVIQCjUpgwxA3RMmt7UTyGQcWmkicxC7DdOq/hqLwzCRx74nb0zDrbuBHZCW9y6lF6PeqPfppPtwXqjDg==",
+      "cpu": [
+        "x64"
+      ],
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "darwin"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "node_modules/@openclaw/fs-safe-freebsd-arm64": {
+      "version": "0.26.13",
+      "resolved": "https://registry.npmjs.org/@openclaw/fs-safe-freebsd-arm64/-/fs-safe-freebsd-arm64-0.26.13.tgz",
+      "integrity": "sha512-doLvVPENhF5tUCKSYRctHt5WN27YP/QwQoeCzI88Nfh27r91KrXIsyFWohffou1hHlYX3ucDgDqp129Xz/ccNg==",
+      "cpu": [
+        "arm64"
+      ],
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "freebsd"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "node_modules/@openclaw/fs-safe-freebsd-x64": {
+      "version": "0.26.13",
+      "resolved": "https://registry.npmjs.org/@openclaw/fs-safe-freebsd-x64/-/fs-safe-freebsd-x64-0.26.13.tgz",
+      "integrity": "sha512-rYYIKwy7sSQXSVgHUn8gzJrIQU4TFQ5Issjs5LvdhNmCPt9rAa9GYZWZ2HMH+sQCTeeTM4G9Jt39Q3cZkKI0gg==",
+      "cpu": [
+        "x64"
+      ],
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "freebsd"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "node_modules/@openclaw/fs-safe-linux-arm64-gnu": {
+      "version": "0.26.13",
+      "resolved": "https://registry.npmjs.org/@openclaw/fs-safe-linux-arm64-gnu/-/fs-safe-linux-arm64-gnu-0.26.13.tgz",
+      "integrity": "sha512-2rWPoeG5f+H7/CbVv+Q2SEW4xOGZfwtLzZ4kZA2xveOb4EhiU7jSZjfCwaf7/jVGIcwiC5SEvL1cHdTyORwULg==",
+      "cpu": [
+        "arm64"
+      ],
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "node_modules/@openclaw/fs-safe-linux-arm64-musl": {
+      "version": "0.26.13",
+      "resolved": "https://registry.npmjs.org/@openclaw/fs-safe-linux-arm64-musl/-/fs-safe-linux-arm64-musl-0.26.13.tgz",
+      "integrity": "sha512-K9bhtXJxH6syGcqJ5bh0+qKn1T1c8p1p+dEFjta3CMy9sHtqpbPjSOw3DfdjpVz5WUtahkQm1nlV623eSRSIOg==",
+      "cpu": [
+        "arm64"
+      ],
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "node_modules/@openclaw/fs-safe-linux-x64-gnu": {
+      "version": "0.26.13",
+      "resolved": "https://registry.npmjs.org/@openclaw/fs-safe-linux-x64-gnu/-/fs-safe-linux-x64-gnu-0.26.13.tgz",
+      "integrity": "sha512-nzZMTHFPaHXHQH9HXX5YoN/OEivPpmBlcWrSErK8O3iB0E05uiOG8IYIHgsZZUzLwsVdYbvrIYc6uVwxRR/Qfw==",
+      "cpu": [
+        "x64"
+      ],
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "node_modules/@openclaw/fs-safe-linux-x64-musl": {
+      "version": "0.26.13",
+      "resolved": "https://registry.npmjs.org/@openclaw/fs-safe-linux-x64-musl/-/fs-safe-linux-x64-musl-0.26.13.tgz",
+      "integrity": "sha512-zoW3n+ovzWItj+KvM7UjN5XNRbNkTIIVVy+wJK1yRpRMd8n12qTTj03+a0hHpgzL47ZORfSO1cCbiPv5231Vgw==",
+      "cpu": [
+        "x64"
+      ],
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "node_modules/@openclaw/fs-safe-win32-arm64-msvc": {
+      "version": "0.26.13",
+      "resolved": "https://registry.npmjs.org/@openclaw/fs-safe-win32-arm64-msvc/-/fs-safe-win32-arm64-msvc-0.26.13.tgz",
+      "integrity": "sha512-aw9dhWaLuCiqykCONI7o5Suv3v61cuDQYSX/oe3UQlZHlnz4oq6j7JiHr48IdmgmgW5n9/k4wIBX5VYxeoG1PQ==",
+      "cpu": [
+        "arm64"
+      ],
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "node_modules/@openclaw/fs-safe-win32-x64-msvc": {
+      "version": "0.26.13",
+      "resolved": "https://registry.npmjs.org/@openclaw/fs-safe-win32-x64-msvc/-/fs-safe-win32-x64-msvc-0.26.13.tgz",
+      "integrity": "sha512-JQtn+zWFC74cksnynI/IK4b4jEmk64P4qUrGSlVLrEb2jJOngopHiVGq9gNB1FmvpyG7SttBg6wjvUfXe2aHeQ==",
+      "cpu": [
+        "x64"
+      ],
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
     "node_modules/@opencode-ai/sdk": {
       "version": "1.19.4",
       "resolved": "https://registry.npmjs.org/@opencode-ai/sdk/-/sdk-1.19.4.tgz",
@@ -453,9 +647,9 @@
       "peer": true
     },
     "node_modules/@sublang/cligent": {
-      "version": "0.36.2-acceptance.20261028.2",
-      "resolved": "file:vendor/sublang-cligent-0.36.2-acceptance.20261030.1.tgz",
-      "integrity": "sha512-5hanCmhohPIE+X5ozEdMQXxoCJsQsdFquP/iPrJs9VKmUymnkGetLeIi7UlnQI8wYcw/d9+aXQ+uGAE35a0UMw==",
+      "version": "0.36.2-acceptance.20261031.1",
+      "resolved": "file:vendor/sublang-cligent-0.36.2-acceptance.20261031.1.tgz",
+      "integrity": "sha512-shBTlImQ8pRE6j67ZjIgg35x4Rtt5shmqtzykcy+7hp/HS7ieSgmjO2hvstf/jOmukgcZIirkyN4hg9QcpthdQ==",
       "inBundle": true,
       "license": "Apache-2.0",
       "dependencies": {
@@ -488,13 +682,13 @@
       }
     },
     "node_modules/@sublang/playbook": {
-      "version": "18.1.1-acceptance.20261028.2",
-      "resolved": "file:vendor/sublang-playbook-18.1.1-acceptance.20261028.2.tgz",
-      "integrity": "sha512-Bp2F0oEqmNqSYMT0hDJppMBs9TS2v0cYw6Z6Rnk5DahtIcKJD5JOUxMSN7jaIIYlMl5S+y8cObSzlvR71JZoYw==",
+      "version": "18.1.1-acceptance.20261031.1",
+      "resolved": "file:vendor/sublang-playbook-18.1.1-acceptance.20261031.1.tgz",
+      "integrity": "sha512-TpIbodZMthuuPtysF+szu+MNE2iTav3kARjir6PwRZoJhsftUUbHgajjIz4/WA/cGAOKWjvTQIQZ20knFzG57A==",
       "inBundle": true,
       "license": "Apache-2.0",
       "dependencies": {
-        "@sublang/cligent": "0.36.2-acceptance.20261028.2",
+        "@sublang/cligent": "0.36.2-acceptance.20261031.1",
         "@sublang/spex": "^3.0.0",
         "p-queue": "^9.3.1",
         "xstate": "^5.19.4",
@@ -505,6 +699,9 @@
       },
       "engines": {
         "node": ">=20.6.0"
+      },
+      "optionalDependencies": {
+        "@openclaw/fs-safe": "0.26.13"
       }
     },
     "node_modules/@sublang/playbook/node_modules/@sublang/spex": {
@@ -795,6 +992,14 @@
       "engines": {
         "node": ">=6.6.0"
       }
+    },
+    "node_modules/core-util-is": {
+      "version": "1.0.3",
+      "resolved": "https://registry.npmjs.org/core-util-is/-/core-util-is-1.0.3.tgz",
+      "integrity": "sha512-ZQBvi1DcpJ4GDqanjucZ2Hj3wEO5pZDS89BWbkcrvdxksJorwUDDZamX9ldFkp9aw2lmBDLgkObEA4DWNJ9FYQ==",
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true
     },
     "node_modules/cors": {
       "version": "2.8.6",
@@ -1366,13 +1571,20 @@
         "url": "https://opencollective.com/express"
       }
     },
+    "node_modules/immediate": {
+      "version": "3.0.6",
+      "resolved": "https://registry.npmjs.org/immediate/-/immediate-3.0.6.tgz",
+      "integrity": "sha512-XXOFtyqDjNDAQxVfYxuF7g9Il/IbWmmlQg2MYKOH8ExIT1qg6xc4zyS3HaEEATgs1btfzxq15ciUiY7gjSXRGQ==",
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true
+    },
     "node_modules/inherits": {
       "version": "2.0.4",
       "resolved": "https://registry.npmjs.org/inherits/-/inherits-2.0.4.tgz",
       "integrity": "sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==",
       "inBundle": true,
-      "license": "ISC",
-      "peer": true
+      "license": "ISC"
     },
     "node_modules/ip-address": {
       "version": "10.7.4",
@@ -1416,6 +1628,14 @@
       "inBundle": true,
       "license": "MIT",
       "peer": true
+    },
+    "node_modules/isarray": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/isarray/-/isarray-1.0.0.tgz",
+      "integrity": "sha512-VLghIWNM6ELQzo7zwmcg0NmTVyWKYjvIeM83yjp0wRDTmUnrM678fQbcKBo6n2CJEF0szoG//ytg+TKla89ALQ==",
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true
     },
     "node_modules/isexe": {
       "version": "2.0.0",
@@ -1465,6 +1685,31 @@
       "inBundle": true,
       "license": "BSD-2-Clause",
       "peer": true
+    },
+    "node_modules/jszip": {
+      "version": "3.10.2",
+      "resolved": "https://registry.npmjs.org/jszip/-/jszip-3.10.2.tgz",
+      "integrity": "sha512-3l+rb15IOWtUhU0H5MFqES/T6Kh7abYwjosBey/vD6hDt8zoEffkSC5Ws5SGtgVw3gBx2NEbhTeSW1+kWkpyTQ==",
+      "inBundle": true,
+      "license": "(MIT OR GPL-3.0-or-later)",
+      "optional": true,
+      "dependencies": {
+        "lie": "~3.3.0",
+        "pako": "~1.0.2",
+        "readable-stream": "~2.3.6",
+        "setimmediate": "^1.0.5"
+      }
+    },
+    "node_modules/lie": {
+      "version": "3.3.0",
+      "resolved": "https://registry.npmjs.org/lie/-/lie-3.3.0.tgz",
+      "integrity": "sha512-UaiMJzeWRlEujzAuw5LokY1L5ecNQYZKfmyZ9L7wDHb/p5etKaxXhohBcrw0EYby+G/NA52vRSN4N39dxHAIwQ==",
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true,
+      "dependencies": {
+        "immediate": "~3.0.5"
+      }
     },
     "node_modules/longest-streak": {
       "version": "3.1.0",
@@ -2492,6 +2737,14 @@
         "url": "https://github.com/sponsors/sindresorhus"
       }
     },
+    "node_modules/pako": {
+      "version": "1.0.11",
+      "resolved": "https://registry.npmjs.org/pako/-/pako-1.0.11.tgz",
+      "integrity": "sha512-4hLB8Py4zZce5s4yd9XzopqwVv/yGNhV1Bl8NTmCq1763HeK2+EwVTv+leGeL13Dnh2wfbqowVPXCIO0z4taYw==",
+      "inBundle": true,
+      "license": "(MIT AND Zlib)",
+      "optional": true
+    },
     "node_modules/parseurl": {
       "version": "1.3.3",
       "resolved": "https://registry.npmjs.org/parseurl/-/parseurl-1.3.3.tgz",
@@ -2580,6 +2833,14 @@
         "node": ">=18"
       }
     },
+    "node_modules/process-nextick-args": {
+      "version": "2.0.1",
+      "resolved": "https://registry.npmjs.org/process-nextick-args/-/process-nextick-args-2.0.1.tgz",
+      "integrity": "sha512-3ouUOpQhtgrbOa17J7+uxOTpITYWaGP7/AhoR3+A+/1e9skrzelGi/dXzEYyvbxubEF6Wn2ypscTKiKJFFn1ag==",
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true
+    },
     "node_modules/proxy-addr": {
       "version": "2.0.8",
       "resolved": "https://registry.npmjs.org/proxy-addr/-/proxy-addr-2.0.8.tgz",
@@ -2647,6 +2908,23 @@
       },
       "engines": {
         "node": ">= 0.10"
+      }
+    },
+    "node_modules/readable-stream": {
+      "version": "2.3.8",
+      "resolved": "https://registry.npmjs.org/readable-stream/-/readable-stream-2.3.8.tgz",
+      "integrity": "sha512-8p0AUk4XODgIewSi0l8Epjs+EVnWiK7NoDIEGU0HhE7+ZyY8D1IMY7odu5lRrFXGg71L15KG8QrPmum45RTtdA==",
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true,
+      "dependencies": {
+        "core-util-is": "~1.0.0",
+        "inherits": "~2.0.3",
+        "isarray": "~1.0.0",
+        "process-nextick-args": "~2.0.0",
+        "safe-buffer": "~5.1.1",
+        "string_decoder": "~1.1.1",
+        "util-deprecate": "~1.0.1"
       }
     },
     "node_modules/remark-gfm": {
@@ -2730,6 +3008,14 @@
         "node": ">= 18"
       }
     },
+    "node_modules/safe-buffer": {
+      "version": "5.1.2",
+      "resolved": "https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.1.2.tgz",
+      "integrity": "sha512-Gd2UZBJDkXlY7GbJxfsE8/nvKkUEU1G38c1siN6QP6a9PT9MmHB8GnpscSmMJSoF8LOIrt8ud/wPtojys4G6+g==",
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true
+    },
     "node_modules/safer-buffer": {
       "version": "2.1.2",
       "resolved": "https://registry.npmjs.org/safer-buffer/-/safer-buffer-2.1.2.tgz",
@@ -2786,6 +3072,14 @@
         "type": "opencollective",
         "url": "https://opencollective.com/express"
       }
+    },
+    "node_modules/setimmediate": {
+      "version": "1.0.5",
+      "resolved": "https://registry.npmjs.org/setimmediate/-/setimmediate-1.0.5.tgz",
+      "integrity": "sha512-MATJdZp8sLqDl/68LfQmbP8zKPLQNV6BIZoIgrscFDQ+RsvK/BxeDQOgyxKKoh0y/8h3BqVFnCqQ/gd+reiIXA==",
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true
     },
     "node_modules/setprototypeof": {
       "version": "1.2.0",
@@ -2931,6 +3225,17 @@
       "peer": true,
       "engines": {
         "node": ">= 0.8"
+      }
+    },
+    "node_modules/string_decoder": {
+      "version": "1.1.1",
+      "resolved": "https://registry.npmjs.org/string_decoder/-/string_decoder-1.1.1.tgz",
+      "integrity": "sha512-n/ShnvDi6FHbbVfviro+WojiFzv+s8MPMHBczVePfUpDJLwoLT0ht1l4YwBCbi8pJAveEEdnkHyPyTP/mzRfwg==",
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true,
+      "dependencies": {
+        "safe-buffer": "~5.1.0"
       }
     },
     "node_modules/toidentifier": {
@@ -3087,6 +3392,14 @@
       "engines": {
         "node": ">= 0.8"
       }
+    },
+    "node_modules/util-deprecate": {
+      "version": "1.0.2",
+      "resolved": "https://registry.npmjs.org/util-deprecate/-/util-deprecate-1.0.2.tgz",
+      "integrity": "sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==",
+      "inBundle": true,
+      "license": "MIT",
+      "optional": true
     },
     "node_modules/vary": {
       "version": "1.1.2",

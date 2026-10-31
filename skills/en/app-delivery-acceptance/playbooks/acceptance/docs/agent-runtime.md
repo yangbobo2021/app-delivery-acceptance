@@ -1,10 +1,15 @@
 # Agent 与模型配置
 
+Skill 首次准备在 macOS/Linux 使用 `sh <skill>/scripts/setup.sh`，原生 Windows 使用 `powershell -NoProfile -ExecutionPolicy Bypass -File <skill>\scripts\setup.ps1`。
+入口优先复用兼容运行时，缺少时下载固定且校验摘要的 Node，Windows 缺少 Git 时优先复用已安装 SPEX 的 Git，再准备固定 MinGit，不修改系统 PATH。
+使用返回的 `node`、`package_root`、`playbook`，仅在正式配置和 CLI 进程及其子进程中应用 `path_prefix`。
+SPEX 托管导出目录不安装 node_modules；依赖和源码副本位于校验后的独立缓存。
+
 全部角色由 [标准 Playbook 配置](native-cli-boundaries.md) 管理，不设置第二份环境角色映射。配置生成入口：
 
 ```sh
 node <package>/bin/configure.mjs --agent codex --model ACTUAL_MODEL --roles /absolute/roles.json --output /absolute/new-overlay.json
-<package>/node_modules/.bin/playbook run --with /absolute/new-overlay.json --no-provision --json
+<returned-node> <returned-playbook> run --with /absolute/new-overlay.json --no-provision --json
 ```
 
 `roles.json` 只描述显式差异：

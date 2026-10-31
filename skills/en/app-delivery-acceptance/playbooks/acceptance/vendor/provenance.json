@@ -22,7 +22,71 @@
   "archives": {
     "sublang-cligent-0.36.2-acceptance.20261028.2.tgz": "aada63c544ca875a1b1ba674e66712cc7ab098ffb83153d4b4c2fa4538a5c436",
     "sublang-playbook-18.1.1-acceptance.20261028.2.tgz": "c224c743e958458ecc037d4ad488b1019b0ff9caca9c0ee907a78b02859fc615",
-    "sublang-cligent-0.36.2-acceptance.20261030.1.tgz": "8e373f3b9d6cf42f883a5dc85a7d9ea2959326ffbc4f5ff9d55bbb796a4da02a"
+    "sublang-cligent-0.36.2-acceptance.20261030.1.tgz": "8e373f3b9d6cf42f883a5dc85a7d9ea2959326ffbc4f5ff9d55bbb796a4da02a",
+    "sublang-cligent-0.36.2-acceptance.20261031.1.tgz": "9681456ed96018f0ed01265e0495951ee6c368469dcfc2f64f2ce03d40661bb0",
+    "sublang-playbook-18.1.1-acceptance.20261031.1.tgz": "33dbfd84377cb53701000f27efa1c0494e17563b00db17cc2dee2bd17f12b9cf"
   },
-  "updated_at": "2026-10-30"
+  "updated_at": "2026-10-31",
+  "snapshot_updates_20261031": [
+    {
+      "package": "@sublang/cligent",
+      "version": "0.36.2-acceptance.20261031.1",
+      "archive": "sublang-cligent-0.36.2-acceptance.20261031.1.tgz",
+      "sha256": "9681456ed96018f0ed01265e0495951ee6c368469dcfc2f64f2ce03d40661bb0",
+      "base_archive": "sublang-cligent-0.36.2-acceptance.20261030.1.tgz",
+      "base_sha256": "8e373f3b9d6cf42f883a5dc85a7d9ea2959326ffbc4f5ff9d55bbb796a4da02a",
+      "source_head": "e411c5acb8bcf9442283d05fc7a849eede22f3ae",
+      "compiled_replacement_patch": "cligent-windows-20261031.patch",
+      "patch_sha256": "17298ee101a8e4b974fbbabbbd784bfe042a3bdf7b43561b26402e4a4f1f3c4b",
+      "replacements": {
+        "dist/adapters/codex.js": {
+          "before": "205260a3b11671de1456aeea327a0e0a13a2768567e79170d267f51a40547c69",
+          "after": "cb03769ab5b2800614f3ac87e5d8c832f348fac6c1f6d1a160e4ab92ea0f43be"
+        }
+      },
+      "scope": "Only the listed native Windows storage or Codex PowerShell fixes are replaced; all other packaged files originate from the previously validated locked archive."
+    },
+    {
+      "package": "@sublang/playbook",
+      "version": "18.1.1-acceptance.20261031.1",
+      "archive": "sublang-playbook-18.1.1-acceptance.20261031.1.tgz",
+      "sha256": "33dbfd84377cb53701000f27efa1c0494e17563b00db17cc2dee2bd17f12b9cf",
+      "base_archive": "sublang-playbook-18.1.1-acceptance.20261028.2.tgz",
+      "base_sha256": "c224c743e958458ecc037d4ad488b1019b0ff9caca9c0ee907a78b02859fc615",
+      "source_head": "cffc5ae8ff219b0f6d822161b1b3448841bd401b",
+      "compiled_replacement_patch": "playbook-windows-20261031.patch",
+      "patch_sha256": "c9f21c1f2252acab34bc66905070f6fcb6f28091b67ae295c4f2104a72f9b645",
+      "replacements": {
+        "reference/sdlc/code.playbook/bin/private-paths.js": {
+          "before": "17a96008f7b49f6636916d6a7c18ce78b2661aebfd838cad5d85eff165c92c39",
+          "after": "7c2f016a82492af27ef04ddc9ab48e357bf055d00a78203948159987358beb9b"
+        },
+        "reference/sdlc/code.playbook/bin/machine-identity.js": {
+          "before": "51167127fac736ca3ab44f567c402da0ebe353e43aa3b7b5a488cb4a35b1acc3",
+          "after": "b6977fe89e5f6aaf0977351ef3d07bbf5c340f780a7defb3d23dc9e1e2694e57"
+        },
+        "reference/sdlc/code.playbook/bin/session-store.js": {
+          "before": "1911f17adb0a95503f1ac997dc9cc9d098936922e66c7249afed5f7f67490005",
+          "after": "f79f2e80ee81157de067040fc4b40be4bb9ea5903efb26015320846869a401b6"
+        },
+        "reference/sdlc/code.playbook/bin/session-chunks.js": {
+          "before": "d25e2dc039e058a18ecc7975b24461196cdb83f5a0017711abcbb354f90788fe",
+          "after": "1c62d66d283df115c4b42ca0e46a73fe07f16b9ad1066b72a804c25fb6605c60"
+        },
+        "reference/sdlc/code.playbook/bin/session-replay.js": {
+          "before": "e21146ccdcd07d20267ffab5e0b3eef530de5c6a945da27f0e37ee7c17811f82",
+          "after": "6bdcbb7fdad69c40683c88375014d2903f93551a71928355352ff231000b8bbc"
+        },
+        "reference/sdlc/code.playbook/bin/repository-effects.js": {
+          "before": "50f028247f1768b522eda99c06f0a4d8e7a5dfddf1cf908a0374a55475bfaced",
+          "after": "0361f52e21fa612e165ac4a6c471185e0ea9ae1c6e6e1367ec510580dcb80c59"
+        },
+        "reference/sdlc/code.playbook/session-assets.js": {
+          "before": "5168a319e2efee3637b4f242a7bceb8598e1906a1a53d284c808d87f0d85ccca",
+          "after": "d54a8f3cca2b793028f9873f21a335477c6d7725905c72de2962290d67e5907d"
+        }
+      },
+      "scope": "Only the listed native Windows storage or Codex PowerShell fixes are replaced; all other packaged files originate from the previously validated locked archive."
+    }
+  ]
 }

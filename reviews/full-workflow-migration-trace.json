@@ -1,0 +1,1695 @@
+{
+  "schema": "acceptance-migration-trace-v1",
+  "goal": "完整迁移；不以旧入口或文件存在代表完成",
+  "baseline": "/Users/boboyang/Documents/Codex/2026-10-26/opencode-opencode-glm-5-3-flash/outputs/acceptance-capability-baseline-20261027/baseline.json",
+  "capabilities": [
+    {
+      "id": "CAP-01",
+      "title": "新建尚无需求的交付测试",
+      "user_request": "新建一个交付测试。",
+      "spec_ids": [
+        "acceptance-storage-1",
+        "acceptance-storage-2",
+        "acceptance-storage-16"
+      ],
+      "journey_ids": [
+        "J01"
+      ],
+      "target_entries": [
+        "create"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [
+        "create-regression-final"
+      ],
+      "new_batch_evidence": [
+        "create-upgrade-02"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-02",
+      "title": "新建并冻结需求后停止",
+      "user_request": "针对 XX 需求新建交付测试，只冻结需求。",
+      "spec_ids": [
+        "definition-lifecycle-1",
+        "definition-lifecycle-2",
+        "definition-lifecycle-7",
+        "definition-lifecycle-12"
+      ],
+      "journey_ids": [
+        "J02"
+      ],
+      "target_entries": [
+        "create",
+        "freeze"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "freeze-node-cli-03"
+      ],
+      "python_dependency_remaining": false,
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。",
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations."
+    },
+    {
+      "id": "CAP-03",
+      "title": "对指定需求开展完整验收",
+      "user_request": "针对 XX 需求进行交付测试。",
+      "spec_ids": [
+        "delivery-acceptance-1",
+        "delivery-acceptance-3",
+        "delivery-acceptance-5"
+      ],
+      "journey_ids": [
+        "J03"
+      ],
+      "target_entries": [
+        "create",
+        "freeze",
+        "scenarios",
+        "runtime",
+        "coverage",
+        "project",
+        "cases",
+        "execute",
+        "delivery-judge"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "full-native-user-journey-01"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-04",
+      "title": "在当前交付测试中继续指定工作",
+      "user_request": "在当前交付测试中验收 XX。",
+      "spec_ids": [
+        "acceptance-storage-2",
+        "acceptance-storage-13",
+        "acceptance-storage-15",
+        "acceptance-storage-16"
+      ],
+      "journey_ids": [
+        "J04"
+      ],
+      "target_entries": [
+        "current",
+        "start",
+        "freeze",
+        "change-plan"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "full-native-user-journey-01",
+        "lifecycle-all-cli-02"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-05",
+      "title": "采用不同来源的需求",
+      "user_request": "按 SPEC 的 R1，或者按我刚才口述的要求验收。",
+      "spec_ids": [
+        "definition-lifecycle-1",
+        "definition-lifecycle-4",
+        "delivery-acceptance-10",
+        "delivery-acceptance-11"
+      ],
+      "journey_ids": [
+        "J05"
+      ],
+      "target_entries": [
+        "freeze",
+        "analyze"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [
+        "analysis-final-02"
+      ],
+      "new_batch_evidence": [
+        "freeze-node-cli-03",
+        "analysis-official-port-cli-03"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-06",
+      "title": "直接采用已有测试场景",
+      "user_request": "使用 SPEC 中的 S1、S2，不重新生成。",
+      "spec_ids": [
+        "scenario-design-2",
+        "definition-lifecycle-2",
+        "definition-lifecycle-4",
+        "definition-lifecycle-19"
+      ],
+      "journey_ids": [
+        "J05"
+      ],
+      "target_entries": [
+        "freeze"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [
+        "freeze-final-02"
+      ],
+      "new_batch_evidence": [
+        "freeze-final-04"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-07",
+      "title": "采用没有父需求的独立场景",
+      "user_request": "直接验收这个场景，不补造一条需求。",
+      "spec_ids": [
+        "definition-lifecycle-3",
+        "traceability-view-1"
+      ],
+      "journey_ids": [
+        "J06"
+      ],
+      "target_entries": [
+        "freeze",
+        "cases"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [
+        "scenarios-final-02"
+      ],
+      "new_batch_evidence": [
+        "assessment-official-port-cli-02",
+        "cases-node-new-01"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-08",
+      "title": "针对指定目标生成缺口场景",
+      "user_request": "只为 R1 生成场景。",
+      "spec_ids": [
+        "scenario-design-1",
+        "scenario-design-3",
+        "scenario-design-4",
+        "scenario-design-5",
+        "scenario-design-6",
+        "scenario-design-7",
+        "scenario-design-9",
+        "scenario-design-10"
+      ],
+      "journey_ids": [
+        "J03",
+        "J07",
+        "J08"
+      ],
+      "target_entries": [
+        "scenarios"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [
+        "scenarios-final-02"
+      ],
+      "new_batch_evidence": [
+        "scenarios-node-cli-01"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-09",
+      "title": "增量修订并保留人工场景",
+      "user_request": "更新 R1 场景，保留我手工修改的内容。",
+      "spec_ids": [
+        "scenario-design-8",
+        "definition-lifecycle-7",
+        "definition-lifecycle-9",
+        "definition-lifecycle-10"
+      ],
+      "journey_ids": [
+        "J04"
+      ],
+      "target_entries": [
+        "scenarios",
+        "freeze"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [
+        "scenarios-edit-forward-02"
+      ],
+      "new_batch_evidence": [
+        "scenario-edit-final-cli-03"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-10",
+      "title": "仅做本次指定过程并停止",
+      "user_request": "只分析需求；只设计；只生成用例；只做评估。",
+      "spec_ids": [
+        "delivery-acceptance-2",
+        "definition-lifecycle-12",
+        "case-assessment-7"
+      ],
+      "journey_ids": [
+        "J06",
+        "J08",
+        "J11"
+      ],
+      "target_entries": [
+        "all independent entries"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "full-native-user-journey-01",
+        "lifecycle-all-cli-02"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-11",
+      "title": "逐需求设计并选择一个 P0 执行",
+      "user_request": "R1 生成场景后先测一个 P0，再处理 R2。",
+      "spec_ids": [
+        "scenario-design-1",
+        "scenario-design-6",
+        "delivery-acceptance-3"
+      ],
+      "journey_ids": [
+        "J07"
+      ],
+      "target_entries": [
+        "scenarios",
+        "cases",
+        "execute"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "full-native-user-journey-01"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-12",
+      "title": "仅静态查找和关联已有用例",
+      "user_request": "为 S1 查找关联用例，不运行。",
+      "spec_ids": [
+        "case-design-2",
+        "case-design-10",
+        "case-design-11",
+        "case-design-14",
+        "case-design-16",
+        "traceability-view-2"
+      ],
+      "journey_ids": [
+        "J09"
+      ],
+      "target_entries": [
+        "find-cases"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [
+        "find-cases-final-05"
+      ],
+      "new_batch_evidence": [
+        "find-official-port-cli-02"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-13",
+      "title": "查找并调试已有用例而不改逻辑",
+      "user_request": "只找现有用例并运行调试，不修改用例。",
+      "spec_ids": [
+        "case-design-9",
+        "case-design-14",
+        "execution-evidence-10",
+        "case-identity-4"
+      ],
+      "journey_ids": [
+        "J10"
+      ],
+      "target_entries": [
+        "cases(existing_only)"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "cases-node-existing-only-01"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-14",
+      "title": "复用优先地实现或补充用例",
+      "user_request": "为 S1 准备用例，优先复用已有测试。",
+      "spec_ids": [
+        "case-design-1",
+        "case-design-3",
+        "case-design-4",
+        "case-design-5",
+        "case-design-6",
+        "case-design-7",
+        "case-design-8",
+        "case-design-12",
+        "case-design-15",
+        "case-design-17",
+        "case-design-13"
+      ],
+      "journey_ids": [
+        "J03",
+        "J11"
+      ],
+      "target_entries": [
+        "cases"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "cases-native-lease-final-04",
+        "cases-node-extend-01",
+        "cases-node-new-01"
+      ],
+      "python_dependency_remaining": false,
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。",
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations."
+    },
+    {
+      "id": "CAP-15",
+      "title": "用例已就绪时跳过再次生成",
+      "user_request": "已有生成好的用例，跳过生成直接执行。",
+      "spec_ids": [
+        "case-design-4",
+        "execution-evidence-12"
+      ],
+      "journey_ids": [
+        "J13"
+      ],
+      "target_entries": [
+        "execute"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "full-native-user-journey-01"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-16",
+      "title": "单独独立评估当前用例组",
+      "user_request": "只评估 S1 当前关联用例，不执行测试。",
+      "spec_ids": [
+        "case-assessment-1",
+        "case-assessment-2",
+        "case-assessment-3",
+        "case-assessment-4",
+        "case-assessment-5",
+        "case-assessment-6",
+        "case-assessment-7",
+        "case-assessment-8",
+        "case-assessment-9",
+        "case-assessment-10"
+      ],
+      "journey_ids": [
+        "J09",
+        "J11",
+        "J12"
+      ],
+      "target_entries": [
+        "assess-cases"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [
+        "assessment-final-01"
+      ],
+      "new_batch_evidence": [
+        "assessment-official-port-cli-02"
+      ],
+      "python_dependency_remaining": false,
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。",
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations."
+    },
+    {
+      "id": "CAP-17",
+      "title": "永久用例身份与可核验源码关联",
+      "user_request": "把关联用例登记好，后面按同一用例定位。",
+      "spec_ids": [
+        "case-identity-1",
+        "case-identity-2",
+        "case-identity-3",
+        "case-identity-4",
+        "case-identity-5",
+        "case-identity-6",
+        "case-identity-7",
+        "case-identity-8",
+        "case-identity-9",
+        "case-identity-10",
+        "case-identity-11",
+        "case-identity-12"
+      ],
+      "journey_ids": [
+        "J09",
+        "J10",
+        "J14"
+      ],
+      "target_entries": [
+        "find-cases",
+        "cases",
+        "execute"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "node-protocol-final-05"
+      ],
+      "python_dependency_remaining": false,
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。",
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations."
+    },
+    {
+      "id": "CAP-18",
+      "title": "执行所选场景并形成可信结论",
+      "user_request": "执行 S1 或这一批 P0 场景。",
+      "spec_ids": [
+        "execution-evidence-1",
+        "execution-evidence-2",
+        "execution-evidence-4",
+        "execution-evidence-5",
+        "execution-evidence-8",
+        "execution-evidence-9",
+        "execution-evidence-11",
+        "execution-evidence-13"
+      ],
+      "journey_ids": [
+        "J03",
+        "J07",
+        "J10",
+        "J13"
+      ],
+      "target_entries": [
+        "execute"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "execute-node-runtime-cli-04",
+        "real-ui-chain-cli-03"
+      ],
+      "python_dependency_remaining": false,
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。",
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations."
+    },
+    {
+      "id": "CAP-19",
+      "title": "只重新执行指定用例",
+      "user_request": "重新执行 XX 用例，其他用例不要执行。",
+      "spec_ids": [
+        "case-identity-1",
+        "case-identity-2",
+        "execution-evidence-2",
+        "delivery-acceptance-2"
+      ],
+      "journey_ids": [
+        "J14",
+        "J16"
+      ],
+      "target_entries": [
+        "execute(selected_case_ids)"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "execute-node-runtime-cli-04",
+        "coverage-repaired-journey-07"
+      ],
+      "python_dependency_remaining": false,
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。",
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations."
+    },
+    {
+      "id": "CAP-20",
+      "title": "代码变化后在新版本复用用例重跑",
+      "user_request": "代码改了，用原来的用例重新测并查看最新覆盖率。",
+      "spec_ids": [
+        "acceptance-storage-13",
+        "execution-evidence-12",
+        "execution-evidence-14",
+        "definition-lifecycle-9",
+        "coverage-reporting-3"
+      ],
+      "journey_ids": [
+        "J15"
+      ],
+      "target_entries": [
+        "rebind",
+        "runtime",
+        "coverage",
+        "project",
+        "execute"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "new-revision-coverage-cli-03"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-21",
+      "title": "按变更和用户意图选择复验范围",
+      "user_request": "只复验受影响且以前执行过的场景，或完成整项变更验收。",
+      "spec_ids": [
+        "definition-lifecycle-9",
+        "definition-lifecycle-10",
+        "definition-lifecycle-11",
+        "definition-lifecycle-12",
+        "definition-lifecycle-16"
+      ],
+      "journey_ids": [
+        "J15"
+      ],
+      "target_entries": [
+        "change-plan"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "project-rebind-node-cli-01",
+        "new-revision-coverage-cli-03"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-22",
+      "title": "修复覆盖率收集后重跑指定用例",
+      "user_request": "修复覆盖率收集问题，重新执行用例并收集覆盖率。",
+      "spec_ids": [
+        "coverage-reporting-1",
+        "coverage-reporting-2",
+        "coverage-reporting-3",
+        "coverage-reporting-4",
+        "coverage-reporting-10",
+        "execution-evidence-14"
+      ],
+      "journey_ids": [
+        "J16"
+      ],
+      "target_entries": [
+        "coverage",
+        "project",
+        "execute"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "coverage-current-node-repair-05",
+        "coverage-repaired-journey-07"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-23",
+      "title": "为本次执行采集可信覆盖率",
+      "user_request": "运行这些用例并采集行、分支覆盖率。",
+      "spec_ids": [
+        "coverage-reporting-3",
+        "coverage-reporting-4",
+        "coverage-reporting-5",
+        "coverage-reporting-7",
+        "coverage-reporting-10",
+        "coverage-reporting-11"
+      ],
+      "journey_ids": [
+        "J15",
+        "J16"
+      ],
+      "target_entries": [
+        "coverage",
+        "execute"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "coverage-repaired-journey-07",
+        "new-revision-coverage-cli-03"
+      ],
+      "python_dependency_remaining": false,
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。",
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations."
+    },
+    {
+      "id": "CAP-24",
+      "title": "不重跑用例地重算或查看覆盖率",
+      "user_request": "不要重跑，只看修改行覆盖率或重新汇总已有报告。",
+      "spec_ids": [
+        "coverage-reporting-6",
+        "coverage-reporting-8",
+        "coverage-reporting-9"
+      ],
+      "journey_ids": [
+        "J18"
+      ],
+      "target_entries": [
+        "coverage-recompute",
+        "view"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "coverage-repaired-journey-07"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-25",
+      "title": "真实环境准备与有效依赖复用",
+      "user_request": "只准备环境；已准备好的环境继续复用。",
+      "spec_ids": [
+        "project-preparation-4",
+        "project-preparation-5",
+        "project-preparation-6",
+        "project-preparation-7",
+        "project-preparation-8",
+        "project-preparation-9",
+        "project-preparation-11",
+        "project-preparation-12",
+        "acceptance-storage-14"
+      ],
+      "journey_ids": [
+        "J17",
+        "J22"
+      ],
+      "target_entries": [
+        "runtime",
+        "project"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [
+        "runtime-final-03"
+      ],
+      "new_batch_evidence": [
+        "runtime-node-cli-02"
+      ],
+      "python_dependency_remaining": false,
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。",
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations."
+    },
+    {
+      "id": "CAP-26",
+      "title": "只准备或修正覆盖率链路",
+      "user_request": "只验证覆盖率零命中、非零命中和收尾失败的区别。",
+      "spec_ids": [
+        "coverage-reporting-1",
+        "coverage-reporting-2",
+        "coverage-reporting-12"
+      ],
+      "journey_ids": [
+        "J16",
+        "J17"
+      ],
+      "target_entries": [
+        "coverage"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "coverage-current-node-repair-05",
+        "coverage-policy-off-01"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-27",
+      "title": "中断恢复而不重复未知副作用",
+      "user_request": "继续刚才中断的任务，不要重复发布或重跑未知状态。",
+      "spec_ids": [
+        "execution-evidence-3",
+        "execution-evidence-12",
+        "acceptance-storage-5",
+        "acceptance-storage-7"
+      ],
+      "journey_ids": [
+        "J14",
+        "J19"
+      ],
+      "target_entries": [
+        "recover"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "recovery-final-cli-03",
+        "case-completed-recovery-cli-02",
+        "migration-safety-final-04"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "Verified completed command/role adoption and bounded checkpoint continuation; failed provider calls are not retried solely on a root UUID. Inspect effects and explicitly supersede unknown work."
+    },
+    {
+      "id": "CAP-28",
+      "title": "失败、修补与停止边界",
+      "user_request": "只修测试问题；达到预算就报告阻塞。",
+      "spec_ids": [
+        "delivery-acceptance-7",
+        "delivery-acceptance-9",
+        "execution-evidence-8",
+        "execution-evidence-9",
+        "execution-evidence-10",
+        "execution-evidence-13"
+      ],
+      "journey_ids": [
+        "J16",
+        "J19"
+      ],
+      "target_entries": [
+        "execute",
+        "cases"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "execute-node-repair-05",
+        "execute-node-repair-resume-06",
+        "node-protocol-final-05"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-29",
+      "title": "真实 UI 操作与图片独立复审",
+      "user_request": "拍到关键按钮和前后状态，让 Reviewer 实际看图。",
+      "spec_ids": [
+        "scenario-design-7",
+        "execution-evidence-6",
+        "execution-evidence-7"
+      ],
+      "journey_ids": [
+        "J21"
+      ],
+      "target_entries": [
+        "execute",
+        "manual-execute"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "real-ui-chain-cli-03",
+        "real-ui-defect-cli-01"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-30",
+      "title": "源码逆向和 PR 影响识别",
+      "user_request": "分析这个 PR 影响了什么，哪些规则仍待确认。",
+      "spec_ids": [
+        "definition-lifecycle-5",
+        "definition-lifecycle-6",
+        "definition-lifecycle-15",
+        "definition-lifecycle-18",
+        "delivery-acceptance-11"
+      ],
+      "journey_ids": [],
+      "target_entries": [
+        "reverse"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [
+        "reverse-final-02"
+      ],
+      "new_batch_evidence": [
+        "reverse-official-port-cli-03"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-31",
+      "title": "完整需求或 PR 的交付判断",
+      "user_request": "这个需求或 PR 是否已完成交付验收？",
+      "spec_ids": [
+        "delivery-acceptance-4",
+        "delivery-acceptance-5",
+        "delivery-acceptance-6",
+        "scenario-design-4"
+      ],
+      "journey_ids": [
+        "J03"
+      ],
+      "target_entries": [
+        "assess-scenarios",
+        "delivery-judge"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "full-native-user-journey-01",
+        "scenario-assessment-cli-01",
+        "migration-safety-final-04"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-32",
+      "title": "手工操作与无源码黑盒验收",
+      "user_request": "这个场景需要手工操作，或只提供应用访问入口。",
+      "spec_ids": [
+        "delivery-acceptance-12",
+        "case-design-8"
+      ],
+      "journey_ids": [
+        "J21"
+      ],
+      "target_entries": [
+        "manual-execute"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "real-ui-chain-cli-03",
+        "lifecycle-all-cli-02"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-33",
+      "title": "来源变更、删除或不可读的处理",
+      "user_request": "SPEC 改了或链接打不开，检查哪些定义受影响。",
+      "spec_ids": [
+        "definition-lifecycle-4",
+        "definition-lifecycle-7",
+        "definition-lifecycle-8",
+        "definition-lifecycle-9",
+        "definition-lifecycle-13"
+      ],
+      "journey_ids": [
+        "J05"
+      ],
+      "target_entries": [
+        "source-status",
+        "freeze"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "risk-source-report-cli-01",
+        "lifecycle-all-cli-02"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-34",
+      "title": "用户授权的需求或场景回填",
+      "user_request": "把确认的需求或场景回填到项目 SPEC。",
+      "spec_ids": [
+        "definition-lifecycle-14",
+        "definition-lifecycle-17"
+      ],
+      "journey_ids": [],
+      "target_entries": [
+        "backfill",
+        "freeze"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "backfill-official-port-cli-03"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-35",
+      "title": "从需求到结果的可信报告",
+      "user_request": "打开当前验收报告，查看需求、场景、用例、执行和结论。",
+      "spec_ids": [
+        "traceability-view-1",
+        "traceability-view-2",
+        "traceability-view-3",
+        "traceability-view-4",
+        "traceability-view-5",
+        "traceability-view-6",
+        "traceability-view-7",
+        "traceability-view-8",
+        "traceability-view-12",
+        "traceability-view-17",
+        "traceability-view-18"
+      ],
+      "journey_ids": [
+        "J20"
+      ],
+      "target_entries": [
+        "view",
+        "report"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "native-view-final-03",
+        "risk-source-report-cli-01",
+        "legacy-native-view-01"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-36",
+      "title": "只读查看历史和切换视图",
+      "user_request": "只看上次报告，切换到另一个验收看看。",
+      "spec_ids": [
+        "traceability-view-9",
+        "traceability-view-10",
+        "traceability-view-11",
+        "traceability-view-13",
+        "traceability-view-14",
+        "traceability-view-15",
+        "traceability-view-16",
+        "acceptance-storage-12"
+      ],
+      "journey_ids": [
+        "J18",
+        "J20"
+      ],
+      "target_entries": [
+        "view"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "native-view-final-03",
+        "lifecycle-all-cli-02"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-37",
+      "title": "保留用户风险接受决定",
+      "user_request": "我接受这个已知风险，记录决定和剩余影响。",
+      "spec_ids": [
+        "delivery-acceptance-8",
+        "traceability-view-8"
+      ],
+      "journey_ids": [],
+      "target_entries": [
+        "risk"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "risk-source-report-cli-01"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-38",
+      "title": "选择性归档并保持可核对来源",
+      "user_request": "归档这些实际结果和必要证据。",
+      "spec_ids": [
+        "acceptance-storage-3",
+        "acceptance-storage-8",
+        "acceptance-storage-9",
+        "acceptance-storage-12"
+      ],
+      "journey_ids": [
+        "J20"
+      ],
+      "target_entries": [
+        "archive"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "archive-view-lifecycle-cli-01",
+        "coverage-repaired-journey-07"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-39",
+      "title": "结束验收和授权清理",
+      "user_request": "结束这项验收；确认可恢复后清理本机资产。",
+      "spec_ids": [
+        "acceptance-storage-10",
+        "acceptance-storage-11",
+        "acceptance-storage-15",
+        "acceptance-storage-17"
+      ],
+      "journey_ids": [
+        "J20"
+      ],
+      "target_entries": [
+        "finish",
+        "cleanup"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "archive-view-lifecycle-cli-01",
+        "lifecycle-all-cli-02"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-40",
+      "title": "使用所选 Agent 与实际模型服务",
+      "user_request": "在 Codex、Claude Code 或 OpenCode 中使用同一个 Skill。",
+      "spec_ids": [
+        "project-preparation-1",
+        "project-preparation-2",
+        "project-preparation-14"
+      ],
+      "journey_ids": [
+        "J19",
+        "J22"
+      ],
+      "target_entries": [
+        "official-cli",
+        "native-role"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "native-transport-03",
+        "original-entry-multi-agent-02",
+        "workflow-config-cli-01"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-41",
+      "title": "在其他电脑准备 Skill 自身依赖",
+      "user_request": "换台电脑安装后开始使用这个 Skill。",
+      "spec_ids": [
+        "project-preparation-3",
+        "project-preparation-7",
+        "project-preparation-9",
+        "project-preparation-13"
+      ],
+      "journey_ids": [
+        "J22"
+      ],
+      "target_entries": [
+        "ensure-runtime"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "node-bootstrap-02",
+        "native-dependency-graph-02"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-42",
+      "title": "复用项目知识而非复制旧机器状态",
+      "user_request": "复用已验证的准备方法，在新验收中重新核实。",
+      "spec_ids": [
+        "acceptance-storage-6",
+        "project-preparation-10"
+      ],
+      "journey_ids": [],
+      "target_entries": [
+        "knowledge",
+        "runtime"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "knowledge-native-cli-01",
+        "node-store-final-03"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-43",
+      "title": "阶段产物变化时保持身份和旧结论",
+      "user_request": "更新一个场景、改用例或重新准备，不要抹去之前结果。",
+      "spec_ids": [
+        "definition-lifecycle-7",
+        "definition-lifecycle-8",
+        "acceptance-storage-4",
+        "acceptance-storage-7",
+        "acceptance-storage-13",
+        "execution-evidence-12",
+        "traceability-view-6"
+      ],
+      "journey_ids": [
+        "J04",
+        "J13",
+        "J15"
+      ],
+      "target_entries": [
+        "freeze",
+        "rebind",
+        "view"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "freeze-final-04",
+        "new-revision-coverage-cli-03",
+        "legacy-native-view-01"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    },
+    {
+      "id": "CAP-44",
+      "title": "保护项目根、候选代码与非授权文件",
+      "user_request": "在隔离环境测试，只保留可检查的候选用例。",
+      "spec_ids": [
+        "acceptance-storage-1",
+        "acceptance-storage-3",
+        "acceptance-storage-5",
+        "acceptance-storage-9",
+        "acceptance-storage-14",
+        "acceptance-storage-17",
+        "execution-evidence-14",
+        "case-design-12"
+      ],
+      "journey_ids": [],
+      "target_entries": [
+        "shared guards",
+        "cases",
+        "execute",
+        "cleanup"
+      ],
+      "migration_status": "node_complete_verified",
+      "earlier_batch_evidence": [],
+      "new_batch_evidence": [
+        "node-store-final-03",
+        "workspace-final-06",
+        "cases-native-lease-final-04",
+        "migration-safety-final-04"
+      ],
+      "python_dependency_remaining": false,
+      "verification_boundary": "Actual listed CLI/protocol evidence; no assertion of exhaustive project/platform combinations.",
+      "notes": "当前结果与实测边界见 new_batch_evidence 的原始输入、判据和结果；旧阶段进度不作为当前结论。"
+    }
+  ],
+  "journeys": [
+    {
+      "id": "J01",
+      "title": "仅创建",
+      "user_request": "新建一个交付测试",
+      "starting_state": "无当前验收",
+      "expected_path": "创建容器 → 返回位置",
+      "acceptance_oracle": "目录与当前指针可定位；不伪造需求，不生成场景或执行测试",
+      "capability_ids": [
+        "CAP-01"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_in_listed_run",
+      "evidence": [
+        "create-upgrade-02"
+      ]
+    },
+    {
+      "id": "J02",
+      "title": "创建并冻结",
+      "user_request": "针对 XX 需求，新建一个交付测试",
+      "starting_state": "给定需求，尚无验收",
+      "expected_path": "创建 → 保存原话和来源 → 冻结 → 停止",
+      "acceptance_oracle": "冻结结果可核查；没有场景生成、用例或执行副作用",
+      "capability_ids": [
+        "CAP-02"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_in_listed_run",
+      "evidence": [
+        "freeze-node-cli-03"
+      ]
+    },
+    {
+      "id": "J03",
+      "title": "完整验收",
+      "user_request": "针对 XX 需求，进行交付测试",
+      "starting_state": "用户要求新建",
+      "expected_path": "创建 → 冻结 → 场景 → 选定范围 → 用例 → 执行 → 独立判断",
+      "acceptance_oracle": "仅在约定范围内得出结论；未覆盖项保留",
+      "capability_ids": [
+        "CAP-03",
+        "CAP-08",
+        "CAP-14",
+        "CAP-18",
+        "CAP-31"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_in_listed_run",
+      "evidence": [
+        "full-native-user-journey-01"
+      ]
+    },
+    {
+      "id": "J04",
+      "title": "接续验收",
+      "user_request": "针对 XX 需求，在当前交付测试中进行验收",
+      "starting_state": "已有当前 AT",
+      "expected_path": "定位 → 增量冻结 → 场景 → 用例 → 执行",
+      "acceptance_oracle": "沿用 AT；未变更需求历史不丢失；无当前 AT 时说明缺失",
+      "capability_ids": [
+        "CAP-04",
+        "CAP-09",
+        "CAP-43"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_composed_entries",
+      "evidence": [
+        "full-native-user-journey-01",
+        "lifecycle-all-cli-02"
+      ]
+    },
+    {
+      "id": "J05",
+      "title": "混合来源",
+      "user_request": "SPEC 中有需求和场景，补充我刚才说的需求",
+      "starting_state": "项目约定可读取",
+      "expected_path": "读取约定与原话 → 关联和补缺 → 冻结",
+      "acceptance_oracle": "保留外部 ID、原文和来源；不把来源差异强制拆成两种业务能力",
+      "capability_ids": [
+        "CAP-05",
+        "CAP-06",
+        "CAP-33"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_composed_entries",
+      "evidence": [
+        "freeze-node-cli-03",
+        "analysis-official-port-cli-03"
+      ]
+    },
+    {
+      "id": "J06",
+      "title": "独立场景",
+      "user_request": "只验收这个场景，暂时没有上层需求",
+      "starting_state": "场景提供明确依据",
+      "expected_path": "保存独立场景 → 校验上下文 → 按授权设计/执行",
+      "acceptance_oracle": "不虚构父需求；上下文不足时停在可说明的缺口",
+      "capability_ids": [
+        "CAP-07",
+        "CAP-10"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_composed_entries",
+      "evidence": [
+        "cases-node-new-01",
+        "assessment-official-port-cli-02"
+      ]
+    },
+    {
+      "id": "J07",
+      "title": "逐需求处理",
+      "user_request": "先针对需求 A 生成场景，只执行其中一个 P0，再处理 B",
+      "starting_state": "有多个需求",
+      "expected_path": "选择 A → 生成/采用场景 → 选择一个 P0 → 执行 → 返回宿主",
+      "acceptance_oracle": "B 不提前执行；A 未执行场景保留；不会宣称全量通过",
+      "capability_ids": [
+        "CAP-08",
+        "CAP-11",
+        "CAP-18"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_in_listed_run",
+      "evidence": [
+        "full-native-user-journey-01"
+      ]
+    },
+    {
+      "id": "J08",
+      "title": "只生成场景",
+      "user_request": "只为需求 A 生成测试场景",
+      "starting_state": "冻结需求可用",
+      "expected_path": "读取 A 与必要全局约束 → 设计 → 校验 → 保存 → 停止",
+      "acceptance_oracle": "不启动环境准备、用例生成或测试执行",
+      "capability_ids": [
+        "CAP-08",
+        "CAP-10"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_composed_entries",
+      "evidence": [
+        "scenarios-node-cli-01",
+        "scenario-edit-final-cli-03"
+      ]
+    },
+    {
+      "id": "J09",
+      "title": "只关联现有用例",
+      "user_request": "为场景查找关联用例，不运行测试",
+      "starting_state": "场景已冻结",
+      "expected_path": "静态检索 → 保存实际关联与源码依据 → 可按授权独立评估",
+      "acceptance_oracle": "不构建、不启动应用、不运行测试；发现不等于通过",
+      "capability_ids": [
+        "CAP-12",
+        "CAP-16",
+        "CAP-17"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_in_listed_run",
+      "evidence": [
+        "find-official-port-cli-02"
+      ]
+    },
+    {
+      "id": "J10",
+      "title": "既有用例验证",
+      "user_request": "只使用现有用例，不生成或修复用例",
+      "starting_state": "已有测试资产",
+      "expected_path": "查找 → 必要调试 → 固定关联 → 按授权正式执行",
+      "acceptance_oracle": "不新增业务断言；必要 TC 标记须遵守规则；缺口如实记录",
+      "capability_ids": [
+        "CAP-13",
+        "CAP-17",
+        "CAP-18"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_in_listed_run",
+      "evidence": [
+        "cases-node-existing-only-01"
+      ]
+    },
+    {
+      "id": "J11",
+      "title": "准备与评估",
+      "user_request": "为这个场景准备用例并独立评估，先不要正式执行",
+      "starting_state": "场景冻结、环境就绪",
+      "expected_path": "先找可复用用例 → 仅补缺 → 独立设计评估 → 停止",
+      "acceptance_oracle": "评估设计充分性、冗余与理由；不能据此判定产品通过",
+      "capability_ids": [
+        "CAP-14",
+        "CAP-16",
+        "CAP-10"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_composed_entries",
+      "evidence": [
+        "cases-native-lease-final-04",
+        "cases-node-new-01"
+      ]
+    },
+    {
+      "id": "J12",
+      "title": "只做评估",
+      "user_request": "重新独立评估这个场景当前关联的用例",
+      "starting_state": "关联用例、冻结定义可读",
+      "expected_path": "固定当前用例集合与摘要 → 独立评估 → 记录",
+      "acceptance_oracle": "不修改用例、不执行产品、不把建议作为执行否决门",
+      "capability_ids": [
+        "CAP-16"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_in_listed_run",
+      "evidence": [
+        "assessment-official-port-cli-02"
+      ]
+    },
+    {
+      "id": "J13",
+      "title": "复用现成用例执行",
+      "user_request": "用例已经有了，跳过生成直接执行",
+      "starting_state": "已有有效关联",
+      "expected_path": "核对适用性 → 绑定现有文件 → 正式执行 → 独立判断",
+      "acceptance_oracle": "跳过生成不等于跳过版本及文件校验；不启动不必要的生成 Agent",
+      "capability_ids": [
+        "CAP-15",
+        "CAP-18",
+        "CAP-43"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_in_listed_run",
+      "evidence": [
+        "full-native-user-journey-01"
+      ]
+    },
+    {
+      "id": "J14",
+      "title": "指定 TC 重跑",
+      "user_request": "重新执行 TC-XX，别的用例先不要跑",
+      "starting_state": "TC 已关联，来源可定位",
+      "expected_path": "定位 TC → 解析真实选择器与依赖 → 新执行记录 → 判断",
+      "acceptance_oracle": "能证明只运行指定 TC 或明确报告框架不能精确选择；旧结果保留",
+      "capability_ids": [
+        "CAP-19",
+        "CAP-17",
+        "CAP-27"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_composed_entries",
+      "evidence": [
+        "execute-node-runtime-cli-04",
+        "coverage-repaired-journey-07"
+      ]
+    },
+    {
+      "id": "J15",
+      "title": "代码更新后重验",
+      "user_request": "代码修好了，复用原用例重跑并查看最新覆盖率",
+      "starting_state": "同一 AT，源码已变",
+      "expected_path": "更新源码绑定 → 判断受影响范围 → 核对用例 → 新执行与覆盖率 → 判断",
+      "acceptance_oracle": "保留旧版本证据；新结论绑定新版本；不强制重新创建 AT 或重生成全部用例",
+      "capability_ids": [
+        "CAP-20",
+        "CAP-21",
+        "CAP-23",
+        "CAP-43"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_in_listed_run",
+      "evidence": [
+        "new-revision-coverage-cli-03"
+      ]
+    },
+    {
+      "id": "J16",
+      "title": "采集故障修复后重跑",
+      "user_request": "修复覆盖率收集问题，重新执行 XX 用例，收集覆盖率",
+      "starting_state": "已有用例，采集失败",
+      "expected_path": "区分测试与采集故障 → 仅修复授权采集范围 → 零/非零/失败探针 → 更新绑定 → 指定 TC 新执行 → 新原生覆盖率 → 独立判断",
+      "acceptance_oracle": "不静默关闭覆盖率；不借故改产品逻辑；旧失败保留；业务覆盖来自本次真实执行",
+      "capability_ids": [
+        "CAP-22",
+        "CAP-19",
+        "CAP-23",
+        "CAP-26",
+        "CAP-28"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_composed_entries",
+      "evidence": [
+        "coverage-current-node-repair-05",
+        "coverage-repaired-journey-07"
+      ]
+    },
+    {
+      "id": "J17",
+      "title": "只准备覆盖率",
+      "user_request": "先修好/验证采集链，暂时不要跑业务用例",
+      "starting_state": "已验证项目环境",
+      "expected_path": "选择成熟工具 → 配置/修复适配器 → 三类真实探针 → 记录 → 停止",
+      "acceptance_oracle": "探针不计业务覆盖；环境、工具版本和配置可核查",
+      "capability_ids": [
+        "CAP-25",
+        "CAP-26"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_composed_entries",
+      "evidence": [
+        "coverage-current-node-repair-05",
+        "coverage-policy-off-01"
+      ]
+    },
+    {
+      "id": "J18",
+      "title": "只查看或复算",
+      "user_request": "不跑测试，只查看最新已有覆盖率或重新汇总",
+      "starting_state": "有历史原生报告或可信摘要",
+      "expected_path": "核对版本兼容 → 专用工具复算/汇总 → 展示缺口",
+      "acceptance_oracle": "不能称历史数据是新代码实测覆盖；无原始数据不得反推",
+      "capability_ids": [
+        "CAP-24",
+        "CAP-36"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_in_listed_run",
+      "evidence": [
+        "coverage-repaired-journey-07"
+      ]
+    },
+    {
+      "id": "J19",
+      "title": "中断恢复",
+      "user_request": "刚才超时了，继续",
+      "starting_state": "状态可能有运行中进程或未知副作用",
+      "expected_path": "先核对进程、命令回执及冻结版本 → 安全接续/新 attempt",
+      "acceptance_oracle": "不盲目重复有副作用命令；模型、服务、独立性约束保留",
+      "capability_ids": [
+        "CAP-27",
+        "CAP-28",
+        "CAP-40"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_composed_entries",
+      "evidence": [
+        "recovery-final-cli-03",
+        "case-completed-recovery-cli-02",
+        "execute-node-repair-resume-06"
+      ]
+    },
+    {
+      "id": "J20",
+      "title": "只读报告及收尾",
+      "user_request": "查看历史验收，或结束当前验收并归档",
+      "starting_state": "已有多 AT/未执行项",
+      "expected_path": "只读查看；结束仅在授权与结论规则允许时清理/归档",
+      "acceptance_oracle": "查看不修改指针；结束不伪造未执行项通过；清理可恢复且不泄漏密钥",
+      "capability_ids": [
+        "CAP-35",
+        "CAP-36",
+        "CAP-38",
+        "CAP-39"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_composed_entries",
+      "evidence": [
+        "archive-view-lifecycle-cli-01",
+        "lifecycle-all-cli-02",
+        "native-view-final-03"
+      ]
+    },
+    {
+      "id": "J21",
+      "title": "人工黑盒验收",
+      "user_request": "没有源码，只按这个说明验收界面",
+      "starting_state": "仅 UI/文档/人工动作",
+      "expected_path": "记录可观测标准 → 实际操作与像素证据 → 独立判断",
+      "acceptance_oracle": "缺源码不虚构代码覆盖率；有界面主张要有实际截图",
+      "capability_ids": [
+        "CAP-29",
+        "CAP-32"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_composed_entries",
+      "evidence": [
+        "real-ui-chain-cli-03",
+        "lifecycle-all-cli-02"
+      ]
+    },
+    {
+      "id": "J22",
+      "title": "环境与 Agent 调整",
+      "user_request": "同一验收换到另一台电脑，或指定不同角色用不同 Agent",
+      "starting_state": "认证与工具约束已授权",
+      "expected_path": "核对本机环境 → 明确角色绑定 → 执行必要预检 → 按授权恢复",
+      "acceptance_oracle": "不偷换模型或服务；不把旧环境可用当作本机已验证",
+      "capability_ids": [
+        "CAP-25",
+        "CAP-40",
+        "CAP-41"
+      ],
+      "risk": "以对应证据的原文限制为准；未实测组合不作保证。",
+      "kind": "已验证的独立入口或组合路径；证据列明确区分模型、协议夹具和真实执行。",
+      "migration_status": "verified_composed_entries",
+      "evidence": [
+        "runtime-node-cli-02",
+        "native-transport-03",
+        "original-entry-multi-agent-02",
+        "node-bootstrap-02"
+      ]
+    }
+  ],
+  "completion_rule": "44 项能力和 22 条路径各有当前实现及真实验证证据；新业务无旧模型执行器回退和必需 Python 工具；未知项不得标为通过。",
+  "current_warning": "迁移和所列验收完成；不等于所有项目/操作系统/模型组合均实测，也不等于 SPEX 产品或旧 AT 重新验收通过。",
+  "updated_at": "2026-10-27T17:15:18.403Z",
+  "current_scope": "30 个正常独立入口；模型任务由锁定官方 CLI/Player 会话调度，确定性业务使用 Node；无新业务 Python 协调器或回退。"
+}

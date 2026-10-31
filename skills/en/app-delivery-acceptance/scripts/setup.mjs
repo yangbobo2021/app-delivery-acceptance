@@ -8,4 +8,4 @@ const root=skillRuntimeRoot(fileURLToPath(new URL('..',import.meta.url)));
 const preparation=ensureRuntime({packageRoot:root});
 const {installedPackage}=await import(pathToFileURL(join(root,'runtime/installed.mjs')));
 const official=installedPackage('@sublang/playbook');
-console.log(JSON.stringify({package_root:root,playbook:join(official.root,official.manifest.bin.playbook),preparation}));
+console.log(JSON.stringify({package_root:root,node:process.execPath,playbook:join(official.root,official.manifest.bin.playbook),path_prefix:process.env.ACCEPTANCE_RUNTIME_PATH_PREFIX??'',preparation}));

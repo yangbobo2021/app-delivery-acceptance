@@ -1,9 +1,10 @@
 # SPEX 联合安装包
 
-发布者在本 Skill 的工作流包依赖已准备好后运行：
+源码仓库保留完整开发内容，安装产物写入独立安装仓库；不把生成目录直接作为源码主干。
+发布者在完整源码已提交、依赖已准备好后，从源码仓库根运行：
 
 ```sh
-node bin/build-spex.mjs --output /absolute/new-release --org your-org
+node scripts/build-distribution.mjs --output /absolute/new-release
 ```
 
 产物是一个 format-2 包，包含真实 `app-delivery-acceptance` Skill 与 31 个原生 Playbook。两类入口来自同一份业务源码，`requires` 保持联合选择闭包；原生入口使用 SPEX 引擎，Skill 保留自己完整的锁定 CLI 与 vendor 资源。安装者不手工复制 Skill 或设置工作流 overlay。
@@ -12,7 +13,10 @@ node bin/build-spex.mjs --output /absolute/new-release --org your-org
 
 SPEX 内启用 `acceptance-orchestrate` 与任务所需子入口，并为不同职责绑定独立 Player，选择实际 Agent/model/effort。文件安装不会自动启用全部工作流。原生执行无需 npm。
 
-Codex 读取的是实际 Skill，不是由 Playbook 生成的启动提示。Skill 首先运行自身 `scripts/setup.mjs`；带 `SPEX-INSTALL.json` 的安装使用独立内容缓存准备 CLI 依赖，返回实际 `package_root`。后续配置和官方 CLI 命令使用该返回路径，不在 SPEX 受管 Skill 目录写 node_modules。首次准备仍需要声明的 Node/npm/Git 与实际 Agent 环境；凭据不会复制到缓存。普通单独 Skill 安装仍可使用原有已准备包。
+Codex 读取的是实际 Skill，不是由 Playbook 生成的启动提示。
+Skill 首先运行平台入口 `scripts/setup.sh` 或 `scripts/setup.ps1`，优先复用兼容运行时，缺少时下载固定且校验摘要的 Node，Windows 缺少 Git 时准备固定 MinGit。
+带 `SPEX-INSTALL.json` 的安装使用独立内容缓存准备 CLI 依赖，返回实际 `package_root`、`node`、`playbook` 和仅供当前 CLI 进程继承的 `path_prefix`。
+后续配置和官方 CLI 命令使用该返回路径，不在 SPEX 受管 Skill 目录写 node_modules；实际 Agent 环境仍由用户提供，凭据不会复制到缓存。
 
 同名全局 Skill 不与项目 Skill 合并；验证或选择时应核对实际读取路径。SPEX 重导出代码目录后，内容相同的 CLI 缓存继续复用；源代码或缓存字节与安装清单不符时停止而不静默覆盖。
 

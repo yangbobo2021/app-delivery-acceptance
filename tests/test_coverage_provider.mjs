@@ -1,0 +1,27 @@
+// Adversarial gate tests on synthetic records, never product-case executions.
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {read,loadPrepared,mergeRuntime,finish,verifyReport} from './fixtures/coverage/istanbul/provider.mjs';
+const prepared=process.argv[2],root=fs.mkdtempSync(path.join(os.tmpdir(),'coverage-gate-'));
+const p=loadPrepared(prepared),baseline=read(path.join(prepared,'baseline.json'));
+const raw=path.join(root,'raw');fs.mkdirSync(raw);
+const snapshot=path.join(raw,'synthetic.json');
+const fixture={schema:'istanbul-runtime-snapshot-v1',runtime:'synthetic-gate-fixture',captured_at:new Date().toISOString(),versions:{test:'1'},coverage:structuredClone(baseline)};
+fs.writeFileSync(snapshot,JSON.stringify(fixture));
+mergeRuntime(prepared,raw);
+const bad=structuredClone(fixture),first=Object.values(bad.coverage).find(f=>Object.keys(f.statementMap).length);
+first.statementMap[Object.keys(first.statementMap)[0]].start.line+=1000;
+fs.writeFileSync(snapshot,JSON.stringify(bad));
+assert.throws(()=>mergeRuntime(prepared,raw),/Incompatible/);
+fs.writeFileSync(snapshot,JSON.stringify(fixture));
+const receipt=path.join(root,'execution.json');fs.writeFileSync(receipt,JSON.stringify({start_utc:'2000-01-01T00:00:00Z',end_utc:new Date().toISOString(),exit_code:1,coverage_scene_id:'SYNTHETIC-GATE'}));
+finish(prepared,raw,receipt,root);
+const report=path.join(root,'coverage-report.json');verifyReport(report);
+const forged=read(report);forged.summary.lines.covered+=1;fs.writeFileSync(report,JSON.stringify(forged));
+assert.throws(()=>verifyReport(report),/statistics/);
+const fake=path.join(root,'fake-prepared');fs.mkdirSync(fake);
+fs.writeFileSync(path.join(fake,'prepared.json'),JSON.stringify({...p,tools:{...p.tools,provider:'self-made'}}));
+assert.throws(()=>loadPrepared(fake),/toolchain changed/);
+console.log(JSON.stringify({status:'verified',incompatible_units_rejected:true,forged_statistics_rejected:true,unregistered_toolchain_rejected:true,failed_case_counters_accepted:true,product_cases_run:0}));

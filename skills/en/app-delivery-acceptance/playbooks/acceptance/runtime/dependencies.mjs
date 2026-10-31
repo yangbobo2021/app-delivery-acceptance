@@ -7,20 +7,25 @@ import {createHash,randomUUID} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 
 export function ensureRuntime({packageRoot=fileURLToPath(new URL('..',import.meta.url)),env=process.env,npmExecutable='npm',lockWaitMs=30000}={}){
-  if(!['darwin','linux'].includes(process.platform))throw Error('This Playbook package currently supports macOS/Linux; this host is unverified');
+  if(!['darwin','linux','win32'].includes(process.platform))throw Error('This Playbook package has no verified runtime preparation for this host');
   if(Number(process.versions.node.split('.')[0])<22)throw Error('Node.js >=22 is required');
   const root=fs.realpathSync(packageRoot),modules=path.join(root,'node_modules');
   try{if(fs.lstatSync(modules).isSymbolicLink())throw Error('Playbook package node_modules must be a local directory');}catch(error){if(error.code!=='ENOENT')throw error;}
   const processEnv={...env};delete processEnv.NODE_PATH;
   for(const key of Object.keys(processEnv))if(['npm_config_prefix','npm_config_global','npm_config_package_lock','npm_config_omit'].includes(key.toLowerCase()))delete processEnv[key];
-  processEnv.PATH=path.dirname(process.execPath)+path.delimiter+(processEnv.PATH??'');
+  const pathKey=process.platform==='win32'?(Object.keys(processEnv).find(key=>key.toLowerCase()==='path')??'Path'):'PATH';
+  processEnv[pathKey]=path.dirname(process.execPath)+path.delimiter+(processEnv[pathKey]??'');
   const run=(program,args,timeout=60000)=>{
     const result=spawnSync(program,args,{cwd:root,env:processEnv,encoding:'utf8',timeout,maxBuffer:8*1024*1024});
     if(result.error)throw result.error;
     if(result.status!==0)throw Error(program+' failed ('+result.status+'): '+(result.stderr??'').slice(-5000));
     return result.stdout.trim();
   };
-  run('git',['--version']);const npm=run(npmExecutable,['--version']);
+  const npmCommand=process.platform==='win32'&&npmExecutable==='npm'
+    ? [process.execPath,path.join(path.dirname(process.execPath),'node_modules/npm/bin/npm-cli.js')]
+    : [npmExecutable];
+  const runNpm=(args,timeout)=>run(npmCommand[0],[...npmCommand.slice(1),...args],timeout);
+  run('git',['--version']);const npm=runNpm(['--version']);
   const manifest=fs.readFileSync(path.join(root,'package.json')),lock=fs.readFileSync(path.join(root,'npm-shrinkwrap.json'));
   const identity={node:process.version,node_path:fs.realpathSync(process.execPath),platform:process.platform,arch:process.arch,npm};
   const fingerprint=createHash('sha256').update(manifest).update('\0').update(lock).update('\0').update(JSON.stringify(identity)).digest('hex');
@@ -48,7 +53,7 @@ export function ensureRuntime({packageRoot=fileURLToPath(new URL('..',import.met
     let status='validated_existing',verified;
     try{verified=probe();}catch{
       status='installed';
-      run(npmExecutable,['ci','--prefix',root,'--global=false','--include=dev','--include=optional','--include=peer','--no-audit','--no-fund'],1800000);
+      runNpm(['ci','--prefix',root,'--global=false','--include=dev','--include=optional','--include=peer','--no-audit','--no-fund'],1800000);
       verified=probe();
     }
     const value={schema:'acceptance-node-runtime-v1',fingerprint,install_id:randomUUID(),validated_at:new Date().toISOString(),package_root:root,environment:identity,probe:verified};

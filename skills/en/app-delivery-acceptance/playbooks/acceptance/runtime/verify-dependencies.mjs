@@ -12,8 +12,11 @@ const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const cliPaths={};
 for(const [name,packageName]of [['playbook','@sublang/playbook'],['spex','@sublang/spex']]){
   const dependency=installedPackage(packageName),declared=typeof dependency.manifest.bin==='string'?dependency.manifest.bin:dependency.manifest.bin?.[name];
-  const actual=realpathSync(join(modules,'.bin',name)),expected=realpathSync(join(dependency.root,declared));
-  if(!actual.startsWith(realpathSync(modules)+sep)||actual!==expected)throw Error('Package CLI alias resolves outside its verified local dependency tree: '+name);
+  const expected=realpathSync(join(dependency.root,declared));
+  // Windows npm writes shell shims instead of POSIX symlinks. Preparation
+  // returns Node plus the declared JS entry, so no shim is executed there.
+  const actual=process.platform==='win32'?expected:realpathSync(join(modules,'.bin',name));
+  if(!actual.startsWith(realpathSync(modules)+sep)||actual!==expected)throw Error('Package CLI entry resolves outside its verified local dependency tree: '+name);
   cliPaths[name]=actual;
 }
 const versions = {};
