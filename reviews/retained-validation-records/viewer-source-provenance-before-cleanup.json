@@ -1,0 +1,12 @@
+{
+  "purpose": "Static extraction preserving the existing viewer interactions; Node serves this authored artifact with no Python runtime call. Future changes edit the new static assets directly.",
+  "sources": {
+    "scripts/v3/project_view.py": "5c92187d15809fb7b182e1fce570ad0ed4659e4ea76c9595f078b4a245451122",
+    "scripts/v3/serve.py": "db146f807a9570b617dc676374e4897c53a030ac49366874d5e0d86f245fcf4c",
+    "scripts/v3/requirement_views.py": "35c4a5faa8bd449d865b786086821501decbf388612c6fdecc3ff3bb2074c79f",
+    "scripts/v3/viewer/traceability.js": "b593e1bf4b64b915f2e3c05152030ed888336a3f0c36be0119a7af34e81b192f",
+    "scripts/v3/viewer/traceability.css": "84704ba43b2b3ff42833623f49e5127907db6831bfb1e8e3d4e0acfc6040014a",
+    "scripts/v3/viewer/traceability.html": "617c490d2b06d92d19f7aff65982518c00280a9411e85da22f4f893a45ca9c26"
+  },
+  "output_sha256": "3bb0a25be7d6f8254947cde35f9c04b6fcc9d045f958e7c22333020b5b8df726"
+}

@@ -17,7 +17,9 @@ export function packageFiles(root){
  }};walk(root);return files;
 }
 const canonical=value=>JSON.stringify(Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b))));
-export function skillRuntimeRoot(skillRoot,{cacheBase=path.join(os.homedir(),'.cache','app-delivery-acceptance','spex')}={}){
+export function skillRuntimeRoot(skillRoot,{cacheBase=process.platform==='win32'
+ ?path.join(process.env.LOCALAPPDATA??path.join(os.homedir(),'AppData','Local'),'ada','spex')
+ :path.join(os.homedir(),'.cache','app-delivery-acceptance','spex')}={}){
  skillRoot=fs.realpathSync(skillRoot);const source=path.join(skillRoot,'playbooks/acceptance'),file=path.join(skillRoot,'SPEX-INSTALL.json');
  if(!fs.existsSync(file))return source;
  const marker=JSON.parse(fs.readFileSync(file));

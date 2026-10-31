@@ -1,43 +1,63 @@
-# App Delivery Acceptance — SPEX + Skill
+# App Delivery Acceptance
 
-同一次安装提供真实 `app-delivery-acceptance` Skill 和 31 个原生 SPEX Playbook。当前联合包版本 **0.4.9**。
+从真实需求生成场景、选择测试、实际执行并取得独立复审，保留失败、未执行范围和可追溯证据。
 
-## Windows / Mac SPEX APP：从 GitHub 安装
+本仓库的 `main` 保存完整开发源码、规格和测试。
+业务源码的唯一位置是 `skills/en/app-delivery-acceptance/playbooks/acceptance/`；Skill 负责交接意图，`acceptance-orchestrate` 负责业务调度。
 
-用户不需要下载本地包、不需要访问发布者的电脑目录，也不需要为公开仓库提供 GitHub Token。
+## SPEX 安装
 
-1. 在 SPEX 中选择要使用的项目，打开 **规程 → 从 Git 添加**。
-2. 按下面的信息填写：
+SPEX 安装内容由本仓库的明确源码提交构建到独立的 [安装仓库](https://github.com/yangbobo2021/app-delivery-acceptance-spex)。
+不要将本开发仓库的根目录当作 SPEX 的发布包目录。
+安装仓库的 README 提供包名、分支和目录信息；其来源记录应标明本仓库的提交与文件摘要。
+通过同一次 SPEX 安装可获得真实 `app-delivery-acceptance` Skill 和 31 个原生 Playbook。
 
-| 字段 | 值 |
-| --- | --- |
-| 包名 / Spec package name | `yangbobo2021/app-delivery-acceptance` |
-| Git 仓库地址 | `https://github.com/yangbobo2021/app-delivery-acceptance.git` |
-| 分支、标签或提交 | `main` |
-| 仓库内文件夹 | 留空，包就在仓库根目录 |
+安装后，在 SPEX 中启用 `acceptance-orchestrate` 及任务所需子规程，为各角色绑定实际 Agent/模型和独立 Player。
+在同一个项目中新开 Codex 回合，使用 `$app-delivery-acceptance`；无需手工拷贝 Skill 文件。
+Codex 需要自己的可用登录和网络；Skill 首次使用自动准备独立运行缓存，之后核对并复用，不在 SPEX 管理的导出目录写入依赖。
+同名用户自有 Skill 目录保持原样，安装发生冲突时应查看 SPEX 的未导出提示。
 
-3. 添加后执行界面提示的解析与安装。`spex.lock` 固定实际 Git commit 和文件摘要；再次安装按锁定内容执行。
-4. 确认项目的 `.agents/skills/app-delivery-acceptance/SKILL.md` 已导出，并在规程列表看到 `acceptance-orchestrate`。
-5. 安装文件不等于配置 Agent。启用 `acceptance-orchestrate` 及任务所需子规程，为各职责绑定独立 Player，并配置自己的 Agent、模型、登录与网络。
+## 开发与回归
 
-当前 SPEX 的 Git 表单还要求填写包名和分支；仅粘贴一个 URL 自动识别全部信息不是现有 UI 的行为。以上信息全部在本公开仓库中，仓库链接即可带用户到本说明。
+开发需要 Node.js >=22、npm 和 Git；实际 Agent 测试另需自己的登录与模型配置。
 
-Windows 上已完成的业务主流程验证使用 Codex。Claude Code 的 PowerShell 权限映射仍待修正，OpenCode 在 SPEX APP 中另需外部 CLI，不能把本包安装成功当作所有 Agent 均已通过。
+```sh
+git clone https://github.com/yangbobo2021/app-delivery-acceptance.git
+cd app-delivery-acceptance
+node skills/en/app-delivery-acceptance/playbooks/acceptance/runtime/dependencies.mjs
+node tests/run-checks.mjs --output /absolute/new-check-directory
+```
 
-## 先验证工作流调用
+确定性回归与真实模型验收分别记录。
+四种实际运行形态是 Mac SPEX、原生 Windows SPEX、Mac Codex Skill、原生 Windows Codex Skill；任何一项仅导出文件或重放旧回执，都不算本轮业务执行通过。
+单场景验收从需求生成场景，只选择一个场景执行并取得独立复审；不代表全产品或所有 Agent 均通过。
 
-在 SPEX 会话中调用 `/acceptance-orchestrate`，提供实际项目路径、稳定 task_id、新 request_id、用户目标、必要背景与停止点。最小安装检查可以要求“只创建空交付测试即停止，不生成需求、场景、用例，不执行产品测试”；这只证明调用链，不等于产品验收通过。
+源码目录：
 
-完整主流程可以要求从真实需求生成场景，只执行一个选定场景并独立复审，coverage off。目录隔离、角色权限、签名租约、不可覆盖输入、冻结证据和独立复审要求不变；测试业务规则仍在 Skill/Playbook 内。
+```text
+skills/en/app-delivery-acceptance/    Skill、独立 Playbook 源码和锁定依赖
+specs/                              规格及设计决策
+tests/                              回归、协议和集成测试
+docs/                               用户资料和历史基准
+reviews/                            有明确范围的历史审阅记录
+scripts/                            从指定源码提交构建分发内容
+```
 
-## 在 Codex 中使用同一 Skill
+构建分发内容：
 
-在上述项目中新开 Codex 回合，使用 `$app-delivery-acceptance`。Skill 首先运行自己的 `scripts/setup.mjs`，使用返回的外部 `package_root` 执行官方 CLI；不要在 SPEX 受管导出目录安装 node_modules。此 CLI 形态另需 Node.js >=22、npm、Git 和自己的 Agent 认证。SPEX 原生 Playbook 使用 APP 提供的引擎，不需要用户为它安装 npm 依赖。
+```sh
+node scripts/build-distribution.mjs --output /absolute/new-release-directory
+```
 
-同名已存在且不归 SPEX 管理的 Skill 目录应保留，界面会报告未导出，不要删除用户目录来伪造安装成功。
+该命令生成一个新目录及源码来源记录，不推送 Git、不发布注册表、不修改源码仓库。
+分发内容不包含发布者的登录、node_modules 或本机执行证据。
 
-## 发布和验证范围
+## 业务入口与证据
 
-本分支保存可安装的 format-2 联合发布内容。默认分支就是可安装的发布目录，历史开发分支不作为此安装版本的来源。此 0.4.9 联合包的业务代码与此前 Windows APP、Mac APP、macOS Codex Skill 主流程验证的版本相同；GitHub 来源在 Windows 的安装验收结果单独记录，不能由本地包结果替代。
+宿主只向 `/acceptance-orchestrate` 传递用户目标、原始上下文、实际项目位置及停止点，由总调度选择和调用子工作流。
+目录隔离、角色权限、签名租约、排他归属、不可覆盖输入、冻结哈希和独立复审要求保持不变。
+Prompt 约束和文件检查不等于操作系统沙箱。
 
-本包不包含登录凭据、发布者的 node_modules 或本地测试运行证据。后续使用需要用户自己的登录、模型权限和网络。
+详见 [Skill](skills/en/app-delivery-acceptance/SKILL.md)、[委托合同](skills/en/app-delivery-acceptance/playbooks/acceptance/docs/orchestration-workflow.md)、[运行说明](skills/en/app-delivery-acceptance/playbooks/acceptance/docs/agent-runtime.md)、[规格地图](specs/map.md)。
+
+历史示例及其固定版本、抽样范围见 [benchmark](docs/benchmark.md)；它们不替代当前版本的实际验收。

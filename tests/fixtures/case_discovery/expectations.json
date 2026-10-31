@@ -1,0 +1,299 @@
+{
+  "python-ledger": {
+    "SC-BALANCE": {
+      "required": [
+        {
+          "file": "checks/test_accounts.py",
+          "symbol": "test_examples"
+        },
+        {
+          "file": "checks/test_accounts.py",
+          "symbol": "test_declined"
+        }
+      ],
+      "excluded": [
+        {
+          "file": "checks/test_accounts.py",
+          "symbol": "test_withdrawal_wording"
+        },
+        {
+          "file": "checks/test_accounts.py",
+          "symbol": "test_remote_debit"
+        }
+      ],
+      "manual_criteria": [
+        "跟踪exercise和subTest两个输入，拒绝后余额断言真实存在；不把内存余额称为持久化。"
+      ]
+    },
+    "SC-NONE": {
+      "no_match": true,
+      "manual_criteria": [
+        "不存在请求编号和重复提交断言；有限检索范围不说成所有版本都没有测试。"
+      ]
+    }
+  },
+  "javascript-web": {
+    "SC-LOGOUT": {
+      "required": [
+        {
+          "file": "spec/session.test.mjs",
+          "symbol": "drops the entry"
+        },
+        {
+          "file": "spec/session.test.mjs",
+          "symbol": "expires the browser token"
+        }
+      ],
+      "excluded": [
+        {
+          "file": "spec/session.test.mjs",
+          "symbol": "logout button exists"
+        },
+        {
+          "file": "spec/session.test.mjs",
+          "symbol": "logout in a real browser"
+        },
+        {
+          "file": "docs/session.test.example.mjs",
+          "symbol": "logout invalidates cookies"
+        }
+      ],
+      "manual_criteria": [
+        "真实clearCookie调用仅为替身，不能推断真实响应头或浏览器效果。"
+      ]
+    }
+  },
+  "shell-cli": {
+    "SC-PREVIEW": {
+      "required": [
+        {
+          "file": "verify/preview.sh",
+          "symbol": "preview.sh"
+        }
+      ],
+      "excluded": [
+        {
+          "file": "verify/help.sh",
+          "symbol": "help.sh"
+        }
+      ],
+      "manual_criteria": [
+        "shell test与set -e构成真实断言；仅结束状态没有文件，不排除瞬时创建后删除。"
+      ]
+    }
+  },
+  "renamed-library": {
+    "SC-RENAMED": {
+      "required": [
+        {
+          "file": "validation/contracts/test_network.py",
+          "symbol": "test_transport_closed"
+        },
+        {
+          "file": "validation/contracts/test_network.py",
+          "symbol": "test_stream_arrived"
+        }
+      ],
+      "excluded": [
+        {
+          "file": "validation/contracts/test_network.py",
+          "symbol": "test_withdrawal_wording"
+        },
+        {
+          "file": "validation/contracts/test_network.py",
+          "symbol": "test_remote_debit"
+        }
+      ],
+      "manual_criteria": [
+        "目录和名称不影响取款测试行为，不解释成网络用例。"
+      ]
+    }
+  },
+  "weak-library": {
+    "SC-WEAK": {
+      "required": [
+        {
+          "file": "checks/test_accounts.py",
+          "symbol": "test_examples"
+        }
+      ],
+      "one_of": [
+        [
+          {
+            "file": "checks/test_accounts.py",
+            "symbol": "test_declined"
+          },
+          {
+            "file": "checks/test_accounts.py",
+            "symbol": "test_declined_smoke"
+          }
+        ]
+      ],
+      "excluded": [
+        {
+          "file": "checks/test_accounts.py",
+          "symbol": "test_withdrawal_wording"
+        },
+        {
+          "file": "checks/test_accounts.py",
+          "symbol": "test_remote_debit"
+        }
+      ],
+      "manual_criteria": [
+        "拒绝路径只检查异常，未断言余额不变；不能以产品源码推断已有断言。"
+      ]
+    }
+  },
+  "no-tests": {
+    "SC-NO-TESTS": {
+      "no_match": true,
+      "manual_criteria": [
+        "产品函数和README未来测试计划都不是已有业务测试。"
+      ]
+    }
+  },
+  "skipped-python": {
+    "SC-SKIPPED": {
+      "required": [
+        {
+          "file": "checks/test_accounts.py",
+          "symbol": "test_declined",
+          "availability": "skipped"
+        }
+      ],
+      "excluded": [
+        {
+          "file": "checks/test_accounts.py",
+          "symbol": "test_remote_debit"
+        },
+        {
+          "file": "checks/test_accounts.py",
+          "symbol": "test_examples"
+        },
+        {
+          "file": "checks/test_accounts.py",
+          "symbol": "test_withdrawal_wording"
+        }
+      ],
+      "manual_criteria": [
+        "真实跳过用例仍关联；unittest.skip没有普通筛选即可解除的CLI选项；未实现跳过占位排除。"
+      ]
+    }
+  },
+  "holdout-go-receipts": {
+    "SC-HOLDOUT": {
+      "required": [
+        {
+          "file": "transport/receiver_http_test.go",
+          "symbol": "TestNetworkReplay"
+        },
+        {
+          "file": "receiver_test.go",
+          "symbol": "TestDistinctNotifications"
+        }
+      ],
+      "excluded": [
+        {
+          "file": "transport/receiver_http_test.go",
+          "symbol": "TestIdempotencyCapabilityHeader"
+        }
+      ],
+      "manual_criteria": [
+        "没有并发重复投递、持久化重启或真实外部支付系统证据；当前场景不要求这些。",
+        "两项必需测试可分别关联；不能因层次不同将其中之一视作重复。",
+        "若只返回HTTP重放测试，应明确未找到不同事件独立处理的关联证据，视为漏找。"
+      ]
+    }
+  },
+  "holdout-java-pricing": {
+    "SC-HOLDOUT": {
+      "required": [
+        {
+          "file": "src/test/java/example/PricingTest.java",
+          "symbol": "bracketEdges"
+        }
+      ],
+      "excluded": [
+        {
+          "file": "src/test/java/example/PricingTest.java",
+          "symbol": "discountThresholdIsAdvertised"
+        },
+        {
+          "file": "src/test/java/example/PricingTest.java",
+          "symbol": "campaignCanBeDisabled"
+        },
+        {
+          "file": "src/test/java/example/PricingTest.java",
+          "symbol": "negativeAmountsAreRejected"
+        }
+      ],
+      "manual_criteria": [
+        "参数化测试不应被当作三份重复用例；可报告为一份含三个数据点。",
+        "整分截断行为没有作为当前要求，不能强制添加其用例。",
+        "身份可采用JUnit类名+方法名，CsvSource数据行可作为证据而不是杜撰独立函数。",
+        "必须读 verify 辅助方法和 CsvSource，不能仅按 bracketEdges 字面含义排除。"
+      ]
+    }
+  },
+  "holdout-rust-pathctl": {
+    "SC-HOLDOUT": {
+      "required": [
+        {
+          "file": "tests/selection.rs",
+          "symbol": "command_line_value_wins"
+        },
+        {
+          "file": "tests/selection.rs",
+          "symbol": "session_value_wins"
+        },
+        {
+          "file": "tests/selection.rs",
+          "symbol": "saved_value_is_used"
+        },
+        {
+          "file": "tests/selection.rs",
+          "symbol": "settings_bytes_survive_override",
+          "availability": "skipped"
+        }
+      ],
+      "excluded": [
+        {
+          "file": "tests/selection.rs",
+          "symbol": "config_precedence_help"
+        }
+      ],
+      "manual_criteria": [
+        "文件不改写测试存在但默认跳过，不能声称默认运行会执行全部当前场景用例。",
+        "字节比较只在覆盖选择路径，不直接覆盖纯读取路径的前后字节；其他测试的remove_file只是清理，不是文件未改写断言。",
+        "被跳过测试仍属于现有关联用例，必须显示忽略/需显式运行，不能静默漏掉。",
+        "完整命令可用cargo test --test selection，再注明ignored case需-- --ignored，不可当默认执行。"
+      ]
+    }
+  },
+  "holdout-python-ledger": {
+    "SC-HOLDOUT": {
+      "required": [
+        {
+          "file": "tests/test_merge.py",
+          "symbol": "test_merge_order"
+        },
+        {
+          "file": "tests/test_merge.py",
+          "symbol": "test_repeating_batch_has_no_writes"
+        }
+      ],
+      "excluded": [
+        {
+          "file": "tests/test_exports.py",
+          "symbol": "test_duplicate_column_name_is_preserved"
+        }
+      ],
+      "manual_criteria": [
+        "SQLite内存数据库是真实SQL执行，但不是文件持久化或真实生产批次。当前场景无需强制这些。",
+        "feed 是conftest fixture返回的调用函数，不是模拟load_csv；应准确识别实际产品调用。",
+        "参数化方法可以作为一个身份含三个数据点；禁止凭空生成不存在的参数化node id。",
+        "基础插入测试若附带列出，必须标为仅前置贡献，不可计入充分验证当前更新/重放场景。"
+      ]
+    }
+  }
+}

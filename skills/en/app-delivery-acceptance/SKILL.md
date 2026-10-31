@@ -24,13 +24,15 @@ A new user correction or request is another message to the same task, not an ins
 
 ## Prepare and delegate
 
-Prerequisites are Node.js >=22, npm, Git and actual configured Agent credentials/runtime.
+Prerequisites are actual configured Agent credentials/runtime and usable download access on first preparation.
+Use the platform preparation entry below; it reuses compatible Node/npm/Git or prepares pinned runtime downloads in an external cache, and prepares the package's locked dependencies there.
+On macOS/Linux Git must already be available; Windows prepares pinned portable Git when absent.
 Project test languages/tools are project-owned.
 
-1. Locate this Skill and run `node <skill>/scripts/setup.mjs` when dependencies need preparation. For a SPEX-installed Skill (`SPEX-INSTALL.json` present), always run this first; use its returned `package_root` for all package commands below. It prepares a verified CLI cache outside SPEX's managed export folder. Ordinary installations may use their existing prepared `playbooks/acceptance` directly.
+1. Locate this project's actual Skill. On macOS/Linux run `sh <skill>/scripts/setup.sh`; on native Windows run `powershell -NoProfile -ExecutionPolicy Bypass -File <skill>\scripts\setup.ps1`. For a SPEX-installed Skill (`SPEX-INSTALL.json` present), always run preparation first and use its returned `package_root`, `node` and `playbook`. Apply returned `path_prefix` to PATH only for the configure/CLI process and its children. Preparation uses a verified CLI cache outside SPEX's managed export folder. Do not install dependencies or edit files in that export.
 2. Read the [delegation contract](playbooks/acceptance/docs/orchestration-workflow.md).
-3. Run `node <package>/bin/configure.mjs --agent <actual-agent> --model <actual-model> --output <new-overlay.json>`; use the actual caller's selected model, effort and service. Optional `--roles` configures declared role differences, including `orchestrator`.
-4. Invoke the official `<package>/node_modules/.bin/playbook run --with <overlay> --no-provision --json`, passing `/acceptance-orchestrate JSON` through stdin.
+3. Run `<returned-node> <package>/bin/configure.mjs --agent <actual-agent> --model <actual-model> --output <new-overlay.json>`; use the actual caller's selected model, effort and service. Optional `--roles` configures declared role differences, including `orchestrator`.
+4. Invoke the official CLI as `<returned-node> <returned-playbook> run --with <overlay> --no-provision --json`, passing `/acceptance-orchestrate JSON` through stdin. Do not rely on POSIX executable shims on Windows.
 5. Inspect the parent result and referenced evidence; explain the real completed scope or relay a concrete question. Do not treat CLI exit 0 or task completion as whole-product acceptance.
 
 Supply a stable task_id and a new request_id for each user message.
