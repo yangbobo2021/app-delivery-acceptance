@@ -68,8 +68,8 @@ function Ensure-Zip([string]$Name,[string]$Url,[string]$Digest){
   }finally{$zip.Dispose()}
   return $target
 }
-function Find-SpexGit(){
-  # A Skill exported by SPEX normally has an installed SPEX Git available.
+function Find-SpexRuntime(){
+  # Reuse the installed app Git and its Microsoft runtime DLL directory.
   # Read standard uninstall metadata; never write registry or system PATH.
   $keys=@('HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')
   foreach($key in $keys){
@@ -78,7 +78,15 @@ function Find-SpexGit(){
       $appRoot=if($app.InstallLocation){[string]$app.InstallLocation}elseif($icon){Split-Path -Parent $icon}else{$null}
       if(!$appRoot){continue}
       $candidate=Join-Path $appRoot 'resources\app.asar.unpacked\node_modules\dugite\git\cmd\git.exe'
-      if(Test-Path -LiteralPath $candidate){Assert-NoLink $candidate;$version=& $candidate --version;if($LASTEXITCODE -eq 0 -and $version -match '^git version '){return $candidate}}
+      if(Test-Path -LiteralPath $candidate){
+        Assert-NoLink $candidate;$version=& $candidate --version
+        if($LASTEXITCODE -eq 0 -and $version -match '^git version '){
+          $dllDirectory=$null
+          $dlls=@('msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll')
+          if(@($dlls|Where-Object {!(Test-Path -LiteralPath (Join-Path $appRoot $_))}).Count -eq 0){foreach($dll in $dlls){Assert-NoLink (Join-Path $appRoot $dll)};$dllDirectory=$appRoot}
+          return [PSCustomObject]@{Git=$candidate;DllDirectory=$dllDirectory}
+        }
+      }
     }
   }
   return $null
@@ -93,9 +101,10 @@ if($existing -and !$env:ACCEPTANCE_BOOTSTRAP_FORCE_NODE){
 }
 if(!$node){$resource=$lock.node_archives.$key;if(!$resource){throw 'No pinned runtime for this Windows architecture'};$name=$resource.file.Replace('.zip','');$folder=Ensure-Zip $name ($lock.node_base_url+$resource.file) $resource.sha256;$node=Join-Path $folder ($name+'\node.exe')}
 $prefix=@((Split-Path $node))
+$available=Find-SpexRuntime
+if($available -and $available.DllDirectory){$prefix+=$available.DllDirectory}
 if(!(Get-Command git.exe -ErrorAction SilentlyContinue)){
-  $available=Find-SpexGit
-  if($available){$prefix+=(Split-Path $available)}else{$resource=$lock.git_archives.$key;$folder=Ensure-Zip ($resource.file.Replace('.zip','')) $resource.url $resource.sha256;$prefix+=(Join-Path $folder 'cmd')}
+  if($available){$prefix+=(Split-Path $available.Git)}else{$resource=$lock.git_archives.$key;$folder=Ensure-Zip ($resource.file.Replace('.zip','')) $resource.url $resource.sha256;$prefix+=(Join-Path $folder 'cmd')}
 }
 $env:PATH=($prefix -join [IO.Path]::PathSeparator)+[IO.Path]::PathSeparator+$env:PATH
 $env:ACCEPTANCE_RUNTIME_PATH_PREFIX=$prefix -join [IO.Path]::PathSeparator

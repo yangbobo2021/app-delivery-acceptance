@@ -2,6 +2,7 @@
 
 Skill 首次准备在 macOS/Linux 使用 `sh <skill>/scripts/setup.sh`，原生 Windows 使用 `powershell -NoProfile -ExecutionPolicy Bypass -File <skill>\scripts\setup.ps1`。
 入口优先复用兼容运行时，缺少时下载固定且校验摘要的 Node，Windows 缺少 Git 时优先复用已安装 SPEX 的 Git，再准备固定 MinGit，不修改系统 PATH。
+在 Windows 中，已安装 SPEX 附带的微软运行库目录也仅加入返回的进程级路径，供原生权限模块加载，避免缺少系统 VC 运行库时反复启动安全的 .NET 后备检查；不复制 DLL、不要求管理员安装。
 使用返回的 `node`、`package_root`、`playbook`，仅在正式配置和 CLI 进程及其子进程中应用 `path_prefix`。
 SPEX 托管导出目录不安装 node_modules；依赖和源码副本位于校验后的独立缓存。
 

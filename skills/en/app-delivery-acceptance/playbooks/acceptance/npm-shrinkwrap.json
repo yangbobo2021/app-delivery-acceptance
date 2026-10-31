@@ -1,12 +1,12 @@
 {
   "name": "app-delivery-acceptance-playbooks",
-  "version": "0.4.11",
+  "version": "0.4.12",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "app-delivery-acceptance-playbooks",
-      "version": "0.4.11",
+      "version": "0.4.12",
       "bundleDependencies": [
         "@sublang/cligent",
         "@sublang/playbook"
