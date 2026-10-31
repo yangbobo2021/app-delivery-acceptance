@@ -16,7 +16,7 @@
     "smol-toml": "1.9.1",
     "xstate": "5.33.2"
   },
-  "version": "0.4.12",
+  "version": "0.4.13",
   "description": "Standalone delivery acceptance workflows for the official Playbook CLI",
   "files": [
     "root.mjs",

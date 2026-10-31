@@ -5,6 +5,7 @@ Skill 首次准备在 macOS/Linux 使用 `sh <skill>/scripts/setup.sh`，原生 
 在 Windows 中，已安装 SPEX 附带的微软运行库目录也仅加入返回的进程级路径，供原生权限模块加载，避免缺少系统 VC 运行库时反复启动安全的 .NET 后备检查；不复制 DLL、不要求管理员安装。
 使用返回的 `node`、`package_root`、`playbook`，仅在正式配置和 CLI 进程及其子进程中应用 `path_prefix`。
 SPEX 托管导出目录不安装 node_modules；依赖和源码副本位于校验后的独立缓存。
+Windows 默认代码缓存位于 `%LOCALAPPDATA%\ada\spex`，保留完整摘要作为身份，避免测试档案或长用户目录使原生 Agent 子程序超过 Windows 路径长度限制；不调整实际登录目录。
 
 全部角色由 [标准 Playbook 配置](native-cli-boundaries.md) 管理，不设置第二份环境角色映射。配置生成入口：
 
