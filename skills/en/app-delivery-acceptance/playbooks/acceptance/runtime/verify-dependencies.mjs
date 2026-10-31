@@ -62,7 +62,7 @@ let claudeExecutable;
 if(Object.hasOwn(claudeSdk.manifest.optionalDependencies??{},claudePlatformPackage)){
   try{
     const fromSdk=createRequire(join(claudeSdk.root,'package.json'));
-    claudeExecutable=fromSdk.resolve(claudePlatformPackage+'/claude');
+    claudeExecutable=fromSdk.resolve(claudePlatformPackage+(process.platform==='win32'?'/claude.exe':'/claude'));
     const platformManifest=JSON.parse(readFileSync(join(dirname(claudeExecutable),'package.json'),'utf8'));
     if(platformManifest.name!==claudePlatformPackage||platformManifest.version!==claudeSdk.manifest.optionalDependencies[claudePlatformPackage])throw Error('SDK-owned platform package version mismatch');
   }catch(error){throw Error('Claude SDK platform executable is missing or inconsistent: '+claudePlatformPackage+'; restore this package with its locked optional dependencies. '+error.message);}
