@@ -6,6 +6,8 @@
 总调度角色读取明确委托和实际状态，通过官方 `callPlaybook` 调用原独立入口，判断结果并推动所请求目标完成。
 人工或 CI 仍可直接使用原独立工作流。
 
+在 SPEX 选定项目中，用户可以直接输入 `/acceptance-orchestrate 具体自然语言要求`；公开宿主上下文补齐项目、稳定任务与逐消息身份，再进入下面同一份内部合同。Codex Skill 和程序化 CLI 保留显式 JSON 委托，不依赖 SPEX 上下文。格式错误返回实际输入原因；入口不自行组织子工作流或补造业务事实。
+
 ```json
 {
   "project_root": "/absolute/user-project",

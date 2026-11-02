@@ -120,9 +120,13 @@ export function workspaceSnapshot(root,components=[]){
   }
   return {files,revisions};
 }
-export function verifyAllowedChanges(root,before,allowedRoots,components=[]){
+export function validateTestRoots(allowedRoots){
   if(!Array.isArray(allowedRoots)||allowedRoots.some(name=>typeof name!=='string'||!name||name==='.'||path.isAbsolute(name)||name.split(path.sep === '\\' ? /[\\/]/ : '/').some(part=>['..','.git','.acceptance','.acceptance-local'].includes(path.sep === '\\' && part !== '..' ? part.replace(/[. ]+$/,'').toLowerCase() : part))))throw Error('Explicit test-only write roots are required');
   if(path.sep === '\\')allowedRoots=allowedRoots.map(name=>name.split(/[\\/]/).join('/'));
+  return allowedRoots;
+}
+export function verifyAllowedChanges(root,before,allowedRoots,components=[]){
+  allowedRoots=validateTestRoots(allowedRoots);
   const after=workspaceSnapshot(root,components);
   if(JSON.stringify(before.revisions)!==JSON.stringify(after.revisions))throw Error('Agent changed a product or component revision');
   const changes=[...new Set([...Object.keys(before.files),...Object.keys(after.files)])].filter(name=>before.files[name]!==after.files[name]);

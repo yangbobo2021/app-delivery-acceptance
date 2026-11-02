@@ -51,6 +51,14 @@ h.test('PROGRESS-04','Explicit unfinished stage state remains current even after
   assert.equal(sha(failureFile),failureHash);
   assert.equal(sha(pointer),pointerHash);
 });
+h.test('PROGRESS-05','Closing the fixture AT retains its historical attempts without current pending progress',()=>{
+  fs.unlinkSync(pointer);
+  const snapshot=view.snapshot(at);
+  assert.equal(snapshot.current_acceptance_id,null);
+  assert.equal(snapshot.progress.stages.filter(stage=>!stage.finished).length,0);
+  assert.ok(snapshot.progress.stages.length,'Historical attempts remain available');
+  assert.equal(sha(failureFile),failureHash);
+});
 const args=process.argv.slice(2),coverageIndex=args.indexOf('--coverage-project');
 if(coverageIndex>=0){
   const coverageRoot=path.resolve(args[coverageIndex+1]),coverageId=args[args.indexOf('--acceptance-id')+1];

@@ -88,7 +88,7 @@
 
 ### traceability-view-20
 
-当读取已有失败回执的独立尝试时，视图应保留该历史失败，仅在仍有活动归属或明确未完成阶段时将其列为当前待处理，不因历史尝试没有成功回执而继续显示正在处理。
+当读取已有失败回执的独立尝试时，视图应保留该历史失败，仅在所选验收仍为当前验收且存在活动归属或明确未完成阶段时将其列为当前待处理，不因历史尝试没有成功回执而继续显示正在处理。
 
 ## 验证
 
@@ -100,4 +100,4 @@
 
 ### traceability-view-21
 
-当验证运行准备失败后的展示时，集成测试应真实触发准备失败并在新尝试完成轻量 smoke，核对历史失败不再属于当前工作、活动归属与明确未完成阶段仍可见、原失败字节和当前指针保持不变 [[traceability-view-20](#traceability-view-20)] [[traceability-view-10](#traceability-view-10)] [view_terminal_progress.integration.mjs](../../tests/view_terminal_progress.integration.mjs)。
+当验证运行准备失败后的展示时，集成测试应真实触发准备失败并在新尝试完成轻量 smoke，核对历史失败不再属于当前工作、当前验收的活动归属与明确未完成阶段仍可见、关闭后仅保留历史进度及原失败字节保持不变 [[traceability-view-20](#traceability-view-20)] [[traceability-view-10](#traceability-view-10)] [view_terminal_progress.integration.mjs](../../tests/view_terminal_progress.integration.mjs) [view_progress.integration.mjs](../../tests/view_progress.integration.mjs)。

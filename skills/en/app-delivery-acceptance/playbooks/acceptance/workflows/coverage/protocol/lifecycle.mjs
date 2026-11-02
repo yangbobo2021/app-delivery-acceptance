@@ -10,6 +10,7 @@ import {assertToolIdentity} from './tools.mjs';
 import {assertRecount, evidenceFiles, unchangedEvidence} from './report.mjs';
 // Project command environment only; never changes a model process.
 import {runtimeEnvironment} from '../../shared/runtime.mjs';
+import {nodeScriptPath} from '../../../runtime/node-process.mjs';
 
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 const hash = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -120,7 +121,7 @@ export function runLifecycleGate({prepared, plan: planPath, output}) {
     // A generic argv parser cannot prove a program's imports or independence.
     // Preserve both invocations and validate actual native output instead of
     // inferring a call graph from option names or file-looking arguments.
-    const backend=read(path.join(path.dirname(profile.entry[1]), 'binding.json')).entry;
+    const backend=read(path.join(path.dirname(nodeScriptPath(profile.entry)), 'binding.json')).entry;
     const started_at = new Date().toISOString(), result = spawnSync(executable, command.slice(1), {cwd: root, env:executionEnv, encoding: 'utf8', timeout: 30000, maxBuffer: 32 * 1024 * 1024});
     const record = {command, resolved_executable:executable, backend_entry:backend, independence_validation:'Actual native reader outputs and recorded source; no argv-shape inference', started_at, finished_at: new Date().toISOString(), exit_code: result.status, signal: result.signal,
       stdout: result.stdout, stderr: result.stderr, error: result.error?.message};write(path.join(folder, 'oracle-command.json'), record);

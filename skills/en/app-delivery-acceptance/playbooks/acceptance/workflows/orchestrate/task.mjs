@@ -22,6 +22,19 @@ export function normalize(value){
  const budget=value.budget_seconds??3600;if(!Number.isSafeInteger(budget)||budget<1)throw Error('Positive finite budget_seconds required');
  return {...value,project_root:projectRoot(value.project_root),context:value.context??{},budget_seconds:budget};
 }
+// SPEX supplies cwd through the public workflow-options contract (DR-014).
+// Natural-language callers never need to manufacture task/request identifiers.
+export function normalizeBossInput(text,{cwd,sessionId,rootSessionId,turn=1}={}){
+ if(typeof text!=='string'||!text.trim())throw Error('请输入具体的验收要求。');
+ const raw=text.trim();
+ if(raw.startsWith('{')){
+  let value;try{value=JSON.parse(raw);}catch{throw Error('JSON 请求格式不正确；也可以直接输入自然语言验收要求。');}
+  return normalize(value);
+ }
+ if(!cwd)throw Error('无法取得当前项目目录，请在 SPEX 项目中运行此工作流。');
+ if(!sessionId)throw Error('无法取得当前 SPEX 会话，请重新打开项目会话。');
+ return normalize({project_root:cwd,task_id:'spex-'+digest(rootSessionId??sessionId).slice(0,32),request_id:'msg-'+digest(sessionId+'\0'+turn).slice(0,32),message:text,context:{input_source:'spex-natural-language'}});
+}
 export function taskLocation(input){return inside(input.project_root,'.acceptance-local/orchestration/'+input.task_id);}
 export function ownerState(folder){const lock=path.join(folder,'active.lock.d'),file=path.join(lock,'owner.json');if(!fs.existsSync(lock))return null;let owner;try{owner=read(file);}catch{return{uncertain:true};}let alive=false;try{process.kill(owner.pid,0);alive=true;}catch{}return{...owner,alive,uncertain:!alive};}
 export function openTask(input){
