@@ -28,7 +28,7 @@
 
 ### workflow-package-17
 
-当用户通过 SPEX 安装联合分发包时，包应同时提供保留完整 CLI 资源的真实 Skill 和原生 Playbook 选择闭包，使对应项目中的 Codex 能使用 SPEX 导出的 Skill、SPEX 能调用原生入口，Skill 的准备命令核对安装清单并返回独立内容缓存中的实际 CLI 包路径，避免在受管导出目录安装依赖或混淆已有全局 Skill 的来源 [DR-019](../decisions/019-unified-spex-installation.md)。
+当用户通过 SPEX 安装完整联合分发包时，包应将保留完整 CLI 资源的真实 Skill 与全部原生 Playbook 分别作为公开工件提供，保留原生子入口选择闭包而不以跨类型依赖隐藏主入口或 Skill，使对应安装范围中的 Codex 能发现真实 Skill、SPEX 能启用主入口，Skill 的准备命令核对安装清单并返回独立内容缓存中的实际 CLI 包路径，避免在受管导出目录安装依赖或混淆已有全局 Skill 的来源 [DR-019](../decisions/019-unified-spex-installation.md) [DR-028](../decisions/028-public-spex-entrypoints.md)。
 
 ### workflow-package-5
 
@@ -110,7 +110,7 @@
 
 ### workflow-package-18
 
-当验证联合安装时，集成测试应核对真实 Skill、原生入口及选择闭包，并核对代码缓存匹配、篡改拒绝和导出目录保持不变 [[workflow-package-17](#workflow-package-17)]，另以一次真实 SPEX UI 安装和新 Codex 调用核对 Skill 发现路径、实际运行及重导出后的可用性 [spex_package.integration.mjs](../../tests/spex_package.integration.mjs) [spex_skill_cache.integration.mjs](../../tests/spex_skill_cache.integration.mjs)。
+当验证联合安装时，集成测试应通过实际 SPEX 工件发现规则核对真实 Skill、主入口和全部原生入口公开可用及其选择闭包，并核对代码缓存匹配、篡改拒绝和导出目录保持不变 [[workflow-package-17](#workflow-package-17)]，另以一次真实 SPEX UI 安装和新 Codex 调用核对 Skill 发现路径、实际运行及重导出后的可用性 [spex_package.integration.mjs](../../tests/spex_package.integration.mjs) [spex_skill_cache.integration.mjs](../../tests/spex_skill_cache.integration.mjs)。
 
 ### workflow-package-4
 

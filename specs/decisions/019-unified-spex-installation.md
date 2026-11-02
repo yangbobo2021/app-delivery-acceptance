@@ -4,6 +4,7 @@
 
 本决策保持已接受；[DR-026](026-portable-skill-runtime-preparation.md) 扩展了 Mac/Windows Skill 的首次运行时准备与原生 CLI 支持范围。
 [DR-025](025-source-and-distribution-repositories.md) 调整了源码主干与安装仓库的组织范围，保留联合安装和托管导出约束。
+[DR-028](028-public-spex-entrypoints.md) 调整了两种公开入口的选择声明：完整包默认联合安装，不以跨类型相互依赖使入口成为内部支撑。
 
 已接受，依据用户要求通过 SPEX 安装测试 SKILL 后，Codex 能使用真实 Skill，SPEX 能使用原生 Playbook。
 扩展 [DR-017](017-standard-host-player-port.md) 的分发范围，运行时职责与总调度所有权不变。

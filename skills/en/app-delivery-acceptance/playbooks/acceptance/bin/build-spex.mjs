@@ -35,12 +35,14 @@ export async function buildSpex({output,org='sublang',name='delivery-acceptance'
    const shared=entry.id===main?'./':'../'+main+'/';
    fs.writeFileSync(path.join(folder,entry.id+'.registry.mjs'),`import entry from '${shared}workflows/${entry.folder}/registry.mjs';\nimport {spexEntry} from '${shared}runtime/spex-entry.mjs';\nexport * from '${shared}workflows/${entry.folder}/registry.mjs';\nexport const spexRegistryContract=3;\nexport {RUNTIME_ABI as acceptanceRuntimeAbi} from '@sublang/playbook/xstate-runtime';\nexport default spexEntry(entry);\n`);
    fs.writeFileSync(path.join(folder,entry.id+'.md'),`# ${entry.id}\n\n${(await import(pathToFileURL(path.join(packageRoot,'workflows',entry.folder,'registry.mjs')))).default.intent}\n\nUse this public entry in a SPEX session. Task contracts and source live in the acceptance-orchestrate artifact.\n`);
-   artifacts[entry.id]={kind:'playbook',language:'en',requires:entry.id===main?[...ids.filter(id=>id!==main),skillId]:[main]};
+   // Cross-kind requires denotes private support in SPEX, not joint public
+   // installation. Keep native peers together; expose the real Skill separately.
+   artifacts[entry.id]={kind:'playbook',language:'en',requires:entry.id===main?ids.filter(id=>id!==main):[main]};
   }
   const skillFolder=path.join(destination,'skills/en',skillId);
   fs.cpSync(skillRoot,skillFolder,{recursive:true,filter:file=>!path.relative(skillRoot,file).split(path.sep).some(n=>['node_modules','.git','.runtime-install.lock.d','.DS_Store'].includes(n))});
   fs.writeFileSync(path.join(skillFolder,'SPEX-INSTALL.json'),JSON.stringify({schema:'acceptance-spex-skill-v1',package:org+'/'+name,package_version:version,package_root:'playbooks/acceptance',package_files:packageFiles(packageRoot)},null,2)+'\n');
-  artifacts[skillId]={kind:'skill',language:'en',requires:[main]};
+  artifacts[skillId]={kind:'skill',language:'en'};
   const sourceManifest=JSON.parse(fs.readFileSync(path.join(packageRoot,'package.json')));
   const manifest={format:2,org,name,version,description:'Delivery acceptance workflows using native SPEX Player and nested Playbook ports',...(sourceManifest.license?{license:sourceManifest.license}:{}),artifacts};
   fs.writeFileSync(path.join(destination,'meta.yaml'),JSON.stringify(manifest,null,2)+'\n');

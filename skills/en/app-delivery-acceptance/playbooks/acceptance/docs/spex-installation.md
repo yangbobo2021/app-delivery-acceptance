@@ -7,7 +7,7 @@
 node scripts/build-distribution.mjs --output /absolute/new-release
 ```
 
-产物是一个 format-2 包，包含真实 `app-delivery-acceptance` Skill 与 31 个原生 Playbook。两类入口来自同一份业务源码，`requires` 保持联合选择闭包；原生入口使用 SPEX 引擎，Skill 保留自己完整的锁定 CLI 与 vendor 资源。安装者不手工复制 Skill 或设置工作流 overlay。
+产物是一个 format-2 包，包含独立公开的真实 `app-delivery-acceptance` Skill 与 31 个原生 Playbook。两类入口来自同一份业务源码；Playbook 之间的同类 `requires` 保留原生选择闭包，不以跨类型相互依赖隐藏主入口或 Skill，默认安装完整包同时提供两种入口。原生入口使用 SPEX 引擎，Skill 保留自己完整的锁定 CLI 与 vendor 资源。安装者不手工复制 Skill 或设置工作流 overlay。
 
 把产物目录放在用户项目中，例如 `spex-packages/delivery-acceptance`；从 SPEX UI 的“规程 → 从文件夹添加”填写包名及项目内相对目录。安装后，SPEX 会把真实 Skill 导出到该项目的 `.agents/skills/app-delivery-acceptance`，在该项目中新开 Codex 回合可使用 `$app-delivery-acceptance`。这是项目级安装；用户组安装及同名已有目录的保留规则继续由 SPEX 决定。注册表正式发布、鉴权和跨机器下载须另行验证。
 

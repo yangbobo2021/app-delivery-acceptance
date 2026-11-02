@@ -50,6 +50,7 @@ meta.md       SPEX 原生规约规则
 | [DR-025](decisions/025-source-and-distribution-repositories.md) | 025-source-and-distribution-repositories.md | 完整源码主干、独立安装仓库及固定提交来源 |
 | [DR-026](decisions/026-portable-skill-runtime-preparation.md) | 026-portable-skill-runtime-preparation.md | Mac/Windows Skill 首次准备、独立缓存和正式 CLI |
 | [DR-027](decisions/027-windows-bounded-agent-commands.md) | 027-windows-bounded-agent-commands.md | 原生 Windows 受限角色的沙箱选择与实际命令执行 |
+| [DR-028](decisions/028-public-spex-entrypoints.md) | 028-public-spex-entrypoints.md | 主工作流与真实 Skill 独立公开，同类 Playbook 保留选择闭包 |
 
 
 

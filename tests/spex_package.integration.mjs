@@ -5,7 +5,9 @@ const root=fs.mkdtempSync(path.join(os.tmpdir(),'acceptance-spex-package-')),rel
 const result=await buildSpex({output:release,org:'fixture',version:'0.3.0'}),manifest=JSON.parse(fs.readFileSync(path.join(release,'meta.yaml'))),main=path.join(release,'playbooks/en/acceptance-orchestrate');
 const playbooks=Object.keys(manifest.artifacts).filter(id=>manifest.artifacts[id].kind==='playbook'),skill=path.join(release,'skills/en/app-delivery-acceptance');
 assert.equal(manifest.format,2);assert.equal(Object.keys(manifest.artifacts).length,32);assert.equal(playbooks.length,31);assert.equal(fs.existsSync(path.join(main,'node_modules')),false);
-assert.equal(manifest.artifacts['app-delivery-acceptance'].kind,'skill');assert.ok(manifest.artifacts['acceptance-orchestrate'].requires.includes('app-delivery-acceptance'));
+assert.equal(manifest.artifacts['app-delivery-acceptance'].kind,'skill');
+assert.deepEqual([...manifest.artifacts['acceptance-orchestrate'].requires].sort(),playbooks.filter(id=>id!=='acceptance-orchestrate').sort());
+assert.deepEqual(manifest.artifacts['app-delivery-acceptance'].requires??[],[],'The independently usable Skill must not hide the native main entry as private support');
 for(const file of ['SKILL.md','scripts/setup.mjs','SPEX-INSTALL.json','playbooks/acceptance/vendor/provenance.json','playbooks/acceptance/npm-shrinkwrap.json'])assert.ok(fs.existsSync(path.join(skill,file)),file);
 assert.equal(fs.existsSync(path.join(skill,'playbooks/acceptance/node_modules')),false);
 assert.ok(fs.existsSync(path.join(main,'runtime/vendor/picomatch/index.js')));
@@ -13,8 +15,12 @@ assert.ok(fs.existsSync(path.join(main,'runtime/vendor/picomatch/index.js')));
 // workflow dependency and must run before adding host engine links below.
 const formatIndex=process.argv.indexOf('--spex-format');
 if(formatIndex>=0){
- const {readRelease}=await import(pathToFileURL(path.resolve(process.argv[formatIndex+1])));
+ const {readRelease,providedArtifacts}=await import(pathToFileURL(path.resolve(process.argv[formatIndex+1])));
  const checked=await readRelease(release);assert.equal(Object.keys(checked.manifest.artifacts).length,32);
+ const provided=providedArtifacts(checked.manifest);
+ assert.equal([...provided].filter(id=>checked.manifest.artifacts[id].kind==='playbook').length,31,'Real SPEX discovery must expose all native entries');
+ assert.ok(provided.has('acceptance-orchestrate'),'The main workflow must be publicly enableable');
+ assert.ok(provided.has('app-delivery-acceptance'),'The real Skill must be independently exportable');
 }
 for(const id of playbooks){
  const folder=path.join(release,'playbooks/en',id);fs.mkdirSync(path.join(folder,'node_modules/@sublang'),{recursive:true});
