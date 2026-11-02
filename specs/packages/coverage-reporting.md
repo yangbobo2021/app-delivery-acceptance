@@ -55,7 +55,7 @@
 
 ### coverage-reporting-7
 
-当输出覆盖率结果时，报告应分别给出行覆盖率和工具支持的分支覆盖率或其不可用原因，以及采集版本、采集/转换/统计工具名称与版本、范围和缺口，不用覆盖率替代设计充分性或产品正确性结论。
+当输出覆盖率结果时，报告应分别给出行覆盖率和工具支持的分支覆盖率或其不可用原因，以及采集版本、已保存的实际采集时间、采集/转换/统计工具名称与版本、范围和缺口，不用覆盖率替代设计充分性或产品正确性结论。
 
 ### coverage-reporting-8
 
@@ -94,6 +94,7 @@
 - 确定性协议入口的实际子进程验证涵盖工具描述变化仍可交接、版本漂移拒绝、空诊断失败定位、业务非零退出码与 stdout/stderr 透传，以及冻结后端漂移拒绝 [[coverage-reporting-2](#coverage-reporting-2)]。
 - 完整准备链路的集成验证使用真实专用工具及子进程，核对零/非零调用、报告重复重算和汇总均可用才交接就绪 [[coverage-reporting-2](#coverage-reporting-2)]，并核对生成时间变化不误拒绝、原始证据或重算指标变化仍拒绝及只读完整性 [[coverage-reporting-3](#coverage-reporting-3)] [coverage_lifecycle.integration.mjs](../../tests/coverage_lifecycle.integration.mjs)。
 - 测试文件发现的集成验证使用实际 Git 工作区变更，核对授权遗漏文件被自动冻结，源码变更、越界、删除和文件漂移仍拒绝 [[coverage-reporting-2](#coverage-reporting-2)] [coverage_adapter_discovery.integration.mjs](../../tests/coverage_adapter_discovery.integration.mjs)。
+- 视图集成验证从经哈希绑定的实际执行收据读取采集时间，并核对原收据保持不变 [[coverage-reporting-7](#coverage-reporting-7)] [view_terminal_progress.integration.mjs](../../tests/view_terminal_progress.integration.mjs)。
 
 ### coverage-reporting-15
 

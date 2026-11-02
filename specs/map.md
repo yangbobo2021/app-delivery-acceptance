@@ -5,7 +5,7 @@
 
 本项目为 App Delivery Acceptance 测试 SKILL。
 先从本索引定位需求，再阅读 [`meta.md`](meta.md) 的格式规则。
-当前包含 12 个包、240 条带唯一 ID 的行为及验证条目；本轮补充子流程只读预检、设计就绪及标准宿主适配边界，实际执行结论和未实测边界另行保存。
+当前包含 12 个包、242 条带唯一 ID 的行为及验证条目；本轮补充子流程只读预检、设计就绪及标准宿主适配边界，实际执行结论和未实测边界另行保存。
 随附 SPEX 框架的许可文本保存在 [`LICENSE.spex`](../LICENSE.spex)，不声明整个项目的许可证。
 
 ## 目录结构
@@ -68,7 +68,7 @@ meta.md       SPEX 原生规约规则
 | [execution-evidence.md](packages/execution-evidence.md) | `execution-evidence-1` 至 `execution-evidence-18` | 18 | 真实执行、独立复审与有界修复：使场景结论对应实际运行的测试、产品版本和可信证据，并保留失败及修复过程。 |
 | [coverage-reporting.md](packages/coverage-reporting.md) | `coverage-reporting-1` 至 `coverage-reporting-16` | 16 | 工具覆盖率与范围说明：提供与真实执行绑定、由成熟专用工具计算的源码覆盖率，并清楚展示不可计算的范围。 |
 | [acceptance-storage.md](packages/acceptance-storage.md) | `acceptance-storage-1` 至 `acceptance-storage-27` | 27 | 验收身份、资料与恢复：让同一项目的验收工作可持续接续、可校验和可共享，同时隔离本机状态及历史证据。 |
-| [traceability-view.md](packages/traceability-view.md) | `traceability-view-1` 至 `traceability-view-19` | 19 | 统一追踪与可信阅读：使用户从需求起点直观看到关系和完整当前状态，并按需查看有限而有用的细节。 |
+| [traceability-view.md](packages/traceability-view.md) | `traceability-view-1` 至 `traceability-view-21` | 21 | 统一追踪与可信阅读：使用户从需求起点直观看到关系和完整当前状态，并按需查看有限而有用的细节。 |
 | [workflow-package.md](packages/workflow-package.md) | `workflow-package-1` 至 `workflow-package-35` | 35 | Skill 接入与完整独立包、标准 CLI、官方角色会话及宿主任务接续边界。 |
 
 ## 阅读与后续边界

@@ -86,6 +86,10 @@
 
 当查看关联的源码、证据或设计评估时，视图应分别提示文件缺失、哈希变化、评估未运行、已关闭、不可用或版本失配，不将缺失状态当作不存在问题或设计支持充分。
 
+### traceability-view-20
+
+当读取已有失败回执的独立尝试时，视图应保留该历史失败，仅在仍有活动归属或明确未完成阶段时将其列为当前待处理，不因历史尝试没有成功回执而继续显示正在处理。
+
 ## 验证
 
 以下验证使用真实已冻结资料及浏览器检查，不将历史报告或测试条目存在当作全部行为通过。
@@ -93,3 +97,7 @@
 ### traceability-view-19
 
 当验证 Node 只读视图时，集成测试应核对完整分母与实际执行去重 [[traceability-view-7](#traceability-view-7)]、查看不启动业务 [[traceability-view-10](#traceability-view-10)]、真实桌面详情及键盘与窄屏关闭入口 [[traceability-view-16](#traceability-view-16)]，并保留缺失来源的明确状态 [[traceability-view-18](#traceability-view-18)] [native_view_readonly.integration.mjs](../../tests/native_view_readonly.integration.mjs) [acceptance_archive_view_lifecycle.integration.mjs](../../tests/acceptance_archive_view_lifecycle.integration.mjs)。
+
+### traceability-view-21
+
+当验证运行准备失败后的展示时，集成测试应真实触发准备失败并在新尝试完成轻量 smoke，核对历史失败不再属于当前工作、活动归属与明确未完成阶段仍可见、原失败字节和当前指针保持不变 [[traceability-view-20](#traceability-view-20)] [[traceability-view-10](#traceability-view-10)] [view_terminal_progress.integration.mjs](../../tests/view_terminal_progress.integration.mjs)。
