@@ -1,14 +1,19 @@
 import { assign, fromPromise, setup } from 'xstate';
 import { createXStatePlaybookRuntime } from '@sublang/playbook/xstate-runtime';
-import {withPlayerTurn} from '../../runtime/session.mjs';
+import {withPlayerTurn,currentPlayerContext} from '../../runtime/session.mjs';
 import {parseJson} from './json.mjs';
+
+export function commandSignal(actorSignal){
+  const hostSignal=currentPlayerContext()?.signal;
+  return hostSignal?AbortSignal.any([actorSignal,hostSignal]):actorSignal;
+}
 
 // The official CLI owns the session. These operations deliberately have no model role.
 export function commandRegistry({ id, intent, successState, operation, roles=[], rolePolicies={}, parseInput=parseJson }) {
   const meta = (stateId, terminal) => ({ playbook: { stateId, ...(terminal ? { terminal } : {}) } });
   const machine = setup({ actors: {
     operation: fromPromise(async ({ input, signal }) => {
-      try { return await operation(parseInput(input),{signal}); }
+      try { return await operation(parseInput(input),{signal:commandSignal(signal)}); }
       catch (error) { return { status: 'blocked', reason: error.message, ...(error.issues?{input_issues:error.issues}:{}), stopped_after: id }; }
     }),
   } }).createMachine({

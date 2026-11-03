@@ -90,7 +90,19 @@
 
 当原生 Windows 的 Codex 角色执行授权命令时，锁定运行依赖应使用宿主可用的原生沙箱和兼容的命令行说明，在保留既有权限的条件下执行实际读取，不能执行时保留真实错误 [DR-027](../decisions/027-windows-bounded-agent-commands.md)。
 
+### workflow-package-36
+
+当 SPEX 用户向总入口输入自然语言时，工作流应使用宿主实际提供的项目目录及会话身份建立稳定任务和消息身份，保留完整原话并进入与显式 JSON 相同的校验及编排，不要求 CLI 的 JSON 委托包含 SPEX 专属上下文 [DR-029](../decisions/029-unified-host-inputs.md)。
+
+### workflow-package-37
+
+当宿主取消确定性工作流操作时，工作流应将宿主取消与内部操作取消共同传递到正在执行的操作，保留原始准备及中断证据而不继续启动后续工作。
+
 ## 验证
+
+### workflow-package-38
+
+当验证两种宿主的输入及取消边界时，集成测试应通过实际公开运行时核对自然语言的目录与稳定身份、显式 JSON 无宿主上下文时的兼容、错误输入不产生子调用及活动操作收到宿主取消 [[workflow-package-36](#workflow-package-36)] [[workflow-package-37](#workflow-package-37)] [native_entry.integration.mjs](../../tests/native_entry.integration.mjs)。
 
 ### workflow-package-35
 

@@ -29,6 +29,7 @@
 - 宿主应在源码、版本及授权测试目录检查通过后，将角色声明的依赖与实际新增或修改的测试文件一起逐一冻结，保留自动发现清单，不因角色漏列已授权文件名而要求重新生成；越界、删除既有测试及冻结后漂移仍应阻塞。
 - 调用者明确补充的实际执行入口或进程要求随准备请求冻结并传入角色；真实父进程启动 CLI 子进程的准备验证保留原生证据及源码不变证明 [coverage_cli_readiness.integration.mjs](../../tests/coverage_cli_readiness.integration.mjs)。
 - 每次准备采用固定的有限执行预算；调用方显式调整预算时核对边界、记录实际预算及超时，不以延长时间替代失败定位、有限修正或就绪核验。
+- 覆盖率发现和准备应在启动角色及可变准备前复用既有测试目录规则，提前拒绝项目根、越界及受保护元数据目录，保持执行后的目录和源码校验。
 
 - 准备中发现环境或采集器问题时，工作流应自主诊断并修复，程序核验失败时将原始诊断和资料交回准备角色继续处理，保留各次尝试，不以修复次数决定是否允许继续；实际预算耗尽、取消或无法解决的前提应如实说明。
 
@@ -55,7 +56,7 @@
 
 ### coverage-reporting-7
 
-当输出覆盖率结果时，报告应分别给出行覆盖率和工具支持的分支覆盖率或其不可用原因，以及采集版本、采集/转换/统计工具名称与版本、范围和缺口，不用覆盖率替代设计充分性或产品正确性结论。
+当输出覆盖率结果时，报告应分别给出行覆盖率和工具支持的分支覆盖率或其不可用原因，以及采集版本、已保存的实际采集时间、采集/转换/统计工具名称与版本、范围和缺口，不用覆盖率替代设计充分性或产品正确性结论。
 
 ### coverage-reporting-8
 
@@ -94,6 +95,7 @@
 - 确定性协议入口的实际子进程验证涵盖工具描述变化仍可交接、版本漂移拒绝、空诊断失败定位、业务非零退出码与 stdout/stderr 透传，以及冻结后端漂移拒绝 [[coverage-reporting-2](#coverage-reporting-2)]。
 - 完整准备链路的集成验证使用真实专用工具及子进程，核对零/非零调用、报告重复重算和汇总均可用才交接就绪 [[coverage-reporting-2](#coverage-reporting-2)]，并核对生成时间变化不误拒绝、原始证据或重算指标变化仍拒绝及只读完整性 [[coverage-reporting-3](#coverage-reporting-3)] [coverage_lifecycle.integration.mjs](../../tests/coverage_lifecycle.integration.mjs)。
 - 测试文件发现的集成验证使用实际 Git 工作区变更，核对授权遗漏文件被自动冻结，源码变更、越界、删除和文件漂移仍拒绝 [[coverage-reporting-2](#coverage-reporting-2)] [coverage_adapter_discovery.integration.mjs](../../tests/coverage_adapter_discovery.integration.mjs)。
+- 视图集成验证从经哈希绑定的实际执行收据读取采集时间，并核对原收据保持不变 [[coverage-reporting-7](#coverage-reporting-7)] [view_terminal_progress.integration.mjs](../../tests/view_terminal_progress.integration.mjs)。
 
 ### coverage-reporting-15
 

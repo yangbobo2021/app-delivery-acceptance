@@ -20,7 +20,15 @@ Skill 首先运行平台入口 `scripts/setup.sh` 或 `scripts/setup.ps1`，优�
 
 同名全局 Skill 不与项目 Skill 合并；验证或选择时应核对实际读取路径。SPEX 重导出代码目录后，内容相同的 CLI 缓存继续复用；源代码或缓存字节与安装清单不符时停止而不静默覆盖。
 
-会话只向总入口交接业务目标：
+SPEX 用户在选定项目中直接向总入口输入自然语言，不需要生成 JSON 或内部身份：
+
+```text
+/acceptance-orchestrate 请依据项目书面需求生成场景，选择一个场景真实执行、独立复审，并保存报告与查看结果。
+```
+
+主入口从 SPEX 公开的 `cwd` 和会话身份获取真实项目与稳定任务／消息身份；缺少上下文时明确报错，不猜测项目。连续消息保留完整原话；程序化 JSON 委托继续使用同一套校验。
+
+Codex Skill 按原合同通过 CLI 交接结构化业务目标，以下 JSON 由宿主准备，不要求用户手工输入：
 
 ```text
 /acceptance-orchestrate {"project_root":"/absolute/user-project","task_id":"TASK-delivery-01","request_id":"create-01","message":"只创建空交付测试即停止，不生成需求、场景、用例，不运行产品测试。"}

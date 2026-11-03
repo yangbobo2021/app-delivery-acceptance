@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {isDeepStrictEqual} from 'node:util';
 import {begin,complete,failure,read,sha,json,owned,packageRoot} from '../shared/artifacts.mjs';
-import {workspaceLease,git} from '../shared/workspace.mjs';
+import {workspaceLease,git,validateTestRoots} from '../shared/workspace.mjs';
 import {acceptanceGuard} from '../shared/guard.mjs';
 import {ownedAbsolute,locations,inside} from '../shared/store.mjs';
 import {readKnowledge} from '../shared/knowledge.mjs';
@@ -48,7 +48,8 @@ export async function prepareCoverage(input,{signal}={}){
       let change;
       const {local}=locations(value.project_root,value.acceptance_id),workspace=inside(local,'workspace');
       if(value.policy==='off'&&fs.existsSync(workspace)){
-        const knowledge=readKnowledge(value.project_root,value.acceptance_id,value.knowledge_paths??[]),config={acceptance:knowledge.acceptance,source_checkout:workspace};
+        validateTestRoots(value.test_roots);
+    const knowledge=readKnowledge(value.project_root,value.acceptance_id,value.knowledge_paths??[]),config={acceptance:knowledge.acceptance,source_checkout:workspace};
         return await workspaceLease(config,spec.folder,async()=>{
           change=setCoverageOff(workspace,knowledge.acceptance,value.basis,spec.folder);
           return complete(spec,{status:'off',reason:value.basis,policy_change:change,stopped_after:'coverage_preparation',business_tests:'not_executed'},['coverage-policy.applied.json','coverage-policy-change.json',...(change.previous_sha256?['coverage-policy.previous.json']:[])]);
@@ -65,6 +66,7 @@ export async function prepareCoverage(input,{signal}={}){
     const components=Object.fromEntries((runtime.components??[]).map(item=>[item.path,item.revision]));
     if(value.components&&!isDeepStrictEqual(value.components,components))throw Error('Coverage components differ from the verified runtime');
     if(!Array.isArray(value.test_roots)||!value.test_roots.length||value.test_roots.some(name=>typeof name!=='string'||!(runtime.test_roots??[]).some(root=>name===root||name.startsWith(root.replace(/\/$/,'')+'/'))))throw Error('Coverage test roots exceed the verified runtime test roots');
+    validateTestRoots(value.test_roots);
     const knowledge=readKnowledge(value.project_root,value.acceptance_id,value.knowledge_paths??[]);
     const priors=(value.prior_attempts??[]).map(file=>ownedArtifact(value,file));
     const request={schema:'project-coverage-agent-request-v1',acceptance:knowledge.acceptance,

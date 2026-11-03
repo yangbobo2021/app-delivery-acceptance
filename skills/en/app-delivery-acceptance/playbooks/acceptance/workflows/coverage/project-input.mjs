@@ -7,7 +7,7 @@ import {createAcceptance} from '../create/initialize.mjs';
 import {freezeAcceptance} from '../freeze/freeze.mjs';
 import {current,locations,inside,read,atomicJson,projectRoot} from '../shared/store.mjs';
 import {digest} from '../shared/definitions.mjs';
-import {git} from '../shared/workspace.mjs';
+import {git,validateTestRoots} from '../shared/workspace.mjs';
 import {prepare as prepareRuntime,finalize as finishRuntime,fail as failRuntime} from '../runtime/stage.mjs';
 import {createAgentRuntime} from '../../runtime/players.mjs';
 import {validateRuntime} from '../shared/runtime.mjs';
@@ -18,7 +18,7 @@ const fileHashes=root=>Object.fromEntries(git(root,'ls-files','-z').split('\0').
 async function discover(directory,input,signal){
  fs.mkdirSync(directory,{recursive:true});
  let agent;try{agent=createAgentRuntime({directory,role:'coverage_preparer'});}catch(error){error.configuration_failure=true;throw error;}
- const prompt=`为这个项目准备覆盖率执行环境，先检查项目并提出运行准备及采集范围。你在覆盖率工作流内部工作，不需要用户先提供验收 ID、源码哈希或运行清单。只读检查真实 README、构建/依赖清单、产品及已有测试入口，按项目实际情况选择，不能预设语言或框架。不生成业务需求、场景或业务用例。此时不要修改源码或安装依赖；后续程序会在隔离工作树真实执行你的运行方案，之后同一工作流会准备和修复覆盖率采集器。知识已读取的逻辑键为 INDEX.md。\n项目资料：${JSON.stringify(input)}\n如遇先前准备问题，读取所列日志并修正方案；内部修复由你自主决定，保留旧尝试。\n只返回 JSON：{source_paths:[实际需要采集的 Git 根相对源码文件],test_roots:[可写入采集及探针脚本的 Git 根相对目录],inspection_files:[需要用于运行准备的真实项目资料文件],runtime_plan:{dependency_files:[依赖清单相对路径],knowledge_used:["INDEX.md"],execution_env:{稳定项目环境字符串，不含秘密},setup_commands:[{command:[argv],cwd?,env?,timeout_seconds?}],executables:[{name,path:实际执行器绝对路径,version_command:[argv]}],smoke:{command:[argv],cwd?,env?,timeout_seconds?},recipe_candidate:非空可移植方法说明}}。命令支持 {workspace} 和 {runtime_root} 占位；使用实际 PATH 检查执行器，不猜测工具安装位置。setup 在隔离工作树运行；smoke 只验证真实运行路径，不执行业务用例。源码文件范围须来自实际项目，不将测试、文档或依赖安装物当产品源码。没有既有测试时选择合适测试目录，后续会创建；产品入口和依赖明确即可准备。若真实前提无法解决，返回 {status:"unavailable",reason:具体原因,limitations:[实际限制]}。`;
+ const prompt=`为这个项目准备覆盖率执行环境，先检查项目并提出运行准备及采集范围。你在覆盖率工作流内部工作，不需要用户先提供验收 ID、源码哈希或运行清单。只读检查真实 README、构建/依赖清单、产品及已有测试入口，按项目实际情况选择，不能预设语言或框架。不生成业务需求、场景或业务用例。此时不要修改源码或安装依赖；后续程序会在隔离工作树真实执行你的运行方案，之后同一工作流会准备和修复覆盖率采集器。知识已读取的逻辑键为 INDEX.md。\n项目资料：${JSON.stringify(input)}\n如遇先前准备问题，读取所列日志并修正方案；内部修复由你自主决定，保留旧尝试。\n只返回 JSON：{source_paths:[实际需要采集的 Git 根相对源码文件],test_roots:[可写入采集及探针脚本的 Git 根相对目录],inspection_files:[需要用于运行准备的真实项目资料文件],runtime_plan:{dependency_files:[依赖清单相对路径],knowledge_used:["INDEX.md"],execution_env:{稳定项目环境字符串，不含秘密},setup_commands:[{command:[argv],cwd?,env?,timeout_seconds?}],executables:[{name,path:实际执行器绝对路径,version_command:[argv]}],smoke:{command:[argv],cwd?,env?,timeout_seconds?},recipe_candidate:非空可移植方法说明}}。命令支持 {workspace} 和 {runtime_root} 占位；使用实际 PATH 检查执行器，不猜测工具安装位置。setup 在隔离工作树运行；smoke 只验证真实运行路径，不执行业务用例。源码文件范围须来自实际项目，不将测试、文档或依赖安装物当产品源码。test_roots 必须是专用测试目录，不得包含 ..、.git、.acceptance 或 .acceptance-local 路径分段，也不得为项目根目录。没有既有测试时选择合适测试目录（例如项目的 tests 目录），后续会创建；产品入口和依赖明确即可准备。若真实前提无法解决，返回 {status:"unavailable",reason:具体原因,limitations:[实际限制]}。`;
  fs.writeFileSync(path.join(directory,'prompt.txt'),prompt);
  let text,done,error;for await(const event of agent.run(prompt,{cwd:input.source_checkout,jsonOutput:true,signal,permissions:{fileWrite:'deny',shellExecute:'allow',networkAccess:'allow'}})){
   if(signal?.aborted)throw signal.reason??Error('Coverage preparation cancelled');
@@ -80,6 +80,7 @@ export async function projectCoverageInput(input={}, {signal}={}){
     atomicJson(path.join(resultFolder,'input.json'),input);atomicJson(result.receipt_path,result);atomicJson(saved,{...result,unavailable:true});return {...result,unavailable:true};
    }
    for(const key of ['source_paths','test_roots','inspection_files'])if(!Array.isArray(plan[key])||!plan[key].length)throw Error('Project inspection must identify actual '+key);
+   validateTestRoots(plan.test_roots);
    for(const name of plan.source_paths)if(!files.includes(name)||!fs.statSync(inside(source,name)).isFile())throw Error('Source inventory is not an actual project file: '+name);
    const spec=prepareRuntime({project_root:root,acceptance_id:id,request_id:requestId+'-runtime-'+attempt,definitions_sha256:digest(definitions),source_checkout:source,revision,test_roots:plan.test_roots,inspection_files:plan.inspection_files});
    try{runtime=finishRuntime(spec,JSON.stringify(plan.runtime_plan));}catch(error){failRuntime(spec,error.message);throw error;}

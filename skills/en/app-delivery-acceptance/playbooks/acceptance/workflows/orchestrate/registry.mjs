@@ -5,13 +5,14 @@ import {finalMessage} from '../../runtime/final-message.mjs';
 import {createAgentRuntime} from '../../runtime/players.mjs';
 import {withPlayerTurn} from '../../runtime/session.mjs';
 import {atomicJson} from '../shared/store.mjs';
-import {normalize,taskLocation,ownerState,openTask,discover,inspectPath,projectFacts,compact,childRequest,read,callKey,preflightChildInput} from './task.mjs';
+import {normalizeBossInput,taskLocation,ownerState,openTask,discover,inspectPath,projectFacts,compact,childRequest,read,callKey,preflightChildInput} from './task.mjs';
 const id='acceptance-orchestrate',role='orchestrator';
 const permissions={fileWrite:'deny',shellExecute:'deny',networkAccess:'deny'};
 const instructions=fs.readFileSync(new URL('./orchestrator.md',import.meta.url),'utf8');
 const decisionSchema={type:'object',properties:{action:{type:'string',enum:['inspect','call','finish']},reason:{type:'string'},notes:{type:'string'},files:{type:'array',items:{type:'object',properties:{path:{type:'string'},start_line:{type:'integer'},end_line:{type:'integer'},executable:{type:'string'}},additionalProperties:false}},workflow:{type:'string'},input:{type:'object',additionalProperties:true},input_file:{type:'string'},status:{type:'string',enum:['completed','needs_input','blocked']},summary:{type:'string'},question:{type:'string'},evidence_call_ids:{type:'array',items:{type:'string'}}},required:['action','reason','notes'],additionalProperties:false};
-function validateOptions(value={}){if(!value||Array.isArray(value)||typeof value!=='object'||Object.keys(value).length)throw Error(id+' accepts task delegations, not configuration options');return{};}
-function createRuntime(_options,capabilities){
+function validateOptions(value={}){if(!value||Array.isArray(value)||typeof value!=='object'||Object.keys(value).some(key=>key!=='cwd')||(value.cwd!==undefined&&(typeof value.cwd!=='string'||!path.isAbsolute(value.cwd))))throw Error(id+' accepts task delegations, not configuration options');return{...(value.cwd?{cwd:value.cwd}:{})};}
+function createRuntime(options,capabilities){
+ const hostOptions=validateOptions(options);
  let session,position='ready',result=null,task=null,input=null,catalog=null,observation=null,pending=null,sequence=0,turn=0,players=0,children=0;
  const state=()=>({value:position,activeStateIds:[position],stateId:position,tags:position==='done'?[]:[['ready','waiting'].includes(position)?'playbook.parked':'playbook.busy'],status:position==='done'?'done':'active',quiescent:true});
  const suspended=()=>pending?.childSessionId?{callId:pending.call_id,playbookId:pending.workflow,childSessionId:pending.childSessionId,stateId:'waiting',text:pending.text??JSON.stringify(pending.input)}:undefined;
@@ -28,7 +29,7 @@ function createRuntime(_options,capabilities){
  };
  const fail=error=>{
   if(task?.state?.pending){task.state.status='needs_reconciliation';task.save();}
-  return saveResult({status:'blocked',reason:error.message,summary:'Inspect the preserved orchestration and official child/session receipts before continuation. No child was automatically replayed.',task_directory:task?.folder,pending:task?.state?.pending??null});
+  return saveResult({status:'blocked',reason:error.message,summary:task?.state?.pending?'Inspect the preserved orchestration and official child/session receipts before continuation. No child was automatically replayed.':'验收请求未完成：'+error.message,task_directory:task?.folder,pending:task?.state?.pending??null});
  };
  async function acceptChild(value){
   const directory=path.join(task.folder,'calls',pending.call_id);atomicJson(path.join(directory,'result.json'),value);
@@ -100,7 +101,7 @@ function createRuntime(_options,capabilities){
   async handleBossInput({text,signal,onAccepted}){
    if(position!=='ready')throw Error('Use the retained official parent session to resume an interrupted orchestration');onAccepted?.();turn++;await trace('boss.input.received',{text});
    try{
-    input=normalize(JSON.parse(text));
+    input=normalizeBossInput(text,{cwd:hostOptions.cwd,sessionId:session.sessionId,rootSessionId:session.rootSessionId,turn});
     if(input.inspect){const folder=taskLocation(input);return saveResult({status:'inspected',owner:ownerState(folder),task:fs.existsSync(path.join(folder,'state.json'))?compact(read(path.join(folder,'state.json'))):null});}
     task=openTask(input);if(task.cached)return saveResult({...task.cached,reused:true});
     return await plan(signal);
