@@ -1,6 +1,7 @@
-import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import assert from 'node:assert/strict';import {pathToFileURL} from 'node:url';
+import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import assert from 'node:assert/strict';import {pathToFileURL,fileURLToPath} from 'node:url';
 import {buildSpex} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/bin/build-spex.mjs';
 import {installedPackage} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/runtime/installed.mjs';
+import {packageFiles,skillRuntimeRoot} from '../skills/en/app-delivery-acceptance/playbooks/acceptance/runtime/spex-skill-cache.mjs';
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'acceptance-spex-package-')),release=path.join(root,'release');
 const result=await buildSpex({output:release,org:'fixture',version:'0.3.0'}),manifest=JSON.parse(fs.readFileSync(path.join(release,'meta.yaml'))),main=path.join(release,'playbooks/en/acceptance-orchestrate');
 const playbooks=Object.keys(manifest.artifacts).filter(id=>manifest.artifacts[id].kind==='playbook'),skill=path.join(release,'skills/en/app-delivery-acceptance');
@@ -10,17 +11,37 @@ assert.deepEqual([...manifest.artifacts['acceptance-orchestrate'].requires].sort
 assert.deepEqual(manifest.artifacts['app-delivery-acceptance'].requires??[],[],'The independently usable Skill must not hide the native main entry as private support');
 for(const file of ['SKILL.md','scripts/setup.mjs','SPEX-INSTALL.json','playbooks/acceptance/vendor/provenance.json','playbooks/acceptance/npm-shrinkwrap.json'])assert.ok(fs.existsSync(path.join(skill,file)),file);
 assert.equal(fs.existsSync(path.join(skill,'playbooks/acceptance/node_modules')),false);
+assert.equal(manifest.license,'Apache-2.0');
+assert.equal(fs.readFileSync(path.join(release,'LICENSE'),'utf8'),fs.readFileSync(new URL('../LICENSE',import.meta.url),'utf8'));
+const shippedPackage=path.join(skill,'playbooks/acceptance'),sourcePackage=fileURLToPath(new URL('../skills/en/app-delivery-acceptance/playbooks/acceptance/',import.meta.url));
+const sourceManifest=JSON.parse(fs.readFileSync(path.join(sourcePackage,'package.json'))),locked=new Set(Object.values(sourceManifest.dependencies).filter(v=>v.startsWith('file:vendor/')).map(v=>v.slice(5)));
+assert.equal(locked.size,2);
+for(const file of fs.readdirSync(path.join(sourcePackage,'vendor')).filter(f=>f.endsWith('.tgz'))){
+ const relative='vendor/'+file,source=path.join(sourcePackage,relative),target=path.join(shippedPackage,relative);
+ assert.ok(fs.existsSync(source),'Historical source archive must remain: '+file);
+ if(locked.has(relative))assert.deepEqual(fs.readFileSync(target),fs.readFileSync(source));else assert.equal(fs.existsSync(target),false,'Unreferenced archive must not ship: '+file);
+}
+const marker=JSON.parse(fs.readFileSync(path.join(skill,'SPEX-INSTALL.json')));
+assert.deepEqual(marker.package_files,packageFiles(shippedPackage),'Integrity list must describe the filtered release, not the source tree');
+const prepared=skillRuntimeRoot(skill,{cacheBase:path.join(root,'skill-cache')});assert.deepEqual(packageFiles(prepared),packageFiles(shippedPackage));
+assert.match(fs.readFileSync(path.join(release,'README.md'),'utf8'),/Registry/);
 assert.ok(fs.existsSync(path.join(main,'runtime/vendor/picomatch/index.js')));
 // UI format checking is supplied from the actual SPEX host build; it is not a
 // workflow dependency and must run before adding host engine links below.
 const formatIndex=process.argv.indexOf('--spex-format');
 if(formatIndex>=0){
- const {readRelease,providedArtifacts}=await import(pathToFileURL(path.resolve(process.argv[formatIndex+1])));
+ const formatUrl=pathToFileURL(path.resolve(process.argv[formatIndex+1]));
+ const {readRelease,providedArtifacts,readPublishableRelease}=await import(formatUrl);
  const checked=await readRelease(release);assert.equal(Object.keys(checked.manifest.artifacts).length,32);
  const provided=providedArtifacts(checked.manifest);
  assert.equal([...provided].filter(id=>checked.manifest.artifacts[id].kind==='playbook').length,31,'Real SPEX discovery must expose all native entries');
  assert.ok(provided.has('acceptance-orchestrate'),'The main workflow must be publicly enableable');
  assert.ok(provided.has('app-delivery-acceptance'),'The real Skill must be independently exportable');
+ const publishable=await readPublishableRelease(release);
+ const {packRelease,unpackRelease}=await import(new URL('archive.js',formatUrl));
+ const archive=packRelease(release,publishable.manifest,publishable.files);
+ assert.ok(archive.byteLength<=5*1024*1024,'The actual SPEX publish archive exceeds the Registry limit');
+ assert.deepEqual(unpackRelease(archive,manifest.name).issues,[]);
 }
 for(const id of playbooks){
  const folder=path.join(release,'playbooks/en',id);fs.mkdirSync(path.join(folder,'node_modules/@sublang'),{recursive:true});

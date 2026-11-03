@@ -7,9 +7,12 @@
 
 ## SPEX 安装
 
+已发布版本可在 SPEX APP 的项目 → Packages → Add… → Registry 搜索 `yangbobo2021/app-delivery-acceptance`，选择版本后添加。
+公开包的安装不需要包平台登录、GitHub 地址或手工拷贝。
+
 SPEX 安装内容由本仓库的明确源码提交构建到独立的 [安装仓库](https://github.com/yangbobo2021/app-delivery-acceptance-spex)。
 不要将本开发仓库的根目录当作 SPEX 的发布包目录。
-安装仓库的 README 提供包名、分支和目录信息；其来源记录应标明本仓库的提交与文件摘要。
+安装仓库的 README 同时提供 Registry 安装和 Git 备用安装方式；其来源记录标明本仓库的提交与文件摘要。
 通过同一次 SPEX 安装可获得真实 `app-delivery-acceptance` Skill 和 31 个原生 Playbook。
 
 安装后，在 SPEX 中启用 `acceptance-orchestrate` 及任务所需子规程，为各角色绑定实际 Agent/模型和独立 Player。
@@ -51,6 +54,13 @@ node scripts/build-distribution.mjs --output /absolute/new-release-directory
 
 该命令生成一个新目录及源码来源记录，不推送 Git、不发布注册表、不修改源码仓库。
 分发内容不包含发布者的登录、node_modules 或本机执行证据。
+构建仅将清单和依赖锁实际引用的本地依赖归档带入 Skill，历史归档保留在源码仓库。
+`SPEX-INSTALL.json` 在文件筛选完成后自动记录实际发布的运行包文件及哈希，不需开发者手工维护。
+
+## 许可证
+
+本项目按 [Apache-2.0](LICENSE) 发布。
+随附第三方代码和依赖保留各自的许可与来源记录；`LICENSE.spex` 保留 SPEX 框架的许可文本。
 
 ## 业务入口与证据
 

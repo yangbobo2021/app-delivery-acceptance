@@ -16,7 +16,7 @@
     "smol-toml": "1.9.1",
     "xstate": "5.33.2"
   },
-  "version": "0.4.16",
+  "version": "0.4.17",
   "description": "Standalone delivery acceptance workflows for the official Playbook CLI",
   "files": [
     "root.mjs",
@@ -28,7 +28,8 @@
     "docs",
     "vendor",
     "README.md",
-    "npm-shrinkwrap.json"
+    "npm-shrinkwrap.json",
+    "LICENSE"
   ],
   "scripts": {
     "prepare:runtime": "node runtime/dependencies.mjs",
@@ -41,5 +42,6 @@
   "bundleDependencies": [
     "@sublang/cligent",
     "@sublang/playbook"
-  ]
+  ],
+  "license": "Apache-2.0"
 }
