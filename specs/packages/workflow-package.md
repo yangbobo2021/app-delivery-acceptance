@@ -98,7 +98,31 @@
 
 当宿主取消确定性工作流操作时，工作流应将宿主取消与内部操作取消共同传递到正在执行的操作，保留原始准备及中断证据而不继续启动后续工作。
 
+### workflow-package-39
+
+当构建 Registry 发布包时，构建入口应从独立运行包的明确许可声明及非空许可证文本生成发布清单和随包许可证，缺失时在写入发布目录前拒绝，第三方许可保留原样 [DR-030](../decisions/030-registry-release-artifacts.md)。
+
+### workflow-package-40
+
+当选择发布 Skill 的本地依赖归档时，构建入口应仅复制包清单或依赖锁实际引用的可移植 `vendor/` 归档，包括锁中的传递引用，保留其原字节及开发源码中的历史归档，并在引用缺失或不合法时拒绝输出 [DR-030](../decisions/030-registry-release-artifacts.md)。
+
+### workflow-package-41
+
+当复制和筛选 Skill 发布文件完成时，构建入口应自动生成覆盖实际发布运行包文件及内容哈希的 `SPEX-INSTALL.json`，使既有校验和独立缓存选择匹配发布内容而无需人工维护文件清单 [DR-030](../decisions/030-registry-release-artifacts.md)。
+
+### workflow-package-43
+
+当生成安装说明时，构建入口应优先说明在 SPEX 的 Registry 中按包名选择已发布版本安装，明确公开安装无需 GitHub 地址或手工拷贝，并保留 Git 备用方式且不把构建成功描述为已发布 [DR-030](../decisions/030-registry-release-artifacts.md)。
+
 ## 验证
+
+### workflow-package-42
+
+当集成测试从实际源码构建发布 Skill 时，测试应核对许可声明与文本 [[workflow-package-39](#workflow-package-39)]、锁定归档的原字节和历史归档排除及缺失或非法引用拒绝 [[workflow-package-40](#workflow-package-40)]、发布后生成清单与实际文件完全一致及独立缓存准备 [[workflow-package-41](#workflow-package-41)]，并通过真实 SPEX 发布打包入口核对发布校验和压缩包不超过 5 MiB [spex_package.integration.mjs](../../tests/spex_package.integration.mjs) [distribution_source.integration.mjs](../../tests/distribution_source.integration.mjs)。
+
+### workflow-package-44
+
+当集成测试从干净 Git 提交生成分发说明时，测试应核对 Registry 按包名安装与 Git 备用说明均存在且构建不隐含发布 [[workflow-package-43](#workflow-package-43)] [distribution_source.integration.mjs](../../tests/distribution_source.integration.mjs)。
 
 ### workflow-package-38
 

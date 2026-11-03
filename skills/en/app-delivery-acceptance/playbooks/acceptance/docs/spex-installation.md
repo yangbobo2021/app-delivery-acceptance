@@ -9,7 +9,11 @@ node scripts/build-distribution.mjs --output /absolute/new-release
 
 产物是一个 format-2 包，包含独立公开的真实 `app-delivery-acceptance` Skill 与 31 个原生 Playbook。两类入口来自同一份业务源码；Playbook 之间的同类 `requires` 保留原生选择闭包，不以跨类型相互依赖隐藏主入口或 Skill，默认安装完整包同时提供两种入口。原生入口使用 SPEX 引擎，Skill 保留自己完整的锁定 CLI 与 vendor 资源。安装者不手工复制 Skill 或设置工作流 overlay。
 
-把产物目录放在用户项目中，例如 `spex-packages/delivery-acceptance`；从 SPEX UI 的“规程 → 从文件夹添加”填写包名及项目内相对目录。安装后，SPEX 会把真实 Skill 导出到该项目的 `.agents/skills/app-delivery-acceptance`，在该项目中新开 Codex 回合可使用 `$app-delivery-acceptance`。这是项目级安装；用户组安装及同名已有目录的保留规则继续由 SPEX 决定。注册表正式发布、鉴权和跨机器下载须另行验证。
+已发布版本：在 SPEX APP 的项目 → Packages → Add… → Registry 搜索 `yangbobo2021/app-delivery-acceptance`，选择版本后添加。公开包无需包平台登录、GitHub 地址或手工拷贝。
+
+开发者也可把构建产物放在用户项目中，例如 `spex-packages/delivery-acceptance`，通过 Packages → Add… → Folder 添加；Git 安装可使用独立安装仓库。安装后，SPEX 将真实 Skill 导出到该项目的 `.agents/skills/app-delivery-acceptance`，在该项目中新开 Codex 回合使用 `$app-delivery-acceptance`。这是项目级安装；用户组安装及同名已有目录的保留规则继续由 SPEX 决定。
+
+发布包带有 Apache-2.0 声明及许可证。构建保留 `package.json` 和 `npm-shrinkwrap.json` 实际引用的本地依赖归档，历史快照只保留在开发源码；复制和筛选完成后，自动生成 `SPEX-INSTALL.json`。其中 `package_files` 是 `playbooks/acceptance` 实际发布文件的 SHA-256 清单，同时作为独立缓存的内容标识。构建不自动上传或更改平台限制；Registry 当前压缩包上限为 5 MiB，应使用实际 SPEX 发布打包入口检查。发布、鉴权、下载与实际业务执行仍须分别保留本轮证据，构建成功不代表已发布或跨机器验收通过。
 
 SPEX 内启用 `acceptance-orchestrate` 与任务所需子入口，并为不同职责绑定独立 Player，选择实际 Agent/model/effort。文件安装不会自动启用全部工作流。原生执行无需 npm。
 

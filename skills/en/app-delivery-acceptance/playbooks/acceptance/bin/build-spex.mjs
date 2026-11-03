@@ -12,6 +12,23 @@ export async function buildSpex({output,org='sublang',name='delivery-acceptance'
  if(!output||!portableName(org)||!portableName(name)||!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version))throw Error('A new output folder, portable org/name and semantic version are required');
  const destination=path.resolve(output);if(fs.existsSync(destination))throw Error('Output already exists: '+destination);
  if(destination===packageRoot||destination.startsWith(packageRoot+path.sep))throw Error('Build outside the source package');
+ const sourceManifest=JSON.parse(fs.readFileSync(path.join(packageRoot,'package.json')));
+ const licenseFile=path.join(packageRoot,'LICENSE');
+ if(typeof sourceManifest.license!=='string'||!sourceManifest.license.trim()||!fs.existsSync(licenseFile)||!fs.readFileSync(licenseFile,'utf8').trim())throw Error('Release requires the package license declaration and LICENSE text');
+ // Keep every local archive referenced by the manifest or lock, including
+ // transitive lock entries. Historical snapshots stay in the source tree.
+ const lockedArchives=new Set();
+ function collectArchives(value){
+  if(typeof value==='string'&&value.startsWith('file:')){
+   const relative=value.slice(5);
+   if(!relative.startsWith('vendor/')||!relative.endsWith('.tgz')||relative.includes('\\')||path.posix.normalize(relative)!==relative)throw Error('Local release dependency must be a portable vendor archive: '+value);
+   const archive=path.join(packageRoot,...relative.split('/'));
+   if(!fs.existsSync(archive)||!fs.lstatSync(archive).isFile())throw Error('Missing locked dependency archive: '+relative);
+   lockedArchives.add(relative);
+  }else if(value&&typeof value==='object')for(const child of Object.values(value))collectArchives(child);
+ }
+ collectArchives(sourceManifest);
+ collectArchives(JSON.parse(fs.readFileSync(path.join(packageRoot,'npm-shrinkwrap.json'))));
  const entries=[];for(const folder of fs.readdirSync(path.join(packageRoot,'workflows')).sort()){
   const file=path.join(packageRoot,'workflows',folder,'registry.mjs');if(folder==='native-role'||!fs.existsSync(file))continue;
   const entry=(await import(pathToFileURL(file))).default;entries.push({folder,id:entry.id,roles:entry.requiredRoleIds,policies:entry.rolePolicies??{}});
@@ -40,14 +57,19 @@ export async function buildSpex({output,org='sublang',name='delivery-acceptance'
    artifacts[entry.id]={kind:'playbook',language:'en',requires:entry.id===main?ids.filter(id=>id!==main):[main]};
   }
   const skillFolder=path.join(destination,'skills/en',skillId);
-  fs.cpSync(skillRoot,skillFolder,{recursive:true,filter:file=>!path.relative(skillRoot,file).split(path.sep).some(n=>['node_modules','.git','.runtime-install.lock.d','.DS_Store'].includes(n))});
-  fs.writeFileSync(path.join(skillFolder,'SPEX-INSTALL.json'),JSON.stringify({schema:'acceptance-spex-skill-v1',package:org+'/'+name,package_version:version,package_root:'playbooks/acceptance',package_files:packageFiles(packageRoot)},null,2)+'\n');
+  fs.cpSync(skillRoot,skillFolder,{recursive:true,filter:file=>{
+   if(path.relative(skillRoot,file).split(path.sep).some(n=>['node_modules','.git','.runtime-install.lock.d','.DS_Store'].includes(n)))return false;
+   const relative=path.relative(packageRoot,file).split(path.sep).join('/');
+   return !(relative.startsWith('vendor/')&&relative.endsWith('.tgz')&&!lockedArchives.has(relative));
+  }});
+  // Hash the actual shipped tree after filtering, not the developer's tree.
+  fs.writeFileSync(path.join(skillFolder,'SPEX-INSTALL.json'),JSON.stringify({schema:'acceptance-spex-skill-v1',package:org+'/'+name,package_version:version,package_root:'playbooks/acceptance',package_files:packageFiles(path.join(skillFolder,'playbooks/acceptance'))},null,2)+'\n');
   artifacts[skillId]={kind:'skill',language:'en'};
-  const sourceManifest=JSON.parse(fs.readFileSync(path.join(packageRoot,'package.json')));
-  const manifest={format:2,org,name,version,description:'Delivery acceptance workflows using native SPEX Player and nested Playbook ports',...(sourceManifest.license?{license:sourceManifest.license}:{}),artifacts};
+  const manifest={format:2,org,name,version,description:'Delivery acceptance workflows using native SPEX Player and nested Playbook ports',license:sourceManifest.license,artifacts};
   fs.writeFileSync(path.join(destination,'meta.yaml'),JSON.stringify(manifest,null,2)+'\n');
-  fs.writeFileSync(path.join(destination,'README.md'),'# '+org+'/'+name+'\n\nOne SPEX install supplies the real app-delivery-acceptance Skill and 31 native Playbooks. SPEX exports the Skill to the project .agents/skills folder for external Codex. Start a new Codex turn in that project and use $app-delivery-acceptance. Its setup prepares locked CLI dependencies in a verified external cache; use the returned package_root. Do not install dependencies into SPEX-managed exports.\n\nIn SPEX, enable acceptance-orchestrate and the child workflows required for your task. Bind distinct Players per workflow role and choose your actual Agent/model/effort. Native Playbooks use the SPEX engine and need no npm install.\n\nDelegation and stopping boundaries: playbooks/en/acceptance-orchestrate/docs/orchestration-workflow.md. Task restrictions are Prompt contracts plus workflow file/evidence checks, not a sandbox guarantee. Host metadata not exposed is reported as unavailable.\n');
-  for(const name of ['LICENSE','LICENSE.spex']){const license=path.resolve(packageRoot,'../../../../../',name);if(fs.existsSync(license))fs.copyFileSync(license,path.join(name==='LICENSE'?destination:root,name));}
+  fs.writeFileSync(path.join(destination,'README.md'),'# '+org+'/'+name+'\n\nAfter publishing, open the SPEX app project → Packages → Add… → Registry, search for '+org+'/'+name+', choose a release and Add. Public Registry installation needs no GitHub address or manual copying. Building does not publish the package.\n\nOne SPEX install supplies the real app-delivery-acceptance Skill and 31 native Playbooks. SPEX exports the Skill to the project .agents/skills folder for external Codex. Start a new Codex turn in that project and use $app-delivery-acceptance. Its setup prepares locked CLI dependencies in a verified external cache; use the returned package_root. Do not install dependencies into SPEX-managed exports.\n\nIn SPEX, enable acceptance-orchestrate and the child workflows required for your task. Bind distinct Players per workflow role and choose your actual Agent/model/effort. Native Playbooks use the SPEX engine and need no npm install.\n\nDelegation and stopping boundaries: playbooks/en/acceptance-orchestrate/docs/orchestration-workflow.md. Task restrictions are Prompt contracts plus workflow file/evidence checks, not a sandbox guarantee. Host metadata not exposed is reported as unavailable.\n');
+  fs.copyFileSync(licenseFile,path.join(destination,'LICENSE'));
+  const spexLicense=path.resolve(packageRoot,'../../../../../LICENSE.spex');if(fs.existsSync(spexLicense))fs.copyFileSync(spexLicense,path.join(root,'LICENSE.spex'));
   return{status:'built',path:destination,name:org+'/'+name,version,artifacts:entries,skills:[skillId],model_calls:0,native_npm_install_required:false,skill_runtime_prepared_on_first_use:true};
  }catch(error){error.message+='; inspect the partially written output before retrying';throw error;}
 }

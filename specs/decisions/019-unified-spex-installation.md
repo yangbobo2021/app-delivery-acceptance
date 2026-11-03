@@ -3,6 +3,7 @@
 ## 状态
 
 本决策保持已接受；[DR-026](026-portable-skill-runtime-preparation.md) 扩展了 Mac/Windows Skill 的首次运行时准备与原生 CLI 支持范围。
+[DR-030](030-registry-release-artifacts.md) 将发布 Skill 的依赖资源限定为清单及锁引用的归档，并在文件筛选后生成安装清单，保留全部当前必需资源与缓存校验。
 [DR-025](025-source-and-distribution-repositories.md) 调整了源码主干与安装仓库的组织范围，保留联合安装和托管导出约束。
 [DR-028](028-public-spex-entrypoints.md) 调整了两种公开入口的选择声明：完整包默认联合安装，不以跨类型相互依赖使入口成为内部支撑。
 

@@ -1,12 +1,12 @@
 {
   "name": "app-delivery-acceptance-playbooks",
-  "version": "0.4.16",
+  "version": "0.4.17",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "app-delivery-acceptance-playbooks",
-      "version": "0.4.16",
+      "version": "0.4.17",
       "bundleDependencies": [
         "@sublang/cligent",
         "@sublang/playbook"
@@ -24,7 +24,8 @@
       },
       "engines": {
         "node": ">=22"
-      }
+      },
+      "license": "Apache-2.0"
     },
     "node_modules/@agentclientprotocol/sdk": {
       "version": "1.4.0",
